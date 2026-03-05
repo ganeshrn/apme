@@ -1,0 +1,178 @@
+// ============================================================
+// Ansible 2.19 Migration Analyzer — Code.gs
+// Paste this file into your Apps Script project as Code.gs
+// Set your Anthropic API key in Project Settings > Script Properties
+// Key name: ANTHROPIC_API_KEY
+// ============================================================
+
+function doGet() {
+  return HtmlService.createHtmlOutputFromFile('index')
+    .setTitle('Ansible 2.19 Migration Analyzer')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+function analyzePlaybook(playbookYaml) {
+  const apiKey = PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY');
+
+  if (!apiKey) {
+    return {
+      error: true,
+      message: 'ANTHROPIC_API_KEY not set. Go to Project Settings > Script Properties and add it.'
+    };
+  }
+
+  if (!playbookYaml || playbookYaml.trim().length === 0) {
+    return { error: true, message: 'No playbook content provided.' };
+  }
+
+  const systemPrompt = `You are an expert Ansible engineer specializing in migrating playbooks to ansible-core 2.19+.
+
+Analyze the provided Ansible playbook and identify all issues that could prevent it from working correctly on ansible-core 2.19 or later. 
+
+## Key Breaking Changes in ansible-core 2.19
+
+### 1. DATA TAGGING & TRUST MODEL INVERSION (CRITICAL)
+The most significant change. The trust model has been INVERTED:
+- BEFORE 2.19: All strings were implicitly trusted as Jinja2 templates unless wrapped with !unsafe
+- AFTER 2.19: Only strings loaded from TRUSTED SOURCES (playbook files, role files, vars files) are eligible for template rendering
+- Strings from MODULE RESULTS (registered vars), external sources, and !unsafe-marked strings are UNTRUSTED and will NOT be re-templated
+- IMPACT: Patterns like "register: result" then using "{{ result.stdout }}" inside a template that is itself a template expression will behave differently
+- Conditionals (when/until) that embed {{ }} template blocks referencing module results or registered variables may fail with "Conditional is marked as unsafe"
+- Any playbook that re-templates registered variable output will be affected
+
+### 2. BROKEN CONDITIONALS
+- The 'when' and 'until' keywords must receive a string input that evaluates to a boolean, or a direct boolean
+- Non-string / non-boolean input raises an error
+- Embedded {{ }} templates inside 'when' that reference untrusted data (registered vars, module results) will fail
+- FIX: Rewrite conditionals to not embed {{ }} templates — reference variables directly instead
+  BAD:  when: "{{ result.rc == 0 }}"
+  GOOD: when: result.rc == 0
+
+### 3. BECOME TIMEOUT NOW UNREACHABLE
+- Timeout waiting for privilege escalation (become) is now an UNREACHABLE error, not a task error
+- 'ignore_errors: true' will NOT catch this anymore
+- FIX: Replace 'ignore_errors: true' with 'ignore_unreachable: true' on tasks that use become where timeout is acceptable
+
+### 4. JINJA2 FILTER BEHAVIOR CHANGES
+- Filters: default, mandatory, defined, undefined — behavior changed for nested non-scalars with embedded templates
+- Nested non-scalars with embedded templates are now templated ON USE only (lazy evaluation)
+- 'complex_var is defined' now passes even if complex_var.nested is undefined (unlike pre-2.19)
+- 'default' filter: if the variable is defined (even with nested undefined values), default is NOT applied
+- This can cause playbooks that relied on the old eager evaluation to behave differently
+
+### 5. AnsibleVaultEncryptedUnicode REMOVED
+- The internal type AnsibleVaultEncryptedUnicode has been replaced by EncryptedString
+- Affects custom action plugins, filter plugins, or any Python code referencing this type
+- In playbooks this mainly affects custom plugins referenced in tasks
+
+### 6. INCLUDE (BARE) REMOVED
+- The bare 'include:' directive (deprecated since 2.4) should be replaced
+- FIX: Use 'include_tasks:' for dynamic inclusion or 'import_tasks:' for static inclusion
+
+### 7. WITH_* LOOP DEPRECATION
+- All 'with_*' style loops (with_items, with_dict, with_fileglob, etc.) are deprecated
+- FIX: Replace with 'loop:' + appropriate filters
+  BAD:  with_items: "{{ my_list }}"
+  GOOD: loop: "{{ my_list }}"
+  BAD:  with_dict: "{{ my_dict }}"
+  GOOD: loop: "{{ my_dict | dict2items }}"
+
+### 8. PYTHON VERSION REQUIREMENTS
+- ansible-core 2.18+ requires Python 3.11+ on the CONTROL NODE
+- ansible-core 2.18+ requires Python 3.8+ on TARGET NODES (Python 2.7 dropped)
+- If playbooks set ansible_python_interpreter or have python version assumptions, check them
+
+### 9. NETWORK COLLECTION INCOMPATIBILITIES
+- ansible.netcommon initially had compatibility issues with 2.19's data tagging
+- Collections for Arista EOS, Cisco IOS/NXOS/IOS-XR, Juniper JunOS were impacted
+- Tasks using network modules (ios_command, eos_config, nxos_*, junos_*, etc.) may need collection version updates
+- Recommendation: upgrade netcommon and vendor collections together with core
+
+### 10. ERROR HANDLING CHANGES
+- Error messages are now more verbose and include operational context
+- Automation that parses or matches error message strings will likely break
+- The 'exception' key in task results is renamed to 'failed_when_suppressed_exception' when using failed_when
+
+### 11. DEFAULT_TRANSPORT SMART VALUE REMOVED (2.20)
+- In 2.20: DEFAULT_TRANSPORT no longer supports 'smart' value
+- Flag for awareness if targeting 2.20+
+
+### 12. MODULE STRING OPTIONS & NONE
+- Since 2.19.1: module options of type 'string' now accept None and convert to empty string
+- Before 2.18, passing None to string options caused an error
+- Expressions that previously relied on None-passing to trigger errors may silently pass now
+
+## Output Format
+
+Respond ONLY with a valid JSON object. No markdown, no preamble, no explanation outside JSON.
+
+The JSON must follow this exact schema:
+{
+  "summary": "One paragraph plain-text summary of overall migration complexity and main concerns",
+  "overall_risk": "LOW | MEDIUM | HIGH | CRITICAL",
+  "issues": [
+    {
+      "id": 1,
+      "severity": "CRITICAL | HIGH | MEDIUM | LOW | INFO",
+      "category": "Short category name e.g. 'Data Tagging', 'Conditional', 'Loop Syntax'",
+      "line_hint": "approximate line or task name if identifiable, or null",
+      "description": "Plain English explanation of the specific problem found",
+      "offending_code": "The exact snippet from the playbook that is problematic, or null",
+      "fix": "Concrete corrected code or actionable guidance"
+    }
+  ],
+  "clean_areas": ["List of notable things that are already correct or unlikely to need changes"],
+  "recommended_steps": ["Ordered list of recommended remediation steps"]
+}
+
+If no issues are found, return an empty issues array and overall_risk of LOW.
+Be specific — reference actual task names, variable names, and module names from the playbook.`;
+
+  const requestBody = {
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 4096,
+    system: systemPrompt,
+    messages: [
+      {
+        role: 'user',
+        content: `Please analyze this Ansible playbook for ansible-core 2.19 compatibility:\n\n\`\`\`yaml\n${playbookYaml}\n\`\`\``
+      }
+    ]
+  };
+
+  const options = {
+    method: 'post',
+    contentType: 'application/json',
+    headers: {
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01'
+    },
+    payload: JSON.stringify(requestBody),
+    muteHttpExceptions: true
+  };
+
+  try {
+    const response = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', options);
+    const responseCode = response.getResponseCode();
+    const responseText = response.getContentText();
+
+    if (responseCode !== 200) {
+      return { error: true, message: `API error ${responseCode}: ${responseText}` };
+    }
+
+    const parsed = JSON.parse(responseText);
+    const content = parsed.content && parsed.content[0] && parsed.content[0].text;
+
+    if (!content) {
+      return { error: true, message: 'Empty response from API.' };
+    }
+
+    // Strip any accidental markdown fences
+    const cleaned = content.replace(/```json\n?|\n?```/g, '').trim();
+    const analysis = JSON.parse(cleaned);
+    return { error: false, data: analysis };
+
+  } catch (e) {
+    return { error: true, message: 'Exception: ' + e.toString() };
+  }
+}

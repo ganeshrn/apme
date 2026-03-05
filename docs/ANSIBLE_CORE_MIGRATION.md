@@ -1,0 +1,250 @@
+# ansible-core 2.19 / 2.20 migration rules
+
+This document catalogues the breaking changes in ansible-core 2.19 and 2.20, maps each to an APME rule (existing or planned), and describes the detection approach.
+
+## Summary
+
+| # | Breaking change | Severity | Rule | Status |
+|---|----------------|----------|------|--------|
+| 1 | Data tagging — trust model inversion | CRITICAL | M005 | Planned (native) |
+| 2 | Jinja in conditionals (`when: "{{ }}"`) | HIGH | **L015** | **Exists** (OPA) |
+| 3 | Become timeout now unreachable | HIGH | M006 | Planned (OPA) |
+| 4 | Jinja2 filter behavior on nested vars | MEDIUM | M007 | Planned (native) |
+| 5 | `AnsibleVaultEncryptedUnicode` removed | LOW | — | Not codifiable (plugin code) |
+| 6 | Bare `include:` removed | HIGH | M008 | Planned (OPA) |
+| 7 | `with_*` loop deprecation | MEDIUM | M009 | Planned (OPA) |
+| 8 | Python version requirements | MEDIUM | M010 | Planned (native) |
+| 9 | Network collection incompatibilities | MEDIUM | M011 | Planned (OPA) |
+| 10 | Error message string parsing | LOW | M012 | Planned (native) |
+| 11 | `DEFAULT_TRANSPORT: smart` removed (2.20) | LOW | M013 | Planned (native) |
+| 12 | Module string options accept None | LOW | L058/L059 | **Exists** (ansible) |
+
+---
+
+## Detailed breakdown
+
+### 1. Data tagging — trust model inversion (CRITICAL)
+
+**Change**: The trust model is inverted in 2.19. Previously all strings were implicitly trusted as Jinja2 templates unless wrapped with `!unsafe`. Now only strings from trusted sources (playbook files, role files, vars files) are eligible for template rendering. Strings from module results (registered vars), external sources, and `!unsafe`-marked strings are untrusted and will not be re-templated.
+
+**Impact**: Any playbook that registers a variable and then uses it inside a Jinja2 template expression will behave differently. Conditionals that embed `{{ }}` blocks referencing registered variables may fail with "Conditional is marked as unsafe."
+
+**Detection**: Native rule on scandata. The engine already tracks variable definitions (`register`, `set_fact`) and usages. Detect patterns where a registered variable is referenced inside a `{{ }}` expression in a subsequent task's template context (e.g., `"{{ result.stdout }}"` in a `when`, `template`, `lineinfile`, or `debug msg`).
+
+**Example violation**:
+```yaml
+- name: Get hostname
+  ansible.builtin.command: hostname
+  register: result
+
+- name: Show hostname
+  ansible.builtin.debug:
+    msg: "Hostname is {{ result.stdout }}"  # 2.19: result.stdout is untrusted
+```
+
+**Rule**: M005 (planned, native)
+
+---
+
+### 2. Jinja in conditionals (HIGH)
+
+**Change**: `when` and `until` should not contain embedded `{{ }}` template expressions.
+
+**Detection**: Already covered by **L015** (OPA, `no-jinja-when`). Detects `{{ }}` inside `when` values.
+
+**Example violation**:
+```yaml
+- name: Check result
+  ansible.builtin.debug:
+    msg: ok
+  when: "{{ result.rc == 0 }}"    # L015 fires
+```
+
+**Fix**: `when: result.rc == 0`
+
+**Rule**: L015 (exists, OPA)
+
+---
+
+### 3. Become timeout now unreachable (HIGH)
+
+**Change**: Timeout waiting for privilege escalation (`become`) is now an `UNREACHABLE` error, not a task error. `ignore_errors: true` will not catch it.
+
+**Detection**: OPA rule. Check for tasks with `become: true` and `ignore_errors: true` but without `ignore_unreachable: true`.
+
+**Example violation**:
+```yaml
+- name: Risky become task
+  ansible.builtin.command: whoami
+  become: true
+  ignore_errors: true           # M006: won't catch become timeout in 2.19+
+```
+
+**Fix**: Add `ignore_unreachable: true` or handle the error differently.
+
+**Rule**: M006 (planned, OPA)
+
+---
+
+### 4. Jinja2 filter behavior on nested vars (MEDIUM)
+
+**Change**: Filters `default`, `mandatory`, `defined`, `undefined` behave differently for nested non-scalars with embedded templates. Nested values are now templated on use (lazy evaluation). `complex_var is defined` passes even if `complex_var.nested` is undefined.
+
+**Detection**: Native rule. Detect `is defined` / `default()` filter usage on variables known to be complex (registered vars, dict/list vars from set_fact). Heuristic — flags patterns likely to be affected.
+
+**Example violation**:
+```yaml
+- name: Check nested
+  ansible.builtin.debug:
+    msg: "{{ complex_var.nested | default('fallback') }}"
+  when: complex_var is defined    # 2.19: passes even if .nested is undefined
+```
+
+**Rule**: M007 (planned, native)
+
+---
+
+### 5. AnsibleVaultEncryptedUnicode removed (LOW)
+
+**Change**: Internal type `AnsibleVaultEncryptedUnicode` replaced by `EncryptedString`. Affects custom action plugins, filter plugins, or Python code referencing this type.
+
+**Detection**: Not codifiable from playbook YAML. Would require inspecting custom plugin Python source code. Out of scope for playbook-level analysis.
+
+**Rule**: None
+
+---
+
+### 6. Bare `include:` removed (HIGH)
+
+**Change**: The bare `include:` directive (deprecated since 2.4) is removed.
+
+**Detection**: OPA rule. Check for tasks using `include` as the module name (not `include_tasks` or `import_tasks`).
+
+**Example violation**:
+```yaml
+- include: tasks/setup.yml       # M008: use include_tasks or import_tasks
+```
+
+**Fix**: Use `include_tasks:` (dynamic) or `import_tasks:` (static).
+
+**Rule**: M008 (planned, OPA)
+
+---
+
+### 7. `with_*` loop deprecation (MEDIUM)
+
+**Change**: All `with_*` style loops (`with_items`, `with_dict`, `with_fileglob`, etc.) are deprecated in favor of `loop:` + filters.
+
+**Detection**: OPA rule. Check task `options` keys for any key starting with `with_`.
+
+**Example violation**:
+```yaml
+- name: Install packages
+  ansible.builtin.yum:
+    name: "{{ item }}"
+    state: present
+  with_items:                     # M009: use loop: instead
+    - httpd
+    - nginx
+```
+
+**Fix**: `loop: ["httpd", "nginx"]`
+
+**Rule**: M009 (planned, OPA)
+
+---
+
+### 8. Python version requirements (MEDIUM)
+
+**Change**: ansible-core 2.18+ requires Python 3.11+ on the control node and Python 3.8+ on target nodes. Python 2.7 is dropped.
+
+**Detection**: Native rule. Check for `ansible_python_interpreter` set to a Python 2.x path (e.g., `/usr/bin/python2`, `/usr/bin/python2.7`) in variables, group_vars, host_vars, or task options.
+
+**Example violation**:
+```yaml
+vars:
+  ansible_python_interpreter: /usr/bin/python2.7   # M010: Python 2 dropped
+```
+
+**Rule**: M010 (planned, native)
+
+---
+
+### 9. Network collection incompatibilities (MEDIUM)
+
+**Change**: `ansible.netcommon` and vendor network collections (EOS, IOS, NXOS, IOS-XR, JunOS) had compatibility issues with 2.19's data tagging.
+
+**Detection**: OPA rule. Check for usage of known affected network modules (`ios_command`, `eos_config`, `nxos_*`, `junos_*`, etc.). Flag as informational — recommend upgrading netcommon and vendor collections alongside core.
+
+**Example violation**:
+```yaml
+- name: Get config
+  cisco.ios.ios_command:          # M011: check collection version for 2.19 compat
+    commands: show running-config
+```
+
+**Rule**: M011 (planned, OPA)
+
+---
+
+### 10. Error message string parsing (LOW)
+
+**Change**: Error messages are more verbose and include operational context. Automation that parses or matches error message strings will break. The `exception` key in task results is renamed to `failed_when_suppressed_exception` when using `failed_when`.
+
+**Detection**: Native rule. Detect `when` or `failed_when` conditions that do string comparison on `result.msg` or `result.exception`.
+
+**Example violation**:
+```yaml
+- name: Check error
+  ansible.builtin.debug:
+    msg: ok
+  when: "'Permission denied' in result.msg"   # M012: error format changed in 2.19
+```
+
+**Rule**: M012 (planned, native)
+
+---
+
+### 11. DEFAULT_TRANSPORT smart removed — 2.20 (LOW)
+
+**Change**: In 2.20, `DEFAULT_TRANSPORT` no longer supports the `smart` value.
+
+**Detection**: Native rule. Check `ansible.cfg` or task-level `connection: smart` settings.
+
+**Example violation**:
+```ini
+# ansible.cfg
+[defaults]
+transport = smart    # M013: 'smart' removed in 2.20
+```
+
+**Rule**: M013 (planned, native)
+
+---
+
+### 12. Module string options accept None (LOW)
+
+**Change**: Since 2.19.1, module options of type `string` now accept `None` and convert to empty string. Previously `None` caused an error.
+
+**Detection**: Already covered by argspec validation (**L058/L059**). These rules validate module arguments against the actual argspec, which includes type checking.
+
+**Rule**: L058, L059 (exists, ansible validator)
+
+---
+
+## Implementation approach
+
+All new M-series rules should be **version-gated**: they only fire when the target `ansible_core_version` is 2.19+ (or 2.20+ for M013). The version is available in the `ValidateRequest` and in `ScanContext`.
+
+**OPA rules** (M006, M008, M009, M011): Add to the Rego bundle. The target version can be passed as `input.ansible_core_version` and checked in the rule guard.
+
+**Native rules** (M005, M007, M010, M012, M013): Add to `validators/native/rules/`. Use `context.scandata` for variable tracking and template pattern detection.
+
+Each rule gets:
+- A colocated test (`*_test.py` or `*_test.rego`)
+- A `.md` doc with violation/pass examples (per [RULE_DOC_FORMAT.md](RULE_DOC_FORMAT.md))
+- An entry in [LINT_RULE_MAPPING.md](LINT_RULE_MAPPING.md)
+
+## Source
+
+This analysis is derived from the ansible-core 2.19 and 2.20 changelogs and migration guides. The original knowledge was captured in `2.20` (a Google Apps Script that used an LLM for migration analysis). This document replaces that approach with deterministic, codified rules.
