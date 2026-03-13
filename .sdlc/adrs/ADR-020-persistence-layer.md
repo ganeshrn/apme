@@ -20,9 +20,20 @@ Two architectural observations shape this decision:
 
 2. **APME scales by running multiple engine pods (ADR-012).** Each pod has its own isolated filesystem. Embedded storage (SQLite, local files) in the engine pod cannot serve a shared dashboard — there is no single source of truth. Persistence must live in a service that aggregates results from all engine pods.
 
+## Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| Embed a database in the engine | Simple deployment, single binary | Engine becomes stateful; doesn't work with multiple pods (ADR-012); mixes concerns |
+| Engine queues and retries events | Guaranteed delivery | Adds state to the engine; retry storms; partial message broker |
+| Fire-ACK with health-gated emission | Engine stays stateless; self-healing; no queuing | Missing data during reporting outages |
+| Message broker between engine and reporting | Guaranteed delivery, decoupled | Adds infrastructure (NATS, Redis); overkill until data completeness is critical |
+
 ## Decision
 
 **No persistence layer yet.** This ADR documents the target architecture so the design is informed rather than reactive when the reporting service is built.
+
+When built, the engine will emit events via gRPC using the **fire-ACK with health-gated emission** model. The reporting service will own all persistence.
 
 ### Target Architecture
 
@@ -74,6 +85,29 @@ Scans that run while the reporting service is unreachable produce no dashboard d
 - The scan result itself is always delivered to the caller (CLI output, gRPC response) — that's the primary path
 - The dashboard shows trends over time; a few missing points during an outage window do not break trend lines
 - If data completeness becomes critical in the future, the architecture can be upgraded to include a message broker (NATS, Redis Streams) between the engine and reporting service without changing the engine's API
+
+## Rationale
+
+- The engine's job is scanning — persistence is a presentation/dashboard concern that belongs in a separate service
+- Multiple engine pods (ADR-012) rule out embedded storage as a shared source of truth
+- Health-gated emission avoids wasted timeouts and keeps the scan path fast
+- The fire-ACK model is the simplest delivery mechanism that self-heals; a message broker can be added later if data completeness becomes critical
+- Missing a few dashboard data points during an outage is acceptable for trend charts — the primary scan result is always delivered to the caller
+
+## Consequences
+
+### Positive
+
+- Engine remains stateless — no database client, no connection strings, no schema knowledge
+- Reporting service can evolve its database schema independently of the engine
+- Scaling is independent: N engine pods, 1 reporting pod
+- Self-healing recovery requires no operator intervention
+
+### Negative
+
+- Dashboard data has gaps during reporting service outages (acceptable trade-off)
+- Adds a new service to the pod topology when implemented
+- The `ScanCompleted` protobuf contract becomes a versioned API surface between engine and reporting service
 
 ## Requirements for the Reporting Service (when built)
 
