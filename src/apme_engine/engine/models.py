@@ -1134,8 +1134,8 @@ class Task(Object, Resolvable):
 
     # FQCN for Module and Role. Or a file path for TaskFile.  resolved later
     resolved_name: str = ""
-    # candidates of resovled_name
-    possible_candidates: list[str] = field(default_factory=list)
+    # candidates of resovled_name — (fqcn, defined_in_path)
+    possible_candidates: list[tuple[str, str]] = field(default_factory=list)
 
     # embed these data when module/role/taskfile are resolved
     module_info: YAMLDict = field(default_factory=dict)
@@ -2048,8 +2048,8 @@ class RoleInPlay(Object, Resolvable):
     collection: str = ""
 
     resolved_name: str = ""  # resolved later
-    # candidates of resovled_name
-    possible_candidates: list[str] = field(default_factory=list)
+    # candidates of resovled_name — (fqcn, defined_in_path)
+    possible_candidates: list[tuple[str, str]] = field(default_factory=list)
 
     annotations: dict[str, YAMLValue] = field(default_factory=dict)
     collections_in_play: list[str] = field(default_factory=list)

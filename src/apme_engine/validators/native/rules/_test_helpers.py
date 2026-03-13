@@ -25,7 +25,7 @@ def make_task_spec(
     defined_in: str = "tasks/main.yml",
     line_num_in_file: list[int] | None = None,
     key: str | None = None,
-    possible_candidates: list[str] | None = None,
+    possible_candidates: list[tuple[str, str]] | None = None,
 ) -> Task:
     """Build a minimal Task spec for rule tests."""
     # Key must be "type rest" (space-separated) for set_call_object_key.

@@ -724,7 +724,7 @@ class TreeLoader:
                         taskcall.module = mod_spec
                         if c_key in from_ram:
                             req_info = from_ram[c_key]
-                            task_spec.possible_candidates = [f"{mod_spec.fqcn} ({req_info})"]
+                            task_spec.possible_candidates = [(mod_spec.fqcn, req_info)]
                         else:
                             task_spec.resolved_name = mod_spec.fqcn
                         task_spec.module_info = {
@@ -737,7 +737,7 @@ class TreeLoader:
                         role_spec = cast(Role, c_obj.spec)
                         if c_key in from_ram:
                             req_info = from_ram[c_key]
-                            task_spec.possible_candidates = [f"{role_spec.fqcn} ({req_info})"]
+                            task_spec.possible_candidates = [(role_spec.fqcn, req_info)]
                         else:
                             task_spec.resolved_name = role_spec.fqcn
                         task_spec.include_info = {
@@ -750,7 +750,7 @@ class TreeLoader:
                         tf_spec = cast(TaskFile, c_obj.spec)
                         if c_key in from_ram:
                             req_info = from_ram[c_key]
-                            task_spec.possible_candidates = [f"{tf_spec.key} ({req_info})"]
+                            task_spec.possible_candidates = [(tf_spec.key, req_info)]
                         else:
                             task_spec.resolved_name = tf_spec.key
                         task_spec.include_info = {

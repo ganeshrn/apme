@@ -1,7 +1,5 @@
 # Colocated tests for R501 (DependencySuggestionRule).
 
-from typing import cast
-
 from apme_engine.validators.native.rules._test_helpers import (
     make_context,
     make_task_call,
@@ -13,12 +11,7 @@ from apme_engine.validators.native.rules.R501_dependency_suggestion import Depen
 def test_R501_fires_when_possible_candidates() -> None:
     spec = make_task_spec(
         module="ansible.builtin.some_unknown",
-        possible_candidates=cast(
-            "list[str]",
-            [
-                ("ansible.builtin.copy", {"type": "galaxy", "name": "ansible.builtin", "version": "2.0.0"}),
-            ],
-        ),
+        possible_candidates=[("ansible.builtin.copy", "/path/to/collection")],
     )
     task = make_task_call(spec)
     ctx = make_context(task)
@@ -30,7 +23,7 @@ def test_R501_fires_when_possible_candidates() -> None:
     assert result.rule is not None and result.rule.rule_id == "R501"
     assert result.detail is not None
     assert result.detail.get("fqcn") == "ansible.builtin.copy"
-    assert "suggestion" in result.detail
+    assert result.detail.get("defined_in") == "/path/to/collection"
 
 
 def test_R501_does_not_fire_when_no_possible_candidates() -> None:

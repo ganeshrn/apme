@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import cast
 
 import grpc
+import grpc.aio
 
 from apme.v1 import common_pb2, validate_pb2, validate_pb2_grpc
 from apme.v1.common_pb2 import File, HealthResponse, RuleTiming, ValidatorDiagnostics
