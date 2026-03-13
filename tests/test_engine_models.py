@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 import pytest
 
 from apme_engine.engine.models import (
@@ -19,7 +21,6 @@ from apme_engine.engine.models import (
     File,
     FileChangeDetail,
     FunctionCondition,
-    JSONSerializable,
     KeyConfigChangeDetail,
     Load,
     LoadType,
@@ -31,15 +32,10 @@ from apme_engine.engine.models import (
     Object,
     ObjectList,
     PackageInstallDetail,
-    Play,
-    Playbook,
     PlaybookFormatError,
-    Resolvable,
     RiskAnnotation,
     RiskAnnotationList,
-    Role,
     RoleMetadata,
-    Rule,
     RuleMetadata,
     RuleResult,
     RunTarget,
@@ -47,9 +43,7 @@ from apme_engine.engine.models import (
     Severity,
     SpecMutation,
     Task,
-    TaskCall,
     TaskCallsInTree,
-    TaskFile,
     TaskFileMetadata,
     TaskFormatError,
     Variable,
@@ -57,14 +51,9 @@ from apme_engine.engine.models import (
     VariableDict,
     VariablePrecedence,
     VariableType,
-    ViolationDict,
     YAMLDict,
-    YAMLScalar,
     YAMLValue,
     _convert_to_bool,
-    filter_annotations_by_type,
-    get_annotations_after,
-    search_risk_annotations,
 )
 
 
@@ -88,7 +77,7 @@ class TestJSONSerializable:
     def test_to_json_from_json_round_trip(self) -> None:
         obj = Load(target_name="myproject", target_type="project", path="/some/path")
         json_str = obj.to_json()
-        restored = Load.from_json(json_str)
+        restored = cast(Load, Load.from_json(json_str))
         assert restored.target_name == "myproject"
         assert restored.path == "/some/path"
 
@@ -521,8 +510,9 @@ class TestRiskAnnotation:
         )
         anno = RiskAnnotation.init(DefaultRiskType.FILE_CHANGE, detail)
         assert anno.risk_type == DefaultRiskType.FILE_CHANGE
-        assert anno.path is not None
-        assert anno.path.value == "/tmp/test"
+        path = getattr(anno, "path", None)
+        assert path is not None
+        assert path.value == "/tmp/test"
 
     def test_equal_to(self) -> None:
         a = RiskAnnotation(risk_type="cmd_exec")

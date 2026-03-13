@@ -4,22 +4,12 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 from apme_engine.engine.models import (
-    Load,
     LoadType,
-    Object,
-    ObjectList,
-    Play,
-    Playbook,
-    PlaybookFormatError,
-    Task,
-    TaskCallsInTree,
-    TaskFile,
-    YAMLDict,
 )
 from apme_engine.engine.scanner import Config, SingleScan
 

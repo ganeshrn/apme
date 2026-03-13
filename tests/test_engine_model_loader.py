@@ -37,13 +37,7 @@ SIMPLE_PLAYBOOK_YAML = (
     "        msg: hello\n"
 )
 
-SIMPLE_TASKFILE_YAML = (
-    "---\n"
-    "- name: Copy file\n"
-    "  ansible.builtin.copy:\n"
-    "    src: a.txt\n"
-    "    dest: /tmp/a.txt\n"
-)
+SIMPLE_TASKFILE_YAML = "---\n- name: Copy file\n  ansible.builtin.copy:\n    src: a.txt\n    dest: /tmp/a.txt\n"
 
 
 class TestSafeInt:
@@ -183,7 +177,12 @@ class TestLoadPlay:
                 {"name": "Post task", "ansible.builtin.debug": {"msg": "post"}},
             ],
         }
-        yaml_lines = "---\n- name: Multi-section play\n  hosts: all\n  pre_tasks:\n    - name: Pre task\n      ansible.builtin.debug:\n        msg: pre\n  tasks: []\n  post_tasks:\n    - name: Post task\n      ansible.builtin.debug:\n        msg: post\n"
+        yaml_lines = (
+            "---\n- name: Multi-section play\n  hosts: all\n  pre_tasks:\n"
+            "    - name: Pre task\n      ansible.builtin.debug:\n        msg: pre\n"
+            "  tasks: []\n  post_tasks:\n    - name: Post task\n"
+            "      ansible.builtin.debug:\n        msg: post\n"
+        )
         play = load_play(path="pb.yml", index=0, play_block_dict=play_dict, yaml_lines=yaml_lines)
         assert isinstance(play, Play)
         assert len(play.pre_tasks) > 0
@@ -198,7 +197,11 @@ class TestLoadPlay:
                 {"name": "restart svc", "ansible.builtin.service": {"name": "svc", "state": "restarted"}},
             ],
         }
-        yaml_lines = "---\n- name: Handler play\n  hosts: all\n  tasks: []\n  handlers:\n    - name: restart svc\n      ansible.builtin.service:\n        name: svc\n        state: restarted\n"
+        yaml_lines = (
+            "---\n- name: Handler play\n  hosts: all\n  tasks: []\n  handlers:\n"
+            "    - name: restart svc\n      ansible.builtin.service:\n"
+            "        name: svc\n        state: restarted\n"
+        )
         play = load_play(path="pb.yml", index=0, play_block_dict=play_dict, yaml_lines=yaml_lines)
         assert len(play.handlers) > 0
 
@@ -236,7 +239,10 @@ class TestLoadTask:
             "ansible.builtin.debug": {"msg": "{{ item }}"},
             "loop": ["a", "b", "c"],
         }
-        yaml_lines = "---\n- name: Loop task\n  ansible.builtin.debug:\n    msg: '{{ item }}'\n  loop:\n    - a\n    - b\n    - c\n"
+        yaml_lines = (
+            "---\n- name: Loop task\n  ansible.builtin.debug:\n    msg: '{{ item }}'\n"
+            "  loop:\n    - a\n    - b\n    - c\n"
+        )
         task = load_task(path="tasks/main.yml", index=0, task_block_dict=task_dict, yaml_lines=yaml_lines)
         assert isinstance(task, Task)
 

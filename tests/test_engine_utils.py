@@ -5,10 +5,12 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from apme_engine.engine.models import YAMLDict
 from apme_engine.engine.utils import (
     bool_values,
     bool_values_false,
@@ -160,11 +162,11 @@ class TestGetRoleMetadata:
     def test_reads_meta_main(self, tmp_path: Path) -> None:
         meta_dir = tmp_path / "meta"
         meta_dir.mkdir()
-        meta_main = {"galaxy_info": {"author": "tester"}, "dependencies": []}
         (meta_dir / "main.yml").write_text("galaxy_info:\n  author: tester\ndependencies: []\n")
         result = get_role_metadata(str(tmp_path))
         assert result is not None
-        assert result["galaxy_info"]["author"] == "tester"
+        galaxy_info = result.get("galaxy_info")
+        assert isinstance(galaxy_info, dict) and galaxy_info.get("author") == "tester"
 
     def test_no_meta_dir(self, tmp_path: Path) -> None:
         result = get_role_metadata(str(tmp_path))
@@ -323,9 +325,7 @@ class TestShowAllRamMetadata:
 
 class TestDiffFilesData:
     def test_created(self) -> None:
-        files1: dict[str, object] = {
-            "files": [{"ftype": "file", "name": "new.yml", "chksum_sha256": "aaa"}]
-        }
+        files1: dict[str, object] = {"files": [{"ftype": "file", "name": "new.yml", "chksum_sha256": "aaa"}]}
         files2: dict[str, object] = {"files": []}
         diffs = diff_files_data(files1, files2)
         assert len(diffs) == 1
@@ -333,38 +333,26 @@ class TestDiffFilesData:
 
     def test_deleted(self) -> None:
         files1: dict[str, object] = {"files": []}
-        files2: dict[str, object] = {
-            "files": [{"ftype": "file", "name": "old.yml", "chksum_sha256": "bbb"}]
-        }
+        files2: dict[str, object] = {"files": [{"ftype": "file", "name": "old.yml", "chksum_sha256": "bbb"}]}
         diffs = diff_files_data(files1, files2)
         assert len(diffs) == 1
         assert diffs[0]["type"] == "deleted"
 
     def test_updated(self) -> None:
-        files1: dict[str, object] = {
-            "files": [{"ftype": "file", "name": "changed.yml", "chksum_sha256": "new_hash"}]
-        }
-        files2: dict[str, object] = {
-            "files": [{"ftype": "file", "name": "changed.yml", "chksum_sha256": "old_hash"}]
-        }
+        files1: dict[str, object] = {"files": [{"ftype": "file", "name": "changed.yml", "chksum_sha256": "new_hash"}]}
+        files2: dict[str, object] = {"files": [{"ftype": "file", "name": "changed.yml", "chksum_sha256": "old_hash"}]}
         diffs = diff_files_data(files1, files2)
         assert len(diffs) == 1
         assert diffs[0]["type"] == "updated"
 
     def test_no_diff(self) -> None:
-        files1: dict[str, object] = {
-            "files": [{"ftype": "file", "name": "same.yml", "chksum_sha256": "aaa"}]
-        }
-        files2: dict[str, object] = {
-            "files": [{"ftype": "file", "name": "same.yml", "chksum_sha256": "aaa"}]
-        }
+        files1: dict[str, object] = {"files": [{"ftype": "file", "name": "same.yml", "chksum_sha256": "aaa"}]}
+        files2: dict[str, object] = {"files": [{"ftype": "file", "name": "same.yml", "chksum_sha256": "aaa"}]}
         diffs = diff_files_data(files1, files2)
         assert len(diffs) == 0
 
     def test_non_file_ftype_ignored(self) -> None:
-        files1: dict[str, object] = {
-            "files": [{"ftype": "dir", "name": "somedir", "chksum_sha256": ""}]
-        }
+        files1: dict[str, object] = {"files": [{"ftype": "dir", "name": "somedir", "chksum_sha256": ""}]}
         files2: dict[str, object] = {"files": []}
         diffs = diff_files_data(files1, files2)
         assert len(diffs) == 0
@@ -400,7 +388,7 @@ class TestGetClassByArgType:
             ("bytes", str),
             ("bits", str),
         ],
-    )
+    )  # type: ignore[untyped-decorator]
     def test_known_types(self, arg_type: str, expected: type[object]) -> None:
         assert get_class_by_arg_type(arg_type) is expected
 
@@ -449,18 +437,22 @@ class TestEqual:
 
 class TestRecursiveCopyDict:
     def test_shallow_copy(self) -> None:
-        src = {"a": 1, "b": "hello"}
-        dst: dict[str, object] = {}
+        src: YAMLDict = {"a": 1, "b": "hello"}
+        dst: YAMLDict = {}
         recursive_copy_dict(src, dst)
         assert dst == {"a": 1, "b": "hello"}
 
     def test_nested_copy(self) -> None:
-        src = {"a": {"b": {"c": 42}}}
-        dst: dict[str, object] = {}
+        src: YAMLDict = {"a": {"b": {"c": 42}}}
+        dst: YAMLDict = {}
         recursive_copy_dict(src, dst)
         assert dst == {"a": {"b": {"c": 42}}}
-        src["a"]["b"]["c"] = 99  # type: ignore[index]
-        assert dst["a"]["b"]["c"] == 42  # type: ignore[index]
+        inner: YAMLDict = cast(YAMLDict, src["a"])
+        inner_b: YAMLDict = cast(YAMLDict, inner["b"])
+        inner_b["c"] = 99
+        dst_a: YAMLDict = cast(YAMLDict, dst["a"])
+        dst_b: YAMLDict = cast(YAMLDict, dst_a["b"])
+        assert dst_b["c"] == 42
 
     def test_non_dict_src_raises(self) -> None:
         with pytest.raises(ValueError, match="only dict"):
@@ -483,11 +475,11 @@ class TestIsTestObject:
 
 
 class TestParseBool:
-    @pytest.mark.parametrize("value", ["y", "yes", "on", "1", "true", "t", True, 1, 1.0])
+    @pytest.mark.parametrize("value", ["y", "yes", "on", "1", "true", "t", True, 1, 1.0])  # type: ignore[untyped-decorator]
     def test_truthy(self, value: object) -> None:
         assert parse_bool(value) is True
 
-    @pytest.mark.parametrize("value", ["n", "no", "off", "0", "false", "f", False, 0, 0.0])
+    @pytest.mark.parametrize("value", ["n", "no", "off", "0", "false", "f", False, 0, 0.0])  # type: ignore[untyped-decorator]
     def test_falsy(self, value: object) -> None:
         assert parse_bool(value) is False
 
@@ -527,12 +519,7 @@ class TestGetDocumentationInModuleFile:
         from apme_engine.engine.utils import get_documentation_in_module_file
 
         module = tmp_path / "mymod.py"
-        module.write_text(
-            'DOCUMENTATION = """\n'
-            "module: mymod\n"
-            "short_description: test\n"
-            '"""\n'
-        )
+        module.write_text('DOCUMENTATION = """\nmodule: mymod\nshort_description: test\n"""\n')
         doc = get_documentation_in_module_file(str(module))
         assert "module: mymod" in doc
 

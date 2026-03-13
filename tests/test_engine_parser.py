@@ -2,18 +2,13 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
 from apme_engine.engine.models import (
     Load,
     LoadType,
-    Object,
-    Playbook,
-    TaskFile,
 )
 from apme_engine.engine.parser import Parser, load_name2target_name
 
@@ -55,7 +50,10 @@ class TestParserRun:
             p.run(load_data=ld)
 
     def test_playbook_only_from_yaml(self, tmp_path: Path) -> None:
-        playbook_yaml = "---\n- name: Test\n  hosts: localhost\n  tasks:\n    - name: Debug\n      ansible.builtin.debug:\n        msg: hello\n"
+        playbook_yaml = (
+            "---\n- name: Test\n  hosts: localhost\n  tasks:\n"
+            "    - name: Debug\n      ansible.builtin.debug:\n        msg: hello\n"
+        )
         pb_path = tmp_path / "test.yml"
         pb_path.write_text(playbook_yaml)
         ld = Load(
@@ -68,7 +66,7 @@ class TestParserRun:
         p = Parser(use_ansible_doc=False)
         result = p.run(load_data=ld)
         assert result is not None
-        definitions, returned_ld = result
+        definitions, _ = result
         assert "playbooks" in definitions
         assert "tasks" in definitions
 
@@ -86,7 +84,7 @@ class TestParserRun:
         p = Parser(use_ansible_doc=False)
         result = p.run(load_data=ld)
         assert result is not None
-        definitions, returned_ld = result
+        definitions, _ = result
         assert "taskfiles" in definitions
 
     def test_load_json_path_not_found_raises(self) -> None:
@@ -109,7 +107,10 @@ class TestParserRun:
 
 class TestParserDumpAndRestore:
     def test_dump_and_restore_round_trip(self, tmp_path: Path) -> None:
-        playbook_yaml = "---\n- name: Test\n  hosts: localhost\n  tasks:\n    - name: Debug\n      ansible.builtin.debug:\n        msg: hello\n"
+        playbook_yaml = (
+            "---\n- name: Test\n  hosts: localhost\n  tasks:\n"
+            "    - name: Debug\n      ansible.builtin.debug:\n        msg: hello\n"
+        )
         pb_path = tmp_path / "test.yml"
         pb_path.write_text(playbook_yaml)
 
