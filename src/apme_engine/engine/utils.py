@@ -192,7 +192,8 @@ def escape_local_path(path: str) -> str:
 
 
 def get_hash_of_url(url: str) -> str:
-    response = httpx.get(url)
+    response = httpx.get(url, follow_redirects=True)
+    response.raise_for_status()
     hash = hashlib.sha256(response.content).hexdigest()
     return hash
 
