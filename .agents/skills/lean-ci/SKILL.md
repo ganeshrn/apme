@@ -39,7 +39,7 @@ locally-runnable commands; CI just calls them.
 | Command | What it does | CI job |
 |---------|-------------|--------|
 | `prek run --all-files` | Lint, format, type check (ruff + mypy) | `prek` workflow |
-| `uv run pytest --cov=src/apme_engine --cov-report=term-missing --cov-fail-under=28` | Test with coverage enforcement | `test` workflow |
+| `uv run pytest --cov=src/apme_engine --cov-report=term-missing --cov-fail-under=36` | Test with coverage enforcement | `test` workflow |
 | `uv sync --extra dev` | Install runtime + dev dependencies | Setup step |
 
 ## Workflow structure

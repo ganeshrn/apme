@@ -56,7 +56,7 @@ exclude_lines = [
     "raise NotImplementedError",
 ]
 show_missing = true
-fail_under = 28
+fail_under = 36
 
 [project.scripts]
 apme-scan = "apme_engine.cli:main"

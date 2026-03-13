@@ -1,0 +1,11 @@
+---
+- name: Copy config file
+  ansible.builtin.copy:
+    src: config.conf
+    dest: /etc/app/config.conf
+    mode: "0644"
+
+- name: Restart service
+  ansible.builtin.service:
+    name: myapp
+    state: restarted

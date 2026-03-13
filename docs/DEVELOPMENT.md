@@ -299,7 +299,7 @@ podman run --rm \
 
 ### Coverage target
 
-Coverage is configured at 28% (`fail_under = 28` in `pyproject.toml`). This is a floor based on current coverage; ratchet it up as tests are added. Rule files under `validators/*/rules/` are excluded from coverage measurement (they have colocated tests instead).
+Coverage is configured at 36% (`fail_under = 36` in `pyproject.toml`). This is a floor based on current coverage; ratchet it up as tests are added. Rule files under `validators/*/rules/` are excluded from coverage measurement (they have colocated tests instead).
 
 ## YAML formatter
 

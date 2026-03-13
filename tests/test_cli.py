@@ -8,7 +8,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import apme_engine.cli as cli_module
-from apme_engine.engine.models import YAMLDict
+from apme_engine.cli import (
+    _deduplicate_violations,
+    _fmt_ms,
+    _sort_violations,
+)
+from apme_engine.engine.models import ViolationDict, YAMLDict
 from apme_engine.validators.base import ScanContext
 
 
@@ -207,3 +212,358 @@ class TestRunScan:
             context = run_scan(str(playbook), str(repo_root), include_scandata=False)
         assert context.hierarchy_payload == sample_hierarchy_payload
         assert context.scandata is None
+
+
+class TestSortViolations:
+    """Tests for _sort_violations helper."""
+
+    def test_sort_by_file_then_line(self) -> None:
+        violations: list[ViolationDict] = [
+            {"rule_id": "r1", "file": "b.yml", "line": 10},
+            {"rule_id": "r2", "file": "a.yml", "line": 5},
+            {"rule_id": "r3", "file": "a.yml", "line": 1},
+        ]
+        result = _sort_violations(violations)
+        assert result[0]["file"] == "a.yml"
+        assert result[0]["line"] == 1
+        assert result[1]["line"] == 5
+        assert result[2]["file"] == "b.yml"
+
+    def test_sort_with_list_line(self) -> None:
+        violations: list[ViolationDict] = [
+            {"rule_id": "r1", "file": "a.yml", "line": [10, 15]},
+            {"rule_id": "r2", "file": "a.yml", "line": [2, 5]},
+        ]
+        result = _sort_violations(violations)
+        assert result[0]["line"] == [2, 5]
+
+    def test_sort_with_none_line(self) -> None:
+        violations: list[ViolationDict] = [
+            {"rule_id": "r1", "file": "a.yml", "line": 5},
+            {"rule_id": "r2", "file": "a.yml", "line": None},
+        ]
+        result = _sort_violations(violations)
+        assert result[0]["line"] is None
+        assert result[1]["line"] == 5
+
+    def test_sort_with_missing_file(self) -> None:
+        violations: list[ViolationDict] = [
+            {"rule_id": "r1", "line": 1},
+            {"rule_id": "r2", "file": "a.yml", "line": 1},
+        ]
+        result = _sort_violations(violations)
+        assert result[0].get("file") is None or result[0].get("file") == ""
+
+    def test_empty_list(self) -> None:
+        assert _sort_violations([]) == []
+
+
+class TestDeduplicateViolations:
+    """Tests for _deduplicate_violations helper."""
+
+    def test_removes_duplicates(self) -> None:
+        violations: list[ViolationDict] = [
+            {"rule_id": "r1", "file": "a.yml", "line": 5},
+            {"rule_id": "r1", "file": "a.yml", "line": 5},
+            {"rule_id": "r2", "file": "a.yml", "line": 5},
+        ]
+        result = _deduplicate_violations(violations)
+        assert len(result) == 2
+
+    def test_keeps_different_lines(self) -> None:
+        violations: list[ViolationDict] = [
+            {"rule_id": "r1", "file": "a.yml", "line": 5},
+            {"rule_id": "r1", "file": "a.yml", "line": 10},
+        ]
+        result = _deduplicate_violations(violations)
+        assert len(result) == 2
+
+    def test_dedup_with_list_line(self) -> None:
+        violations: list[ViolationDict] = [
+            {"rule_id": "r1", "file": "a.yml", "line": [5, 10]},
+            {"rule_id": "r1", "file": "a.yml", "line": [5, 10]},
+        ]
+        result = _deduplicate_violations(violations)
+        assert len(result) == 1
+
+    def test_empty_list(self) -> None:
+        assert _deduplicate_violations([]) == []
+
+
+class TestFmtMs:
+    """Tests for _fmt_ms helper."""
+
+    def test_sub_millisecond(self) -> None:
+        assert _fmt_ms(0.5) == "<1ms"
+
+    def test_milliseconds(self) -> None:
+        assert _fmt_ms(42) == "42ms"
+
+    def test_seconds(self) -> None:
+        assert _fmt_ms(1500) == "1.5s"
+
+    def test_zero(self) -> None:
+        assert _fmt_ms(0) == "<1ms"
+
+    def test_exactly_one_second(self) -> None:
+        assert _fmt_ms(1000) == "1.0s"
+
+    def test_large_value(self) -> None:
+        assert _fmt_ms(65000) == "65.0s"
+
+
+class TestFormatCommand:
+    """Tests for the 'format' subcommand."""
+
+    def test_format_nonexistent_target_exits_1(self) -> None:
+        stderr_io = StringIO()
+        with (
+            patch("sys.stderr", stderr_io),
+            patch("sys.argv", ["apme", "format", "/nonexistent/path"]),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            cli_module.main()
+        assert exc_info.value.code == 1
+        assert "Path not found" in stderr_io.getvalue()
+
+    def test_format_check_no_changes_exits_0(self, tmp_path: Path) -> None:
+        yml = tmp_path / "ok.yml"
+        yml.write_text("---\nname: test\n")
+        mock_result = MagicMock()
+        mock_result.changed = False
+        mock_result.path = yml
+        with (
+            patch("apme_engine.cli.format_file", return_value=mock_result),
+            patch("sys.argv", ["apme", "format", "--check", str(yml)]),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            cli_module.main()
+        assert exc_info.value.code == 0
+
+    def test_format_check_with_changes_exits_1(self, tmp_path: Path) -> None:
+        yml = tmp_path / "bad.yml"
+        yml.write_text("name: test\n")
+        mock_result = MagicMock()
+        mock_result.changed = True
+        mock_result.path = yml
+        with (
+            patch("apme_engine.cli.format_file", return_value=mock_result),
+            patch("sys.stderr", StringIO()),
+            patch("sys.argv", ["apme", "format", "--check", str(yml)]),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            cli_module.main()
+        assert exc_info.value.code == 1
+
+    def test_format_no_changes_prints_message(self, tmp_path: Path) -> None:
+        yml = tmp_path / "ok.yml"
+        yml.write_text("---\nname: test\n")
+        mock_result = MagicMock()
+        mock_result.changed = False
+        stdout_io = StringIO()
+        with (
+            patch("apme_engine.cli.format_file", return_value=mock_result),
+            patch("sys.stdout", stdout_io),
+            patch("sys.argv", ["apme", "format", str(yml)]),
+        ):
+            cli_module.main()
+        assert "already formatted" in stdout_io.getvalue().lower()
+
+    def test_format_apply_writes_files(self, tmp_path: Path) -> None:
+        yml = tmp_path / "fix.yml"
+        yml.write_text("name: test\n")
+        mock_result = MagicMock()
+        mock_result.changed = True
+        mock_result.formatted = "---\nname: test\n"
+        mock_result.path = yml
+        stdout_io = StringIO()
+        with (
+            patch("apme_engine.cli.format_file", return_value=mock_result),
+            patch("sys.stdout", stdout_io),
+            patch("sys.argv", ["apme", "format", "--apply", str(yml)]),
+        ):
+            cli_module.main()
+        assert "reformatted" in stdout_io.getvalue().lower()
+
+    def test_format_directory(self, tmp_path: Path) -> None:
+        mock_result = MagicMock()
+        mock_result.changed = False
+        stdout_io = StringIO()
+        with (
+            patch("apme_engine.cli.format_directory", return_value=[mock_result]),
+            patch("sys.stdout", stdout_io),
+            patch("sys.argv", ["apme", "format", str(tmp_path)]),
+        ):
+            cli_module.main()
+        assert "already formatted" in stdout_io.getvalue().lower()
+
+    def test_format_diff_output(self, tmp_path: Path) -> None:
+        yml = tmp_path / "fix.yml"
+        yml.write_text("name: test\n")
+        mock_result = MagicMock()
+        mock_result.changed = True
+        mock_result.diff = "--- a/fix.yml\n+++ b/fix.yml\n"
+        mock_result.path = yml
+        stdout_io = StringIO()
+        with (
+            patch("apme_engine.cli.format_file", return_value=mock_result),
+            patch("sys.stdout", stdout_io),
+            patch("sys.stderr", StringIO()),
+            patch("sys.argv", ["apme", "format", str(yml)]),
+        ):
+            cli_module.main()
+        assert "---" in stdout_io.getvalue()
+
+
+class TestHealthCheckCommand:
+    """Tests for the 'health-check' subcommand."""
+
+    def test_health_check_no_addr_exits_1(self) -> None:
+        stderr_io = StringIO()
+        with (
+            patch.dict("os.environ", {}, clear=True),
+            patch("sys.stderr", stderr_io),
+            patch("sys.argv", ["apme", "health-check"]),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            cli_module.main()
+        assert exc_info.value.code == 1
+
+    def test_health_check_json_all_ok(self) -> None:
+        mock_results = {
+            "Primary": {"ok": True, "latency_ms": 5.0, "error": None},
+        }
+        stdout_io = StringIO()
+        with (
+            patch("apme_engine.cli.run_health_checks", return_value=mock_results),
+            patch("sys.stdout", stdout_io),
+            patch("sys.argv", ["apme", "health-check", "--primary-addr", "localhost:50051", "--json"]),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            cli_module.main()
+        assert exc_info.value.code == 0
+        data = json.loads(stdout_io.getvalue())
+        assert data["Primary"]["ok"] is True
+
+    def test_health_check_json_with_failure(self) -> None:
+        mock_results = {
+            "Primary": {"ok": False, "latency_ms": None, "error": "connection refused"},
+        }
+        stdout_io = StringIO()
+        with (
+            patch("apme_engine.cli.run_health_checks", return_value=mock_results),
+            patch("sys.stdout", stdout_io),
+            patch("sys.argv", ["apme", "health-check", "--primary-addr", "localhost:50051", "--json"]),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            cli_module.main()
+        assert exc_info.value.code == 1
+
+    def test_health_check_text_output(self) -> None:
+        mock_results = {
+            "Primary": {"ok": True, "latency_ms": 3.2, "error": None},
+            "Native": {"ok": False, "latency_ms": None, "error": "timeout"},
+        }
+        stdout_io = StringIO()
+        with (
+            patch("apme_engine.cli.run_health_checks", return_value=mock_results),
+            patch("sys.stdout", stdout_io),
+            patch("sys.argv", ["apme", "health-check", "--primary-addr", "localhost:50051"]),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            cli_module.main()
+        assert exc_info.value.code == 1
+        out = stdout_io.getvalue()
+        assert "Primary: ok" in out
+        assert "Native: fail" in out
+        assert "overall: fail" in out
+
+
+class TestCacheCommand:
+    """Tests for the 'cache' subcommand."""
+
+    def test_cache_pull_galaxy(self, tmp_path: Path) -> None:
+        stdout_io = StringIO()
+        with (
+            patch("apme_engine.cli.pull_galaxy_collection") as mock_pull,
+            patch("sys.stdout", stdout_io),
+            patch(
+                "sys.argv",
+                ["apme", "cache", "--cache-root", str(tmp_path), "pull-galaxy", "ns.col"],
+            ),
+        ):
+            cli_module.main()
+        mock_pull.assert_called_once()
+        assert "Installed ns.col" in stdout_io.getvalue()
+
+    def test_cache_pull_requirements(self, tmp_path: Path) -> None:
+        stdout_io = StringIO()
+        req_file = tmp_path / "requirements.yml"
+        req_file.write_text("---\ncollections: []\n")
+        with (
+            patch("apme_engine.cli.pull_galaxy_requirements") as mock_pull,
+            patch("sys.stdout", stdout_io),
+            patch(
+                "sys.argv",
+                ["apme", "cache", "--cache-root", str(tmp_path), "pull-requirements", str(req_file)],
+            ),
+        ):
+            cli_module.main()
+        mock_pull.assert_called_once()
+        assert "Installed requirements" in stdout_io.getvalue()
+
+    def test_cache_clone_org(self, tmp_path: Path) -> None:
+        stdout_io = StringIO()
+        with (
+            patch("apme_engine.cli.pull_github_org") as mock_pull,
+            patch("sys.stdout", stdout_io),
+            patch(
+                "sys.argv",
+                ["apme", "cache", "--cache-root", str(tmp_path), "clone-org", "ansible"],
+            ),
+        ):
+            cli_module.main()
+        mock_pull.assert_called_once()
+        assert "Cloned org ansible" in stdout_io.getvalue()
+
+    def test_cache_clone_org_with_repos(self, tmp_path: Path) -> None:
+        stdout_io = StringIO()
+        with (
+            patch("apme_engine.cli.pull_github_repos") as mock_pull,
+            patch("sys.stdout", stdout_io),
+            patch(
+                "sys.argv",
+                ["apme", "cache", "--cache-root", str(tmp_path), "clone-org", "ansible", "--repos", "repo1", "repo2"],
+            ),
+        ):
+            cli_module.main()
+        mock_pull.assert_called_once()
+
+
+class TestFixCommand:
+    """Tests for the 'fix' subcommand."""
+
+    def test_fix_nonexistent_target_exits_1(self) -> None:
+        stderr_io = StringIO()
+        with (
+            patch("sys.stderr", stderr_io),
+            patch("sys.argv", ["apme", "fix", "/nonexistent/path"]),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            cli_module.main()
+        assert exc_info.value.code == 1
+        assert "Path not found" in stderr_io.getvalue()
+
+    def test_fix_check_no_changes_exits_0(self, tmp_path: Path) -> None:
+        yml = tmp_path / "ok.yml"
+        yml.write_text("---\nname: test\n")
+        mock_result = MagicMock()
+        mock_result.changed = False
+        with (
+            patch("apme_engine.cli.format_file", return_value=mock_result),
+            patch("sys.stderr", StringIO()),
+            patch("sys.argv", ["apme", "fix", "--check", str(yml)]),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            cli_module.main()
+        assert exc_info.value.code == 0

@@ -112,7 +112,7 @@ pip install -e ".[dev]"
 pytest
 
 # With coverage
-pytest --cov=src/apme_engine --cov-report=term-missing --cov-fail-under=28
+pytest --cov=src/apme_engine --cov-report=term-missing --cov-fail-under=36
 
 # End-to-end integration (requires Podman + built images)
 pytest -m integration tests/integration/test_e2e.py

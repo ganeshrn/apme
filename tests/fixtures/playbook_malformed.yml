@@ -1,0 +1,6 @@
+---
+not_a_playbook:
+  key: value
+  nested:
+    - item1
+    - item2

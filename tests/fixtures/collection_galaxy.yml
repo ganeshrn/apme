@@ -1,0 +1,13 @@
+---
+namespace: testns
+name: testcol
+version: 1.0.0
+readme: README.md
+authors:
+  - Test Author
+description: A test collection
+license:
+  - GPL-3.0-or-later
+repository: https://github.com/test/testcol
+dependencies:
+  ansible.utils: ">=2.0.0"

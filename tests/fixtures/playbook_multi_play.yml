@@ -1,0 +1,17 @@
+---
+- name: First play
+  hosts: webservers
+  tasks:
+    - name: Install nginx
+      ansible.builtin.package:
+        name: nginx
+        state: present
+
+- name: Second play
+  hosts: databases
+  become: true
+  tasks:
+    - name: Start postgres
+      ansible.builtin.service:
+        name: postgresql
+        state: started
