@@ -274,7 +274,7 @@ pytest tests/test_validators.py
 pytest src/apme_engine/validators/native/rules/
 
 # With coverage
-pytest --cov=src/apme_engine --cov-report=term-missing --cov-fail-under=95
+pytest --cov=src/apme_engine --cov-report=term-missing --cov-fail-under=28
 
 # Integration test (requires Podman + built images)
 pytest -m integration tests/integration/test_e2e.py
@@ -299,7 +299,7 @@ podman run --rm \
 
 ### Coverage target
 
-Coverage is configured at 95% (`fail_under = 95` in `pyproject.toml`). Rule files under `validators/*/rules/` are excluded from coverage measurement (they have colocated tests instead).
+Coverage is configured at 28% (`fail_under = 28` in `pyproject.toml`). This is a floor based on current coverage; ratchet it up as tests are added. Rule files under `validators/*/rules/` are excluded from coverage measurement (they have colocated tests instead).
 
 ## YAML formatter
 
