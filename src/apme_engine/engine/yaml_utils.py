@@ -4,14 +4,17 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
 from io import StringIO
 from pathlib import Path
+from re import Pattern
 from typing import TYPE_CHECKING, cast
 
-from ruamel.yaml.comments import CommentedMap, CommentedSeq
+import ruamel.yaml.events
+from ruamel.yaml.comments import CommentedMap, CommentedSeq, Format
 from ruamel.yaml.composer import ComposerError
 from ruamel.yaml.constructor import RoundTripConstructor
-from ruamel.yaml.emitter import Emitter
+from ruamel.yaml.emitter import Emitter, ScalarAnalysis
 
 # Module 'ruamel.yaml' does not explicitly export attribute 'YAML'; implicit reexport disabled
 # To make the type checkers happy, we import from ruamel.yaml.main instead.
@@ -27,6 +30,36 @@ if TYPE_CHECKING:
     from ruamel.yaml.compat import StreamTextType
     from ruamel.yaml.nodes import ScalarNode
     from ruamel.yaml.representer import RoundTripRepresenter
+    from ruamel.yaml.tokens import CommentToken
+
+
+def _nested_items_path(
+    data_collection: dict[object, object] | list[object],
+    parent_path: list[str | int] | None = None,
+) -> Iterator[tuple[object, object, list[str | int]]]:
+    """Iterate a nested data structure, yielding key/index, value, and parent_path.
+
+    Args:
+        data_collection: Dict or list to walk recursively.
+        parent_path: Accumulated path of keys/indices from the root.
+
+    Yields:
+        (object, object, list[str | int]): Tuples of (key_or_index, value, parent_path).
+    """
+    if data_collection is None:
+        return
+    if parent_path is None:
+        parent_path = []
+    if isinstance(data_collection, dict):
+        items: Iterator[tuple[object, object]] = iter(data_collection.items())
+    elif isinstance(data_collection, list):
+        items = iter(enumerate(data_collection))
+    else:
+        return
+    for key, value in items:
+        yield key, value, parent_path
+        if isinstance(value, dict | list):
+            yield from _nested_items_path(value, [*parent_path, cast(str | int, key)])
 
 
 class OctalIntYAML11(ScalarInt):  # type: ignore[misc]
@@ -117,7 +150,7 @@ class CustomConstructor(RoundTripConstructor):  # type: ignore[misc]
                     underscore=underscore,
                     anchor=node.anchor,
                 )
-        return ret
+        return cast(int | HexInt | OctalIntYAML11, ret)
 
 
 CustomConstructor.add_constructor(
@@ -158,26 +191,251 @@ class FormattedEmitter(Emitter):  # type: ignore[misc]
 
     _in_empty_flow_map = False
 
-    @staticmethod
-    def drop_octothorpe_protection(line: str) -> str:
-        """Remove octothorpe protection added during processing.
+    @property
+    def _is_root_level_sequence(self) -> bool:
+        """Return True if this is a sequence at the root level of the yaml document."""
+        return self.column < 2 and self._root_is_sequence
 
-        ruamel.yaml uses a special prefix to protect '#' characters in
-        strings from being treated as comments during post-processing.
-        This strips that protection in the final output.
+    def expect_document_root(self) -> None:
+        """Expect doc root (extend to record if the root doc is a sequence)."""
+        self._root_is_sequence = isinstance(
+            self.event,
+            ruamel.yaml.events.SequenceStartEvent,
+        )
+        super().expect_document_root()
+
+    # NB: mypy does not support overriding attributes with properties yet:
+    #     https://github.com/python/mypy/issues/4125
+    #     To silence we have to ignore[override] both the @property and the method.
+
+    @property
+    def best_sequence_indent(self) -> int:
+        """Return the configured sequence_indent or 2 for root level."""
+        return 2 if self._is_root_level_sequence else self._sequence_indent
+
+    @best_sequence_indent.setter
+    def best_sequence_indent(self, value: int) -> None:
+        """Configure how many columns to indent each sequence item (including the '-').
 
         Args:
-            line: Input line that may contain octothorpe protection.
+            value: Number of columns to indent each sequence item.
+        """
+        self._sequence_indent = value
+
+    @property
+    def sequence_dash_offset(self) -> int:
+        """Return the configured sequence_dash_offset or 0 for root level."""
+        return 0 if self._is_root_level_sequence else self._sequence_dash_offset
+
+    @sequence_dash_offset.setter
+    def sequence_dash_offset(self, value: int) -> None:
+        """Configure how many spaces to put before each sequence item's '-'.
+
+        Args:
+            value: Number of spaces before each sequence item's '-'.
+        """
+        self._sequence_dash_offset = value
+
+    def choose_scalar_style(self) -> object:
+        """Select how to quote scalars if needed.
 
         Returns:
-            Line with protection stripped.
+            Scalar style string or None.
         """
-        return line.replace("\u0000#", "#")
+        style = super().choose_scalar_style()
+        if style == "" and self.event.value.startswith("0") and len(self.event.value) > 1:
+            if (
+                self.event.value.startswith("0x")
+                and self.event.tag == "tag:yaml.org,2002:int"
+                and self.event.implicit[0]
+            ):
+                self.event.tag = "tag:yaml.org,2002:str"
+                return ""
+            try:
+                int(self.event.value, 8)
+            except ValueError:
+                pass
+            else:
+                self.event.tag = "tag:yaml.org,2002:str"
+                self.event.implicit = (True, True, True)
+                return '"'
+        if style != "'":
+            return style
+        if '"' in self.event.value:
+            return "'"
+        return self.preferred_quote
+
+    def increase_indent(
+        self,
+        flow: bool = False,  # noqa: FBT002
+        sequence: bool | None = None,
+        indentless: bool = False,  # noqa: FBT002
+    ) -> None:
+        """Increase indentation level for nested content.
+
+        Args:
+            flow: Whether in flow context.
+            sequence: Whether this is a sequence context.
+            indentless: Whether to use indentless style.
+        """
+        super().increase_indent(flow, sequence, indentless)
+        # If our previous node was a sequence and we are still trying to indent, don't
+        if self.indents.last_seq():
+            self.indent = self.column + 1
+
+    def write_indicator(
+        self,
+        indicator: str,  # ruamel.yaml typehint is wrong. This is a string.
+        need_whitespace: bool,
+        whitespace: bool = False,  # noqa: FBT002
+        indention: bool = False,  # (sic) ruamel.yaml has this typo in their API # noqa: FBT002
+    ) -> None:
+        """Make sure that flow maps get whitespace by the curly braces.
+
+        Args:
+            indicator: YAML indicator character(s).
+            need_whitespace: Whether whitespace is required.
+            whitespace: Whether to add whitespace.
+            indention: Whether to add indentation.
+        """
+        spaces_inside = min(
+            max(1, self.min_spaces_inside),
+            self.max_spaces_inside if self.max_spaces_inside != -1 else 1,
+        )
+        if indicator == "}" and (self.column or 0) > (self.indent or 0) and not self._in_empty_flow_map:
+            indicator = (" " * spaces_inside) + "}"
+        if indicator == "  -" and self.indents.last_seq():
+            indicator = "-"
+        super().write_indicator(indicator, need_whitespace, whitespace, indention)
+        if indicator == "{" and self.column < self.best_width:
+            if self.check_empty_mapping():
+                self._in_empty_flow_map = True
+            else:
+                self.column += 1
+                self.stream.write(" " * spaces_inside)
+                self._in_empty_flow_map = False
+
+    _re_repeat_blank_lines: Pattern[str] = re.compile(r"\n{3,}")
+
+    @staticmethod
+    def add_octothorpe_protection(string: str) -> str:
+        """Modify strings to protect '#' from full-line-comment post-processing.
+
+        Args:
+            string: Input string to protect.
+
+        Returns:
+            String with '#' protected from comment detection.
+        """
+        try:
+            if "#" in string:
+                string = string.replace("#", "\uff03#\ufe5f")
+        except (ValueError, TypeError):
+            pass
+        return string
+
+    @staticmethod
+    def drop_octothorpe_protection(string: str) -> str:
+        """Remove string protection of '#' after full-line-comment post-processing.
+
+        Args:
+            string: Input string with protection to remove.
+
+        Returns:
+            String with '#' protection removed.
+        """
+        try:
+            if "\uff03#\ufe5f" in string:
+                string = string.replace("\uff03#\ufe5f", "#")
+        except (ValueError, TypeError):
+            pass
+        return string
+
+    def analyze_scalar(self, scalar: str) -> ScalarAnalysis:
+        """Determine quoting and other requirements for string.
+
+        And protect '#' from full-line-comment post-processing.
+
+        Args:
+            scalar: Scalar string to analyze.
+
+        Returns:
+            ScalarAnalysis with quoting and protection applied.
+        """
+        analysis: ScalarAnalysis = super().analyze_scalar(scalar)
+        if analysis.empty:
+            return analysis
+        analysis.scalar = self.add_octothorpe_protection(analysis.scalar)
+        return analysis
+
+    def write_comment(
+        self,
+        comment: CommentToken,
+        pre: bool = False,  # noqa: FBT002
+    ) -> None:
+        """Clean up extra new lines and spaces in comments.
+
+        ruamel.yaml treats new or empty lines as comments.
+        See: https://stackoverflow.com/questions/42708668/
+
+        Args:
+            comment: Comment token to write.
+            pre: Whether this is a pre-comment.
+        """
+        value: str = comment.value
+        if (
+            pre
+            and not value.strip()
+            and not isinstance(
+                self.event,
+                ruamel.yaml.events.CollectionEndEvent
+                | ruamel.yaml.events.DocumentEndEvent
+                | ruamel.yaml.events.StreamEndEvent
+                | ruamel.yaml.events.MappingStartEvent,
+            )
+        ):
+            value = ""
+        elif pre and not value.strip() and isinstance(self.event, ruamel.yaml.events.MappingStartEvent):
+            value = self._re_repeat_blank_lines.sub("", value)
+        elif pre:
+            value = self._re_repeat_blank_lines.sub("\n", value)
+        else:
+            value = self._re_repeat_blank_lines.sub("\n\n", value)
+        comment.value = value
+
+        if comment.column > self.column + 1 and not pre:
+            comment.column = self.column + 1
+
+        super().write_comment(comment, pre)
+
+    def write_version_directive(self, version_text: object) -> None:
+        """Skip writing '%YAML 1.1'.
+
+        Args:
+            version_text: YAML version string (e.g. "1.1" or "1.2").
+        """
+        if version_text == "1.1":
+            return
+        super().write_version_directive(version_text)
 
 
 # pylint: disable=too-many-instance-attributes
 class FormattedYAML(YAML):  # type: ignore[misc]
-    """A YAML loader/dumper that handles ansible content better by default."""
+    """A YAML loader/dumper that handles ansible content better by default.
+
+    Attributes:
+        default_config: Default formatting options for explicit_start, width, etc.
+    """
+
+    default_config = {
+        "explicit_start": True,
+        "explicit_end": False,
+        "width": 160,
+        "indent_sequences": True,
+        "preferred_quote": '"',
+        "min_spaces_inside": 0,
+        "max_spaces_inside": 1,
+    }
 
     def __init__(  # pylint: disable=too-many-arguments
         self,
@@ -187,10 +445,9 @@ class FormattedYAML(YAML):  # type: ignore[misc]
         output: object | None = None,
         plug_ins: list[str] | None = None,
         version: tuple[int, int] | None = None,
+        config: dict[str, bool | int | str] | None = None,
     ):
         """Return a configured ``ruamel.yaml.YAML`` instance.
-
-        Some config defaults get extracted from the yamllint config.
 
         ``ruamel.yaml.YAML`` uses attributes to configure how it dumps yaml files.
         Some of these settings can be confusing, so here are examples of how different
@@ -252,6 +509,7 @@ class FormattedYAML(YAML):  # type: ignore[misc]
             output: Output stream for dump.
             plug_ins: List of plugin module paths.
             version: YAML version tuple (e.g. (1, 1)).
+            config: Override default formatting options.
         """
         if version:
             if isinstance(version, str):
@@ -263,17 +521,17 @@ class FormattedYAML(YAML):  # type: ignore[misc]
 
         # NB: We ignore some mypy issues because ruamel.yaml typehints are not great.
 
-        # config = self._defaults_from_yamllint_config()
+        if not config:
+            config = dict(self.default_config)  # type: ignore[arg-type]
 
-        # # these settings are derived from yamllint config
-        # self.explicit_start: bool = config["explicit_start"]  # type: ignore[assignment]
-        # self.explicit_end: bool = config["explicit_end"]  # type: ignore[assignment]
-        # self.width: int = config["width"]  # type: ignore[assignment]
-        # indent_sequences: bool = cast(bool, config["indent_sequences"])
-        # preferred_quote: str = cast(str, config["preferred_quote"])  # either ' or "
+        self.explicit_start = config["explicit_start"]
+        self.explicit_end = config["explicit_end"]
+        self.width = config["width"]
+        indent_sequences: bool = cast(bool, config["indent_sequences"])
+        preferred_quote: str = cast(str, config["preferred_quote"])
 
-        # min_spaces_inside: int = cast(int, config["min_spaces_inside"])
-        # max_spaces_inside: int = cast(int, config["max_spaces_inside"])
+        min_spaces_inside: int = cast(int, config["min_spaces_inside"])
+        max_spaces_inside: int = cast(int, config["max_spaces_inside"])
 
         self.default_flow_style = False
         self.compact_seq_seq = True  # dash after dash
@@ -281,37 +539,24 @@ class FormattedYAML(YAML):  # type: ignore[misc]
 
         # Do not use yaml.indent() as it obscures the purpose of these vars:
         self.map_indent = 2
-        self.sequence_indent = 2
+        self.sequence_indent = 4 if indent_sequences else 2
         self.sequence_dash_offset = self.sequence_indent - 2
 
         # If someone doesn't want our FormattedEmitter, they can change it.
         self.Emitter = FormattedEmitter
 
-        # ignore invalid preferred_quote setting
-
-        FormattedEmitter.preferred_quote = '"'
+        if preferred_quote in ['"', "'"]:
+            FormattedEmitter.preferred_quote = preferred_quote
         # NB: default_style affects preferred_quote as well.
         # self.default_style ∈ None (default), '', '"', "'", '|', '>'
 
         # spaces inside braces for flow mappings
-        FormattedEmitter.min_spaces_inside = 0
-        FormattedEmitter.max_spaces_inside = 1
+        FormattedEmitter.min_spaces_inside = min_spaces_inside
+        FormattedEmitter.max_spaces_inside = max_spaces_inside
 
         # We need a custom constructor to preserve Octal formatting in YAML 1.1
         self.Constructor = CustomConstructor
         self.Representer.add_representer(OctalIntYAML11, OctalIntYAML11.represent_octal)
-
-        # We should preserve_quotes loads all strings as a str subclass that carries
-        # a quote attribute. Will the str subclasses cause problems in transforms?
-        # Are there any other gotchas to this?
-        #
-        # This will only preserve quotes for strings read from the file.
-        # anything modified by the transform will use no quotes, preferred_quote,
-        # or the quote that results in the least amount of escaping.
-
-        # If needed, we can use this to change null representation to be explicit
-        # (see https://stackoverflow.com/a/44314840/1134951)
-        # self.Representer.add_representer(
 
     @property
     def version(self) -> tuple[int, int] | None:
@@ -385,16 +630,53 @@ class FormattedYAML(YAML):  # type: ignore[misc]
         # never save None or scalar data types when reformatting.
         return cast(YAMLValue | None, data)
 
-    @staticmethod
-    def _prevent_wrapping_flow_style(data: YAMLValue) -> None:
-        """Walk data and set flow style width hints so short mappings stay on one line.
+    def _prevent_wrapping_flow_style(self, data: YAMLValue) -> None:
+        """Walk data and convert flow-style maps to block if they would exceed width.
 
         Args:
             data: YAML value (map or seq) to process in place.
         """
-        if isinstance(data, (CommentedMap, CommentedSeq)):
-            for item in data.values() if isinstance(data, CommentedMap) else data:
-                FormattedYAML._prevent_wrapping_flow_style(item)
+        if not isinstance(data, CommentedMap | CommentedSeq):
+            return
+        for key, value, parent_path in _nested_items_path(data):
+            if not isinstance(value, CommentedMap | CommentedSeq):
+                continue
+            fa: Format = value.fa
+            if fa.flow_style():
+                predicted_indent = self._predict_indent_length(parent_path, key)
+                predicted_width = len(str(value))
+                if predicted_indent + predicted_width > int(self.width or 0):
+                    fa.set_block_style()
+
+    def _predict_indent_length(self, parent_path: list[str | int], key: object) -> int:
+        """Predict how many columns a value will be indented at a given path.
+
+        Args:
+            parent_path: List of keys/indices from root to the parent.
+            key: Key or index of the current value.
+
+        Returns:
+            Predicted indentation column count.
+        """
+        indent = 0
+        seq_indent = self.sequence_indent
+        map_indent = self.map_indent
+        for parent_key in parent_path:
+            if isinstance(parent_key, int) and indent == 0:
+                indent += self.sequence_dash_offset
+            elif isinstance(parent_key, int):
+                indent += seq_indent
+            elif isinstance(parent_key, str):
+                indent += map_indent
+
+        if isinstance(key, int) and indent == 0:
+            indent += self.sequence_dash_offset
+        elif isinstance(key, int) and indent > 0:
+            indent += seq_indent
+        elif isinstance(key, str):
+            indent += len(key + ": ")
+
+        return indent
 
     def dumps(self, data: YAMLValue) -> str:
         """Dump YAML document to string (including its preamble_comment).
@@ -416,6 +698,7 @@ class FormattedYAML(YAML):  # type: ignore[misc]
         return self._post_process_yaml(
             text,
             strip_version_directive=strip_version_directive,
+            strip_explicit_start=not self.explicit_start,
         )
 
     # ruamel.yaml only preserves empty (no whitespace) blank lines
@@ -469,7 +752,12 @@ class FormattedYAML(YAML):  # type: ignore[misc]
         return text, "".join(preamble_comments) or None
 
     @staticmethod
-    def _post_process_yaml(text: str, *, strip_version_directive: bool = False) -> str:
+    def _post_process_yaml(
+        text: str,
+        *,
+        strip_version_directive: bool = False,
+        strip_explicit_start: bool = False,
+    ) -> str:
         """Handle known issues with ruamel.yaml dumping.
 
         Make sure there's only one newline at the end of the file.
@@ -484,12 +772,16 @@ class FormattedYAML(YAML):  # type: ignore[misc]
         Args:
             text: Dumped YAML text to postprocess.
             strip_version_directive: If True, remove %YAML directive from start.
+            strip_explicit_start: If True, remove --- document start marker.
 
         Returns:
             Postprocessed YAML string.
         """
         # remove YAML directive
         if strip_version_directive and text.startswith("%YAML"):
+            text = text.split("\n", 1)[1]
+
+        if strip_explicit_start and text.startswith("---"):
             text = text.split("\n", 1)[1]
 
         text = text.rstrip("\n") + "\n"

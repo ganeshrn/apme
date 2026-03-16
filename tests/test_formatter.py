@@ -207,6 +207,141 @@ class TestOctal:
 
 
 # ---------------------------------------------------------------------------
+# ansible-lint compatible output format
+# ---------------------------------------------------------------------------
+
+
+class TestAnsibleLintAlignment:
+    """Verify formatted output matches ansible-lint's expected YAML style."""
+
+    def test_nested_sequence_indent(self) -> None:
+        """Nested sequences under mapping keys use indent=4 / dash_offset=2."""
+        text = textwrap.dedent("""\
+        ---
+        - hosts: all
+          tasks:
+          - name: A task
+            ansible.builtin.debug:
+              msg: hello
+        """)
+        result = format_content(text)
+        expected = textwrap.dedent("""\
+        ---
+        - hosts: all
+          tasks:
+            - name: A task
+              ansible.builtin.debug:
+                msg: hello
+        """)
+        assert result.formatted == expected
+
+    def test_root_level_sequence_not_indented(self) -> None:
+        """Root-level sequences stay at column 0 (no extra indent)."""
+        text = textwrap.dedent("""\
+        - name: First
+          ansible.builtin.debug:
+            msg: one
+        - name: Second
+          ansible.builtin.debug:
+            msg: two
+        """)
+        result = format_content(text)
+        lines = result.formatted.splitlines()
+        dash_lines = [line for line in lines if line.lstrip().startswith("- name:")]
+        for line in dash_lines:
+            assert line.startswith("- "), f"Root sequence item should start at col 0: {line!r}"
+
+    def test_deeply_nested_sequences(self) -> None:
+        """Multiple levels of nested sequences each indent by 4/2."""
+        text = textwrap.dedent("""\
+        ---
+        - hosts: all
+          tasks:
+            - name: Nested block
+              block:
+                - name: Inner task
+                  ansible.builtin.debug:
+                    msg: deep
+        """)
+        result = format_content(text)
+        expected = textwrap.dedent("""\
+        ---
+        - hosts: all
+          tasks:
+            - name: Nested block
+              block:
+                - name: Inner task
+                  ansible.builtin.debug:
+                    msg: deep
+        """)
+        assert result.formatted == expected
+
+    def test_explicit_start_present(self) -> None:
+        """Formatted output includes explicit document start marker."""
+        text = textwrap.dedent("""\
+        - name: No doc start
+          ansible.builtin.debug:
+            msg: hi
+        """)
+        result = format_content(text)
+        assert result.formatted.startswith("---\n")
+
+    def test_tags_list_indented(self) -> None:
+        """Lists under task keys like tags use the nested indent style."""
+        text = textwrap.dedent("""\
+        ---
+        - hosts: all
+          tasks:
+            - name: Tagged task
+              ansible.builtin.debug:
+                msg: hi
+              tags:
+                - foo
+                - bar
+        """)
+        result = format_content(text)
+        expected = textwrap.dedent("""\
+        ---
+        - hosts: all
+          tasks:
+            - name: Tagged task
+              ansible.builtin.debug:
+                msg: hi
+              tags:
+                - foo
+                - bar
+        """)
+        assert result.formatted == expected
+
+    def test_vars_dict_indent(self) -> None:
+        """Mapping values under task keys use standard 2-space map indent."""
+        text = textwrap.dedent("""\
+        ---
+        - hosts: all
+          vars:
+            my_var: value
+            other_var: 42
+          tasks:
+            - name: Use var
+              ansible.builtin.debug:
+                msg: "{{ my_var }}"
+        """)
+        result = format_content(text)
+        expected = textwrap.dedent("""\
+        ---
+        - hosts: all
+          vars:
+            my_var: value
+            other_var: 42
+          tasks:
+            - name: Use var
+              ansible.builtin.debug:
+                msg: "{{ my_var }}"
+        """)
+        assert result.formatted == expected
+
+
+# ---------------------------------------------------------------------------
 # Edge cases
 # ---------------------------------------------------------------------------
 
@@ -256,7 +391,7 @@ class TestEdgeCases:
 class TestIdempotency:
     """Tests for formatter idempotency."""
 
-    @pytest.mark.parametrize(
+    @pytest.mark.parametrize(  # type: ignore[untyped-decorator]
         "text,desc",
         [
             ("- name: Test\n\tansible.builtin.debug:\n\t\tmsg: hello\n", "tabs"),
@@ -265,7 +400,7 @@ class TestIdempotency:
             ("- name: Test\n    ansible.builtin.debug:\n        msg: deep\n", "mixed indent"),
             ("# comment\n- name: Test\n  ansible.builtin.debug:\n    msg: hi\n", "with comment"),
         ],
-    )  # type: ignore[untyped-decorator]
+    )
     def test_format_twice_no_diff(self, text: str, desc: str) -> None:
         """Formatting twice produces no diff for various inputs.
 

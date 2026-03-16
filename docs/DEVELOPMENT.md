@@ -312,7 +312,7 @@ The `format` subcommand normalizes YAML files to a consistent style before seman
 1. **Tab removal** — converts tabs to 2-space indentation
 2. **Key reordering** — `name` first, then module/action, then conditional/loop/meta keys
 3. **Jinja spacing** — normalizes `{{foo}}` to `{{ foo }}`
-4. **Indentation** — ruamel.yaml round-trip enforces 2-space indent
+4. **Indentation** — ruamel.yaml round-trip enforces 2-space map indent and 4-space sequence indent (with dash offset 2) for nested sequences, matching ansible-lint style; root-level sequences remain at column 0
 
 ### Usage
 
