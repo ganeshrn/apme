@@ -1,0 +1,208 @@
+---
+name: pr-feedback
+
+on:
+  workflow_run:
+    workflows: [prek, test]
+    types: [completed]
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 */6 * * *"
+
+permissions:
+  pull-requests: write
+  issues: write
+
+jobs:
+  check-failures:
+    if: github.event_name == 'workflow_run'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+        with:
+          script: |
+            const LABEL = "checks-failing";
+            const run = context.payload.workflow_run;
+
+            // Only care about PRs
+            if (!run.pull_requests || run.pull_requests.length === 0) {
+              console.log("No associated PRs, skipping.");
+              return;
+            }
+
+            for (const pr of run.pull_requests) {
+              const { data: pull } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr.number,
+              });
+
+              // Skip bot-authored PRs
+              if (pull.user.type === "Bot") {
+                console.log(`PR #${pr.number} is bot-authored, skipping.`);
+                continue;
+              }
+
+              const labels = pull.labels.map((l) => l.name);
+              const hasLabel = labels.includes(LABEL);
+
+              if (run.conclusion === "failure") {
+                if (!hasLabel) {
+                  await github.rest.issues.addLabels({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: pr.number,
+                    labels: [LABEL],
+                  });
+                }
+
+                // Check if we already posted a failure comment recently
+                const { data: comments } = await github.rest.issues.listComments({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: pr.number,
+                  per_page: 5,
+                });
+                const alreadyPosted = comments.some(
+                  (c) =>
+                    c.user.type === "Bot" &&
+                    c.body.includes(LABEL) &&
+                    c.body.includes(run.name),
+                );
+                if (!alreadyPosted) {
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: pr.number,
+                    body: [
+                      `<!-- ${LABEL} -->`,
+                      `@${pull.user.login} — the **${run.name}** check is failing on this PR.`,
+                      "",
+                      `Please review the [workflow run](${run.html_url}) and push a fix.`,
+                    ].join("\n"),
+                  });
+                }
+              } else if (run.conclusion === "success" && hasLabel) {
+                // Check if ALL workflow runs are now passing before removing
+                const { data: checkRuns } =
+                  await github.rest.checks.listForRef({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    ref: pull.head.sha,
+                  });
+                const anyFailing = checkRuns.check_runs.some(
+                  (cr) =>
+                    cr.status === "completed" && cr.conclusion === "failure",
+                );
+                if (!anyFailing) {
+                  await github.rest.issues.removeLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: pr.number,
+                    name: LABEL,
+                  });
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: pr.number,
+                    body: [
+                      `<!-- ${LABEL}-clear -->`,
+                      `@${pull.user.login} — all checks are passing now. :white_check_mark:`,
+                    ].join("\n"),
+                  });
+                }
+              }
+            }
+
+  check-conflicts:
+    if: github.event_name == 'push' || github.event_name == 'schedule'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+        with:
+          script: |
+            const LABEL = "needs-rebase";
+
+            const { data: pulls } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              base: "main",
+              per_page: 100,
+            });
+
+            for (const pr of pulls) {
+              // Skip bot-authored and draft PRs
+              if (pr.user.type === "Bot" || pr.draft) {
+                continue;
+              }
+
+              // Fetch full PR to get mergeable state (list endpoint doesn't include it)
+              const { data: pull } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr.number,
+              });
+
+              // GitHub computes mergeable asynchronously; null means not ready yet
+              if (pull.mergeable === null) {
+                // Wait briefly and retry once
+                await new Promise((r) => setTimeout(r, 3000));
+                const { data: retry } = await github.rest.pulls.get({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: pr.number,
+                });
+                pull.mergeable = retry.mergeable;
+                pull.mergeable_state = retry.mergeable_state;
+              }
+
+              const labels = pull.labels.map((l) => l.name);
+              const hasLabel = labels.includes(LABEL);
+              const hasConflict =
+                pull.mergeable === false || pull.mergeable_state === "dirty";
+
+              if (hasConflict && !hasLabel) {
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: pr.number,
+                  labels: [LABEL],
+                });
+
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: pr.number,
+                  body: [
+                    `<!-- ${LABEL} -->`,
+                    `@${pull.user.login} — this PR has merge conflicts with \`main\`.`,
+                    "",
+                    "Please rebase onto the latest `main`:",
+                    "```bash",
+                    "git fetch upstream",
+                    "git rebase upstream/main",
+                    "git push --force-with-lease",
+                    "```",
+                  ].join("\n"),
+                });
+              } else if (!hasConflict && hasLabel) {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: pr.number,
+                  name: LABEL,
+                });
+
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: pr.number,
+                  body: [
+                    `<!-- ${LABEL}-clear -->`,
+                    `@${pull.user.login} — conflicts resolved, branch is up to date with \`main\`. :white_check_mark:`,
+                  ].join("\n"),
+                });
+              }
+            }
