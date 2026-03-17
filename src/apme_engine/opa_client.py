@@ -1,4 +1,15 @@
-"""Run OPA on hierarchy payload and return violations. Uses Podman container or local opa binary."""
+"""Run OPA on hierarchy payload and return violations.
+
+This module evaluates hierarchy payloads against Rego policies using either a
+Podman container (openpolicyagent/opa) or a local `opa` binary.
+
+A simple timeout-based circuit-breaker is implemented to avoid repeatedly
+running OPA when evaluations are consistently timing out. After a configurable
+number of consecutive timeouts, OPA evaluation is temporarily disabled and
+`run_opa` will short-circuit and return an empty list instead of invoking OPA.
+Use :func:`reset_opa_circuit_breaker` to clear the timeout counter and
+re-enable OPA evaluation for subsequent calls.
+"""
 
 import json
 import os
@@ -192,16 +203,26 @@ def run_opa(
 ) -> list[ViolationDict]:
     """Run OPA eval with input_data as input and bundle at bundle_path.
 
-    Uses Podman container (openpolicyagent/opa) by default; set OPA_USE_PODMAN=0
-    to use a local opa binary.
+    Uses Podman container (openpolicyagent/opa) by default; set ``OPA_USE_PODMAN=0``
+     to use a local ``opa`` binary.
+     A timeout-based circuit-breaker is applied when invoking OPA. If multiple
+     evaluations time out consecutively, OPA evaluation will be temporarily
+     disabled for the lifetime of this process. While OPA is disabled,
+     :func:`run_opa` will short-circuit and immediately return an empty list
+     without attempting to run OPA.
+     To clear the timeout counter and re-enable OPA evaluation, call
+     :func:`reset_opa_circuit_breaker`.
 
     Args:
         input_data: Hierarchy payload as YAML dict for OPA input.
         bundle_path: Path to OPA bundle directory.
-        entrypoint: Rego entrypoint (default: data.apme.rules.violations).
+        entrypoint: Rego entrypoint (default: ``data.apme.rules.violations``).
 
     Returns:
-        List of violation objects (each with rule_id, level, message, file, line, path).
+        List of violation objects (each with ``rule_id``, ``level``, ``message``,
+         ``file``, ``line``, ``path``). An empty list may indicate either that
+         no violations were found by OPA or that OPA evaluation is currently
+         disabled by the timeout circuit-breaker.
 
     Raises:
         FileNotFoundError: If bundle_path is not a directory.
@@ -243,6 +264,7 @@ def run_opa(
         try:
             out = _run_opa_local(input_str, bundle, entrypoint, timeout)
         except FileNotFoundError:
+            _consecutive_timeouts = 0
             if use_podman:
                 sys.stderr.write(
                     "podman: command not found. Set OPA_USE_PODMAN=0 to use local opa, or install podman.\n"
