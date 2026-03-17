@@ -1,14 +1,14 @@
 """Run OPA on hierarchy payload and return violations.
 
 This module evaluates hierarchy payloads against Rego policies using either a
-Podman container (openpolicyagent/opa) or a local `opa` binary.
+Podman container (openpolicyagent/opa) or a local ``opa`` binary.
 
-A simple timeout-based circuit-breaker is implemented to avoid repeatedly
-running OPA when evaluations are consistently timing out. After a configurable
-number of consecutive timeouts, OPA evaluation is temporarily disabled and
-`run_opa` will short-circuit and return an empty list instead of invoking OPA.
-Use :func:`reset_opa_circuit_breaker` to clear the timeout counter and
-re-enable OPA evaluation for subsequent calls.
+A timeout-based circuit-breaker avoids repeatedly running OPA when evaluations
+consistently time out. After a configurable number of consecutive timeouts
+(see ``APME_OPA_MAX_CONSECUTIVE_TIMEOUTS``), OPA evaluation is temporarily
+disabled and :func:`run_opa` short-circuits and returns an empty list. A
+successful call resets the counter. Use :func:`reset_opa_circuit_breaker` to
+clear the counter and re-enable OPA evaluation.
 """
 
 import json
@@ -21,9 +21,18 @@ from apme_engine.engine.models import ViolationDict, YAMLDict
 
 OPA_IMAGE = "docker.io/openpolicyagent/opa:latest"
 
-_MAX_CONSECUTIVE_TIMEOUTS = 3
 _consecutive_timeouts = 0
 _opa_disabled = False
+
+
+def _max_consecutive_timeouts() -> int:
+    """Return max consecutive timeouts before disabling OPA (from env or default 3)."""
+    raw = os.environ.get("APME_OPA_MAX_CONSECUTIVE_TIMEOUTS", "3")
+    try:
+        n = int(raw)
+        return max(1, n)
+    except ValueError:
+        return 3
 
 
 def reset_opa_circuit_breaker() -> None:
@@ -204,14 +213,13 @@ def run_opa(
     """Run OPA eval with input_data as input and bundle at bundle_path.
 
     Uses Podman container (openpolicyagent/opa) by default; set ``OPA_USE_PODMAN=0``
-     to use a local ``opa`` binary.
-     A timeout-based circuit-breaker is applied when invoking OPA. If multiple
-     evaluations time out consecutively, OPA evaluation will be temporarily
-     disabled for the lifetime of this process. While OPA is disabled,
-     :func:`run_opa` will short-circuit and immediately return an empty list
-     without attempting to run OPA.
-     To clear the timeout counter and re-enable OPA evaluation, call
-     :func:`reset_opa_circuit_breaker`.
+    to use a local ``opa`` binary.
+
+    A timeout-based circuit-breaker is applied. If evaluations time out
+    consecutively (see ``APME_OPA_MAX_CONSECUTIVE_TIMEOUTS``, default 3), OPA
+    evaluation is temporarily disabled for the process and this function
+    returns an empty list without invoking OPA. Call :func:`reset_opa_circuit_breaker`
+    to re-enable.
 
     Args:
         input_data: Hierarchy payload as YAML dict for OPA input.
@@ -220,9 +228,8 @@ def run_opa(
 
     Returns:
         List of violation objects (each with ``rule_id``, ``level``, ``message``,
-         ``file``, ``line``, ``path``). An empty list may indicate either that
-         no violations were found by OPA or that OPA evaluation is currently
-         disabled by the timeout circuit-breaker.
+        ``file``, ``line``, ``path``). An empty list may mean no violations or
+        that OPA is disabled by the circuit-breaker.
 
     Raises:
         FileNotFoundError: If bundle_path is not a directory.
@@ -237,7 +244,24 @@ def run_opa(
         raise FileNotFoundError(f"OPA bundle path is not a directory: {bundle_path}")
     input_str = json.dumps(input_data)
     timeout = 60
+    max_timeouts = _max_consecutive_timeouts()
     use_podman = os.environ.get("OPA_USE_PODMAN", "1").lower() not in ("0", "false", "no")
+
+    def _on_timeout(via: str) -> None:
+        global _consecutive_timeouts, _opa_disabled
+        _consecutive_timeouts += 1
+        input_kb = len(input_str) / 1024
+        if _consecutive_timeouts >= max_timeouts:
+            _opa_disabled = True
+            sys.stderr.write(
+                f"OPA eval timed out {_consecutive_timeouts} consecutive times "
+                f"(input: {input_kb:.0f} KB). Disabling OPA validation for this run.\n"
+            )
+        else:
+            sys.stderr.write(
+                f"OPA eval timed out after {timeout}s via {via} (input: {input_kb:.0f} KB) "
+                f"[{_consecutive_timeouts}/{max_timeouts}].\n"
+            )
 
     out = None
     if use_podman:
@@ -246,19 +270,7 @@ def run_opa(
         except FileNotFoundError:
             out = None  # fall back to local opa
         except subprocess.TimeoutExpired:
-            _consecutive_timeouts += 1
-            input_kb = len(input_str) / 1024
-            if _consecutive_timeouts >= _MAX_CONSECUTIVE_TIMEOUTS:
-                _opa_disabled = True
-                sys.stderr.write(
-                    f"OPA eval timed out {_consecutive_timeouts} consecutive times "
-                    f"(input: {input_kb:.0f} KB). Disabling OPA validation for this run.\n"
-                )
-            else:
-                sys.stderr.write(
-                    f"OPA eval timed out after {timeout}s via Podman (input: {input_kb:.0f} KB) "
-                    f"[{_consecutive_timeouts}/{_MAX_CONSECUTIVE_TIMEOUTS}].\n"
-                )
+            _on_timeout("Podman")
             return []
     if out is None:
         try:
@@ -275,19 +287,7 @@ def run_opa(
                 )
             return []
         except subprocess.TimeoutExpired:
-            _consecutive_timeouts += 1
-            input_kb = len(input_str) / 1024
-            if _consecutive_timeouts >= _MAX_CONSECUTIVE_TIMEOUTS:
-                _opa_disabled = True
-                sys.stderr.write(
-                    f"OPA eval timed out {_consecutive_timeouts} consecutive times "
-                    f"(input: {input_kb:.0f} KB). Disabling OPA validation for this run.\n"
-                )
-            else:
-                sys.stderr.write(
-                    f"OPA eval timed out after {timeout}s via local binary (input: {input_kb:.0f} KB) "
-                    f"[{_consecutive_timeouts}/{_MAX_CONSECUTIVE_TIMEOUTS}].\n"
-                )
+            _on_timeout("local binary")
             return []
 
     _consecutive_timeouts = 0

@@ -12,7 +12,7 @@ from apme_engine.engine.models import YAMLDict
 from apme_engine.opa_client import reset_opa_circuit_breaker, run_opa, run_opa_test
 
 
-@pytest.fixture(autouse=True)  # type: ignore[untyped-decorator]
+@pytest.fixture(autouse=True)
 def _reset_circuit_breaker() -> None:
     """Reset the OPA timeout circuit-breaker before each test."""
     reset_opa_circuit_breaker()
@@ -256,7 +256,10 @@ class TestRunOpa:
 
         with (
             patch.dict("os.environ", {"OPA_USE_PODMAN": "0"}),
-            patch("apme_engine.opa_client.subprocess.run", side_effect=subprocess.TimeoutExpired("opa", 60)),
+            patch(
+                "apme_engine.opa_client.subprocess.run",
+                side_effect=subprocess.TimeoutExpired("opa", 60),
+            ),
             patch("sys.stderr.write"),
         ):
             for _ in range(3):
@@ -271,7 +274,10 @@ class TestRunOpa:
         mock_run.assert_not_called()
 
     def test_successful_call_resets_timeout_counter(
-        self, opa_bundle_path: Path, sample_hierarchy_payload: YAMLDict, opa_eval_result_empty: YAMLDict
+        self,
+        opa_bundle_path: Path,
+        sample_hierarchy_payload: YAMLDict,
+        opa_eval_result_empty: YAMLDict,
     ) -> None:
         """A successful OPA call resets the consecutive timeout counter to 0.
 
@@ -285,7 +291,10 @@ class TestRunOpa:
 
         with (
             patch.dict("os.environ", {"OPA_USE_PODMAN": "0"}),
-            patch("apme_engine.opa_client.subprocess.run", side_effect=subprocess.TimeoutExpired("opa", 60)),
+            patch(
+                "apme_engine.opa_client.subprocess.run",
+                side_effect=subprocess.TimeoutExpired("opa", 60),
+            ),
             patch("sys.stderr.write"),
         ):
             run_opa({"hierarchy": []}, str(opa_bundle_path))
@@ -294,7 +303,11 @@ class TestRunOpa:
         assert mod._consecutive_timeouts == 2
 
         with patch("apme_engine.opa_client.subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=0, stdout=json.dumps(opa_eval_result_empty), stderr="")
+            mock_run.return_value = MagicMock(
+                returncode=0,
+                stdout=json.dumps(opa_eval_result_empty),
+                stderr="",
+            )
             run_opa(sample_hierarchy_payload, str(opa_bundle_path))
 
         assert mod._consecutive_timeouts == 0
@@ -318,10 +331,37 @@ class TestRunOpa:
         assert mod._consecutive_timeouts == 0
 
         with patch("apme_engine.opa_client.subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=0, stdout=json.dumps({"result": []}), stderr="")
+            mock_run.return_value = MagicMock(
+                returncode=0,
+                stdout=json.dumps({"result": []}),
+                stderr="",
+            )
             result = run_opa({"hierarchy": []}, str(opa_bundle_path))
         mock_run.assert_called_once()
         assert result == []
+
+    def test_configurable_max_consecutive_timeouts(self, opa_bundle_path: Path) -> None:
+        """APME_OPA_MAX_CONSECUTIVE_TIMEOUTS controls when circuit-breaker disables OPA.
+
+        Args:
+            opa_bundle_path: Fixture providing path to OPA bundle.
+
+        """
+        import apme_engine.opa_client as mod
+
+        with (
+            patch.dict("os.environ", {"OPA_USE_PODMAN": "0", "APME_OPA_MAX_CONSECUTIVE_TIMEOUTS": "2"}),
+            patch(
+                "apme_engine.opa_client.subprocess.run",
+                side_effect=subprocess.TimeoutExpired("opa", 60),
+            ),
+            patch("sys.stderr.write"),
+        ):
+            run_opa({"hierarchy": []}, str(opa_bundle_path))
+            run_opa({"hierarchy": []}, str(opa_bundle_path))
+
+        assert mod._opa_disabled is True
+        assert mod._consecutive_timeouts == 2
 
 
 class TestRunOpaTest:
