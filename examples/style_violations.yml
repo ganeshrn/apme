@@ -1,6 +1,6 @@
 ---
 # Style and naming violations
-# L025: name casing, L040: tabs, L041: key order
+# L025: name casing, L041: key order
 # L043: deprecated bare vars, L046: no free-form, L050: var naming
 
 - name: style issues playbook

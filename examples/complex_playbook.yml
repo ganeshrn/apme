@@ -1,7 +1,7 @@
 ---
 # Complex playbook with multiple plays and various issues
 # Demonstrates L042 (complexity), L016 (prompting), L017 (relative paths)
-# L023 (run_once), L019 (playbook extension check)
+# L023 (run_once)
 
 # L003: Play without name
 - hosts: webservers
