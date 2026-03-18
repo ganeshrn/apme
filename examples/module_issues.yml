@@ -1,0 +1,53 @@
+---
+# Module-related issues
+# L004: Deprecated modules, L005: Non-builtin modules
+# L026: Non-FQCN, L030: Non-builtin use, L037: Unresolved module
+
+- name: Module issues playbook
+  hosts: all
+  tasks:
+    # L026: Short module name (not FQCN)
+    - name: Install with short name
+      yum:
+        name: vim
+        state: present
+
+    # L026: Another short name
+    - name: Copy with short name
+      copy:
+        content: "hello"
+        dest: /tmp/hello.txt
+
+    # L005/L030: Using community module (not builtin)
+    - name: Use community module
+      community.general.npm:
+        name: express
+        global: yes
+
+    # L005/L030: Another non-builtin
+    - name: Use AWS module
+      amazon.aws.ec2_instance:
+        name: test-instance
+        instance_type: t2.micro
+
+    # L037: Completely made up module
+    - name: Use fake module
+      fake.collection.nonexistent_module:
+        param: value
+
+    # Using include (old style)
+    - name: Old style include
+      include: tasks/other.yml
+
+    # Using include_tasks (better but still check FQCN)
+    - name: Include tasks
+      include_tasks: tasks/more.yml
+
+    # Raw module usage (often flagged)
+    - name: Use raw module
+      ansible.builtin.raw: yum install -y python3
+
+    # Script module
+    - name: Run script
+      script: scripts/setup.sh
+      # L026: Not FQCN

@@ -1,0 +1,49 @@
+---
+# Risky file permissions and security issues
+# L020: risky-octal, L021: risky-file-permissions, L022: risky-shell-pipe
+# L018: partial-become, L031: insecure file permission
+
+- name: file permission issues
+  hosts: all
+  tasks:
+    # L020: Mode should be string with leading zero
+    - name: create file with numeric mode
+      ansible.builtin.file:
+        path: /tmp/testfile
+        state: touch
+        mode: 644  # Should be "0644" or u=rw,g=r,o=r
+
+    # L021: No mode specified for file creation
+    - name: copy file without mode
+      ansible.builtin.copy:
+        src: /etc/hosts
+        dest: /tmp/hosts_copy
+
+    # L021: Template without mode
+    - name: template without mode
+      ansible.builtin.template:
+        src: config.j2
+        dest: /etc/app/config.conf
+
+    # L022: Shell pipe without pipefail
+    - name: risky shell pipe
+      ansible.builtin.shell: cat /etc/passwd | grep root | cut -d: -f1
+
+    # L018: become_user without become
+    - name: partial become
+      ansible.builtin.command: whoami
+      become_user: postgres
+
+    # L031: World-writable file
+    - name: insecure world writable
+      ansible.builtin.file:
+        path: /tmp/public_file
+        state: touch
+        mode: "0777"
+
+    # L031: World-writable directory
+    - name: insecure directory
+      ansible.builtin.file:
+        path: /tmp/public_dir
+        state: directory
+        mode: "0757"

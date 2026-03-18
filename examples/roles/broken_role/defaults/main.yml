@@ -1,0 +1,4 @@
+---
+# Role defaults
+package_name: httpd
+existing_var: "some value"
