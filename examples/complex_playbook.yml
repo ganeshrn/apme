@@ -1,0 +1,114 @@
+---
+# Complex playbook with multiple plays and various issues
+# Demonstrates L042 (complexity), L016 (prompting), L017 (relative paths)
+# L023 (run_once), L019 (playbook extension check)
+
+# L003: Play without name
+- hosts: webservers
+  become: true
+  tasks:
+    - name: Install packages
+      ansible.builtin.yum:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - httpd
+        - mod_ssl
+        - php
+
+    - name: Copy config
+      ansible.builtin.copy:
+        src: ../files/httpd.conf  # L017: Relative path
+        dest: /etc/httpd/conf/httpd.conf
+        mode: "0644"
+
+- name: Database setup
+  hosts: dbservers
+  tasks:
+    # L016: Pause without timeout prompts for input
+    - name: wait for confirmation
+      ansible.builtin.pause:
+        prompt: "Press enter to continue"
+
+    # L023: run_once consideration
+    - name: initialize database
+      ansible.builtin.command: /usr/local/bin/init-db.sh
+      run_once: true
+
+    # Many tasks to trigger L042 complexity warning
+    - name: Task 1
+      ansible.builtin.debug:
+        msg: "1"
+    - name: Task 2
+      ansible.builtin.debug:
+        msg: "2"
+    - name: Task 3
+      ansible.builtin.debug:
+        msg: "3"
+    - name: Task 4
+      ansible.builtin.debug:
+        msg: "4"
+    - name: Task 5
+      ansible.builtin.debug:
+        msg: "5"
+    - name: Task 6
+      ansible.builtin.debug:
+        msg: "6"
+    - name: Task 7
+      ansible.builtin.debug:
+        msg: "7"
+    - name: Task 8
+      ansible.builtin.debug:
+        msg: "8"
+    - name: Task 9
+      ansible.builtin.debug:
+        msg: "9"
+    - name: Task 10
+      ansible.builtin.debug:
+        msg: "10"
+    - name: Task 11
+      ansible.builtin.debug:
+        msg: "11"
+    - name: Task 12
+      ansible.builtin.debug:
+        msg: "12"
+
+- name: Application deployment
+  hosts: appservers
+  vars:
+    app_version: "1.2.3"
+  tasks:
+    - name: Deploy application
+      ansible.builtin.unarchive:
+        src: "https://releases.example.com/app-{{ app_version }}.tar.gz"
+        dest: /opt/app
+        remote_src: yes
+        # Missing mode
+
+    # L033: Unconditional override
+    - name: Set fact unconditionally
+      ansible.builtin.set_fact:
+        app_config: "production"
+
+    - name: Set fact again unconditionally
+      ansible.builtin.set_fact:
+        app_config: "staging"  # Overwrites previous
+
+    # L036: Unnecessary include_vars
+    - name: Include vars file
+      ansible.builtin.include_vars:
+        file: vars.yml
+      # If vars.yml just sets one var that's already in defaults
+
+    # Block without rescue/always that could benefit
+    - name: Configure application
+      block:
+        - name: Write config
+          ansible.builtin.template:
+            src: app.conf.j2
+            dest: /opt/app/config.conf
+        - name: Start service
+          ansible.builtin.service:
+            name: myapp
+            state: started
+      # No rescue block for error handling

@@ -1,0 +1,59 @@
+---
+# Style and naming violations
+# L025: name casing, L040: tabs, L041: key order
+# L043: deprecated bare vars, L046: no free-form, L050: var naming
+
+- name: style issues playbook
+  hosts: localhost
+  vars:
+    MyVariable: "bad"  # L050: Should be lowercase with underscores
+    another-var: "also bad"  # L050: Hyphens not recommended
+    CamelCase: "nope"  # L050: Should use snake_case
+
+  tasks:
+    # L025: Task name should start with uppercase
+    - name: this starts lowercase
+      ansible.builtin.debug:
+        msg: "lowercase name"
+
+    # L041: Key order - name should come before module
+    - ansible.builtin.file:
+        path: /tmp/test
+        state: touch
+      name: wrong key order
+
+    # L046: Free-form command (no args key)
+    - name: free form command
+      ansible.builtin.command: ls -la /tmp
+
+    # L046: Free-form shell
+    - name: free form shell
+      ansible.builtin.shell: echo hello && echo world
+
+    # L043: Deprecated bare variables
+    - name: bare variable usage
+      ansible.builtin.debug:
+        msg: "Value is {{ item }}"
+      with_items: mylist  # Should be "{{ mylist }}"
+
+    # L044: Implicit state
+    - name: package without explicit state
+      ansible.builtin.yum:
+        name: nginx
+        # Missing state: present/absent/latest
+
+    # L049: Loop variable without prefix
+    - name: loop without var prefix
+      ansible.builtin.debug:
+        msg: "{{ item }}"
+      loop:
+        - one
+        - two
+      # Should use loop_control with loop_var
+
+    # L045: Inline environment variable
+    - name: inline environment
+      ansible.builtin.command: echo $HOME
+      environment:
+        MY_VAR: "{{ some_value }}"
+        ANOTHER: "inline"

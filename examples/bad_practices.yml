@@ -1,0 +1,57 @@
+---
+# Bad practices playbook - triggers multiple lint rules
+# L002: No FQCN, L003: No play name, L010: ignore_errors, L012: state=latest
+# L013: no changed_when, L024: missing task name
+
+- hosts: webservers
+  become: yes
+  tasks:
+    # L024: Task without name, L002: Not using FQCN
+    - yum:
+        name: httpd
+        state: latest  # L012: Avoid state=latest
+
+    # L010: Using ignore_errors instead of failed_when
+    - command: /usr/bin/might-fail
+      ignore_errors: yes
+
+    # L013: command without changed_when
+    - name: run a command
+      command: echo "hello world"
+
+    # L006: Using command instead of dedicated module
+    - name: create a user with command
+      command: useradd testuser
+
+    # L007: Using shell when command would suffice
+    - name: simple echo with shell
+      shell: echo "no shell features needed"
+
+    # L008: Deprecated local_action
+    - name: local action deprecated
+      local_action: command hostname
+
+    # L015: Jinja in when clause
+    - name: jinja in when
+      debug:
+        msg: "conditional"
+      when: "{{ some_var == 'value' }}"
+
+    # L014: Using when: result.changed instead of handler
+    - name: restart service manually
+      service:
+        name: httpd
+        state: restarted
+      when: config_result.changed
+
+    # L009: Empty string compare
+    - name: empty string comparison
+      debug:
+        msg: "var is empty"
+      when: my_var == ""
+
+    # L011: Literal compare
+    - name: literal true compare
+      debug:
+        msg: "is true"
+      when: my_bool == true

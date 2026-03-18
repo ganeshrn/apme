@@ -1,0 +1,11 @@
+---
+# Handlers with issues
+# L028: Handler without name
+- service:
+    name: httpd
+    state: restarted
+
+- name: restart nginx
+  service:  # L026: Not FQCN
+    name: nginx
+    state: restarted
