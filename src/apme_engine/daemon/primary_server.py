@@ -17,11 +17,9 @@ import grpc
 import grpc.aio
 import jsonpickle
 
-from apme_engine.engine.jsonpickle_handlers import register_engine_handlers
-
 from apme.v1 import cache_pb2, cache_pb2_grpc, common_pb2, primary_pb2, primary_pb2_grpc, validate_pb2_grpc
 from apme.v1.common_pb2 import File, HealthResponse, ValidatorDiagnostics
-from apme.v1.primary_pb2 import (
+from apme.v1.primary_pb2 import (  # type: ignore[attr-defined]
     FileDiff,
     FormatRequest,
     FormatResponse,
@@ -33,6 +31,7 @@ from apme.v1.primary_pb2 import (
 )
 from apme.v1.validate_pb2 import ValidateRequest
 from apme_engine.daemon.violation_convert import violation_proto_to_dict
+from apme_engine.engine.jsonpickle_handlers import register_engine_handlers
 from apme_engine.engine.models import AnsibleRunContext, ViolationDict
 from apme_engine.runner import run_scan
 
@@ -101,6 +100,9 @@ def _normalize_scandata_contexts(scandata: object) -> None:
 
     Materializes iterators and drops non-AnsibleRunContext items so jsonpickle
     never encodes iterators, which decode as list_iterator on the native side.
+
+    Args:
+        scandata: The scan data object whose contexts attribute will be normalized.
     """
     if not scandata or not hasattr(scandata, "contexts"):
         return
@@ -115,7 +117,7 @@ def _normalize_scandata_contexts(scandata: object) -> None:
             f"(dropped non-AnsibleRunContext)\n"
         )
         sys.stderr.flush()
-    setattr(scandata, "contexts", valid)
+    scandata.contexts = valid
 
 
 def _write_chunked_fs(project_root: str, files: list[File]) -> Path:
@@ -205,7 +207,11 @@ def _discover_collection_specs(files: list[File]) -> list[str]:
             elif isinstance(entry, dict) and entry.get("name"):
                 name = str(entry["name"])
                 version = entry.get("version")
-                spec = f"{name}:{version}" if version and not str(version).startswith((">=", ">", "<", "!=", "*")) else name
+                spec = (
+                    f"{name}:{version}"
+                    if version and not str(version).startswith((">=", ">", "<", "!=", "*"))
+                    else name
+                )
                 specs.setdefault(name, spec)
     return list(specs.values())
 
@@ -306,7 +312,9 @@ class PrimaryServicer(primary_pb2_grpc.PrimaryServicer):
             opts = request.options if request.HasField("options") else None
             collection_specs = list(opts.collection_specs) if opts else []
 
-            discovered = _discover_collection_specs(list(request.files))
+            discovered = _discover_collection_specs(
+                list(request.files),  # type: ignore[arg-type]
+            )
             if discovered:
                 existing = {s.split(":")[0] for s in collection_specs}
                 for spec in discovered:
@@ -407,11 +415,18 @@ class PrimaryServicer(primary_pb2_grpc.PrimaryServicer):
     async def ScanStream(
         self,
         request_stream: AsyncIterator[ScanChunk],
-        context: grpc.aio.ServicerContext,
+        context: grpc.aio.ServicerContext,  # type: ignore[type-arg]
     ) -> primary_pb2.ScanResponse:
         """Handle ScanStream RPC: receive file batches, then run same logic as Scan.
 
         Avoids gRPC default max message size (4 MiB) by sending files in multiple messages.
+
+        Args:
+            request_stream: Async iterator of ScanChunk messages.
+            context: gRPC servicer context.
+
+        Returns:
+            ScanResponse with violations and diagnostics.
         """
         all_files: list[File] = []
         scan_id = ""

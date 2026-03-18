@@ -106,9 +106,13 @@ def _install_collection_python_deps(
     try:
         subprocess.run(
             [
-                sys.executable, "-m", "ansible_builder", "introspect",
+                sys.executable,
+                "-m",
+                "ansible_builder",
+                "introspect",
                 str(site_packages),
-                "--write-pip", str(discovered_reqs),
+                "--write-pip",
+                str(discovered_reqs),
                 "--sanitize",
             ],
             check=True,

@@ -20,7 +20,15 @@ _PY2_PATH = re.compile(r"python2(\.\d+)?$")
 
 
 def _play_vars_for_task(ctx: AnsibleRunContext, task_key: str) -> YAMLDict:
-    """Collect play-level variables from the sequence before the current task."""
+    """Collect play-level variables from the sequence before the current task.
+
+    Args:
+        ctx: Current Ansible run context.
+        task_key: Key identifying the current task.
+
+    Returns:
+        Dict of play-level variables.
+    """
     play_vars: YAMLDict = {}
     for rt in ctx.sequence:
         if rt.key == task_key:

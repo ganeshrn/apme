@@ -1533,6 +1533,7 @@ class CommandExecDetail(AnnotationDetail):
     Attributes:
         command: Arguments wrapping the shell/command string.
         exec_files: Locations of executable files parsed from the command.
+        is_mutable_cmd: True if the command contains variable references.
 
     """
 

@@ -989,12 +989,13 @@ class SingleScan:
                     )
                 mo = getattr(spec, "module_options", None)
                 if isinstance(mo, dict):
-                    d["module_options"] = {str(k): self._json_safe(v) for k, v in mo.items()}
+                    mo_dict: dict[str, object] = {str(k): self._json_safe(v) for k, v in mo.items()}
                     # OPA L006/L013/L022 expect "cmd"; loader stores free-form shell/command as "_raw"
-                    if "_raw" in d["module_options"] and "cmd" not in d["module_options"]:
-                        raw_val = d["module_options"].get("_raw")
+                    if "_raw" in mo_dict and "cmd" not in mo_dict:
+                        raw_val = mo_dict.get("_raw")
                         if isinstance(raw_val, str):
-                            d["module_options"]["cmd"] = raw_val
+                            mo_dict["cmd"] = raw_val
+                    d["module_options"] = mo_dict
         return d
 
     def _opts_for_opa(self, opts: YAMLDict, keys: list[str]) -> YAMLDict:

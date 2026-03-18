@@ -5,7 +5,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 from apme.v1.common_pb2 import File
-from apme.v1.primary_pb2 import ScanChunk, ScanOptions, ScanRequest
+from apme.v1.primary_pb2 import ScanChunk, ScanOptions, ScanRequest  # type: ignore[attr-defined]
 
 # Max bytes per ScanChunk message to stay under typical gRPC max message size (e.g. 4 MiB).
 CHUNK_MAX_BYTES = 1024 * 1024  # 1 MiB
@@ -163,7 +163,7 @@ def yield_scan_chunks(
         chunk_max_bytes: Max serialized size per chunk (default 1 MiB).
 
     Yields:
-        ScanChunk messages.
+        ScanChunk: ScanChunk messages for streaming.
     """
     req = build_scan_request(
         target_path,
@@ -172,7 +172,7 @@ def yield_scan_chunks(
         ansible_core_version=ansible_core_version,
         collection_specs=collection_specs,
     )
-    files = list(req.files)
+    files: list[File] = list(req.files)  # type: ignore[arg-type]
     if not files:
         yield ScanChunk(
             scan_id=req.scan_id or "",

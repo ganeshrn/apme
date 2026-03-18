@@ -74,9 +74,13 @@ EXPECTED_OPA_RULES = {
 }
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="module")  # type: ignore[untyped-decorator]
 def scan_results() -> dict[str, list[dict[str, object]]]:
-    """Scan the terrible-playbook and collect violations from all validators."""
+    """Scan the terrible-playbook and collect violations from all validators.
+
+    Returns:
+        Dict with 'native' and 'opa' keys, each a list of violation dicts.
+    """
     fixture = _fixture_path()
     if not fixture.is_dir():
         pytest.skip("terrible-playbook fixture not found")
@@ -88,7 +92,7 @@ def scan_results() -> dict[str, list[dict[str, object]]]:
     native = NativeValidator(exclude_rule_ids=())
     opa = OpaValidator(str(_opa_bundle_dir()))
 
-    native_violations = cast(list[dict[str, object]], native.run(context))
+    native_violations = native.run(context)
     opa_violations = cast(list[dict[str, object]], opa.run(context))
 
     return {
@@ -102,40 +106,60 @@ def _rule_ids(violations: list[dict[str, object]], prefix: str = "") -> set[str]
     for v in violations:
         rid = str(v.get("rule_id", ""))
         if prefix and rid.startswith(prefix):
-            rid = rid[len(prefix):]
+            rid = rid[len(prefix) :]
         ids.add(rid)
     return ids
 
 
 def test_terrible_playbook_native_rules(scan_results: dict[str, list[dict[str, object]]]) -> None:
-    """Verify expected native rules fire on the terrible playbook."""
+    """Verify expected native rules fire on the terrible playbook.
+
+    Args:
+        scan_results: Pytest fixture with native/opa violation lists.
+    """
     found = _rule_ids(scan_results["native"], prefix="native:")
     missing = EXPECTED_NATIVE_RULES - found
     assert not missing, f"Expected native rules did not fire: {sorted(missing)}. Found: {sorted(found)}"
 
 
 def test_terrible_playbook_opa_rules(scan_results: dict[str, list[dict[str, object]]]) -> None:
-    """Verify expected OPA rules fire on the terrible playbook."""
+    """Verify expected OPA rules fire on the terrible playbook.
+
+    Args:
+        scan_results: Pytest fixture with native/opa violation lists.
+    """
     found = _rule_ids(scan_results["opa"])
     missing = EXPECTED_OPA_RULES - found
     assert not missing, f"Expected OPA rules did not fire: {sorted(missing)}. Found: {sorted(found)}"
 
 
 def test_terrible_playbook_has_violations(scan_results: dict[str, list[dict[str, object]]]) -> None:
-    """Verify the scan produces a meaningful number of violations."""
+    """Verify the scan produces a meaningful number of violations.
+
+    Args:
+        scan_results: Pytest fixture with native/opa violation lists.
+    """
     total = len(scan_results["native"]) + len(scan_results["opa"])
     assert total >= 50, f"Expected at least 50 violations, got {total}"
 
 
 def test_terrible_playbook_r101_command_exec(scan_results: dict[str, list[dict[str, object]]]) -> None:
-    """Verify R101 (parameterized command execution) fires."""
+    """Verify R101 (parameterized command execution) fires.
+
+    Args:
+        scan_results: Pytest fixture with native/opa violation lists.
+    """
     found = _rule_ids(scan_results["native"], prefix="native:")
     if "R101" not in found:
         pytest.skip("R101 requires CMD_EXEC annotation with is_mutable_cmd; may not fire on all playbooks")
 
 
 def test_terrible_playbook_r115_file_deletion(scan_results: dict[str, list[dict[str, object]]]) -> None:
-    """Verify R115 (file deletion with mutable path) fires if applicable."""
+    """Verify R115 (file deletion with mutable path) fires if applicable.
+
+    Args:
+        scan_results: Pytest fixture with native/opa violation lists.
+    """
     found = _rule_ids(scan_results["native"], prefix="native:")
     if "R115" not in found:
         pytest.skip("R115 requires FILE_CHANGE annotation with is_deletion + is_mutable_path")
