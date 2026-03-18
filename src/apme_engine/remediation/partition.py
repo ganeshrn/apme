@@ -19,7 +19,11 @@ def is_finding_resolvable(violation: ViolationDict, registry: TransformRegistry)
     Returns:
         True if rule_id has a registered transform.
     """
-    return str(violation.get("rule_id", "")) in registry
+    rule_id = str(violation.get("rule_id", ""))
+    # Native validator prefixes rule IDs with "native:" — strip it for registry lookup
+    if rule_id.startswith("native:"):
+        rule_id = rule_id[len("native:"):]
+    return rule_id in registry
 
 
 def partition_violations(

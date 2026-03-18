@@ -131,6 +131,19 @@ class RemediationEngine:
         for fp in file_paths:
             file_contents[fp] = Path(fp).read_text(encoding="utf-8")
 
+        # Violations may report relative filenames (e.g. "site.yml") while
+        # file_contents keys are absolute paths.  Build a reverse lookup so we
+        # can resolve either form to the canonical key.
+        _basename_to_key: dict[str, str] = {}
+        for fp in file_paths:
+            _basename_to_key[Path(fp).name] = fp
+            _basename_to_key[fp] = fp
+
+        def _resolve_file(vf: str) -> str | None:
+            if vf in file_contents:
+                return vf
+            return _basename_to_key.get(vf) or _basename_to_key.get(Path(vf).name)
+
         originals = dict(file_contents)
         all_applied_rules: dict[str, list[str]] = {fp: [] for fp in file_paths}
         prev_count = float("inf")
@@ -153,9 +166,12 @@ class RemediationEngine:
             applied_this_pass = 0
             for v in tier1:
                 rule_id = str(v.get("rule_id", ""))
-                vf = str(v.get("file", ""))
+                if rule_id.startswith("native:"):
+                    rule_id = rule_id[len("native:"):]
+                vf_raw = str(v.get("file", ""))
+                vf = _resolve_file(vf_raw)
 
-                if vf not in file_contents:
+                if vf is None:
                     continue
 
                 result = self._registry.apply(rule_id, file_contents[vf], v)
