@@ -20,6 +20,7 @@ enum RemediationResolution {
   REMEDIATION_RESOLUTION_AI_FAILED = 5;
   REMEDIATION_RESOLUTION_AI_LOW_CONFIDENCE = 6;
   REMEDIATION_RESOLUTION_USER_REJECTED = 7;
+  REMEDIATION_RESOLUTION_NEEDS_CROSS_FILE = 8;
 }
 
 // Violation is the shared shape for a single lint/policy violation.

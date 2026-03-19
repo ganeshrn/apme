@@ -1,0 +1,28 @@
+# Abbenay AI daemon — runs as a sidecar in the APME pod.
+# Expects SEA binary at build context root.
+#
+# Build:   podman build -f containers/Containerfile.abbenay -t apme-abbenay .
+# Run:     podman run -d --name abbenay \
+#            -e OPENAI_API_KEY="$OPENAI_API_KEY" \
+#            -v abbenay-config:/home/abbenay/.config/abbenay:Z \
+#            -p 50057:50057 apme-abbenay
+
+FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
+
+RUN microdnf install -y shadow-utils && microdnf clean all
+
+RUN groupadd -r abbenay && useradd -r -g abbenay -d /home/abbenay -m abbenay
+
+COPY abbenay /usr/local/bin/abbenay
+RUN chmod +x /usr/local/bin/abbenay
+
+RUN mkdir -p /home/abbenay/.config/abbenay && \
+    chown -R abbenay:abbenay /home/abbenay
+
+USER abbenay
+WORKDIR /home/abbenay
+
+EXPOSE 50057
+
+ENTRYPOINT ["abbenay"]
+CMD ["daemon", "start", "--addr", "0.0.0.0:50057"]
