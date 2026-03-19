@@ -98,7 +98,7 @@ interaction). Files never travel over WebSocket.
 │  └───────────────────────────────────────────────────────────────────┘        │
 │                                                                                │
 │  ┌─────────────────────────────────────────────────────────────────────┐      │
-│  │  Static SPA (PatternFly/React or Backstage plugin — see ADR-030)   │      │
+│  │  Static SPA (PatternFly/React — standalone mode only; see ADR-030) │      │
 │  └─────────────────────────────────────────────────────────────────────┘      │
 └────────────────────────────────────────────────────────────────────────────────┘
          │ HTTP + WebSocket
@@ -106,6 +106,17 @@ interaction). Files never travel over WebSocket.
     ┌──────────┐
     │  Browser  │
     └──────────┘
+```
+
+In the Backstage/RHDH deployment model (ADR-030), the gateway does **not** serve
+the frontend. The Backstage instance hosts the UI plugin and proxies API
+requests to the gateway. The gateway is a headless API server in that mode:
+
+```
+RHDH/Backstage instance (hosts UI plugin)
+         │ REST + WebSocket (proxied)
+         ▼
+    Web Gateway :8080 (API only, no static files)
 ```
 
 ### Cross-Pod Deployment
@@ -140,10 +151,12 @@ Each browser session maps 1:1 to a server-side `FixSession` bidi gRPC stream
 | Client → Server | `{"type": "approve", "ids": [...]}` | `SessionCommand.approve` |
 | Client → Server | `{"type": "extend"}` | `SessionCommand.extend` |
 | Client → Server | `{"type": "close"}` | `SessionCommand.close` |
+| Client → Server | `{"type": "resume", "session_id": "..."}` | `SessionCommand.resume` |
 | Server → Client | `{"type": "progress", "message": "..."}` | `SessionEvent.progress` |
 | Server → Client | `{"type": "proposals", "items": [...]}` | `SessionEvent.proposals` |
 | Server → Client | `{"type": "tier1_summary", ...}` | `SessionEvent.tier1_summary` |
 | Server → Client | `{"type": "result", "patches": [...]}` | `SessionEvent.result` |
+| Server → Client | `{"type": "expiration_warning", ...}` | `SessionEvent.expiration_warning` |
 
 The gateway manages the gRPC stream lifecycle: opens on WebSocket connect,
 closes on WebSocket disconnect or explicit close command, and handles
@@ -155,9 +168,11 @@ Files flow server-side only. The browser submits a target (URL or path); the
 gateway handles all file I/O:
 
 **Path 1 — SCM ingestion**: User submits a repository URL (+ optional PAT).
-The gateway clones the repo (via `CacheMaintainer.CloneOrg` gRPC or direct
-`git clone` into a temp directory), runs APME-specific file discovery, reads
-files, and streams `ScanChunk` messages to Primary.
+The gateway clones the repo via direct `git clone` into a temp directory (or
+via `CacheMaintainer.CloneOrg` for org-level batch operations), runs
+APME-specific file discovery, reads files, and streams `ScanChunk` messages
+to Primary. For single-repo URLs, `git clone` is the primary mechanism;
+`CloneOrg` is used when scanning entire GitHub/GitLab organizations.
 
 **Path 2 — Local directory**: User submits a filesystem path (e.g.,
 `/workspace/my-project`). The gateway reads files from a mounted volume, applies

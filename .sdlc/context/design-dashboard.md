@@ -31,7 +31,7 @@ This avoids duplicating mature infrastructure and ensures APME fits naturally in
 
 ## Standalone UI (Initial Development Focus)
 
-The standalone UI is a lightweight dashboard for individual use. It runs as part of the APME pod and requires no external authentication or database infrastructure.
+The standalone UI is a lightweight dashboard for individual use. Per ADR-029, it runs as a separate container **outside** the engine pod (to enable cross-pod aggregation) and requires no external authentication or database infrastructure.
 
 ### Architecture
 
@@ -57,7 +57,7 @@ in the presentation layer (ADR-020).
 │  ├── WebSocket ↔ FixSession bidi gRPC bridge (ADR-028)            │
 │  └── SQLite persistence (scan history, violations, proposals)     │
 │                                                                    │
-│  Static SPA (PatternFly/React or Backstage — ADR-030)             │
+│  Static SPA (PatternFly/React — standalone mode; see ADR-030)     │
 └───────────────────────────┬────────────────────────────────────────┘
                             │ HTTP + WebSocket
                             ▼
@@ -231,10 +231,12 @@ messages:
 | Client → Server | `{"type": "approve", "ids": [...]}` | `SessionCommand.approve` |
 | Client → Server | `{"type": "extend"}` | `SessionCommand.extend` |
 | Client → Server | `{"type": "close"}` | `SessionCommand.close` |
+| Client → Server | `{"type": "resume", "session_id": "..."}` | `SessionCommand.resume` |
 | Server → Client | `{"type": "progress", ...}` | `SessionEvent.progress` |
 | Server → Client | `{"type": "proposals", ...}` | `SessionEvent.proposals` |
 | Server → Client | `{"type": "tier1_summary", ...}` | `SessionEvent.tier1_summary` |
 | Server → Client | `{"type": "result", ...}` | `SessionEvent.result` |
+| Server → Client | `{"type": "expiration_warning", ...}` | `SessionEvent.expiration_warning` |
 
 Files flow server-side only — the browser submits a target (repo URL or
 directory path) and the gateway handles clone/read → discover → chunk → gRPC
