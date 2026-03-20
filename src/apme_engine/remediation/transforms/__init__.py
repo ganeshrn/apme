@@ -6,6 +6,7 @@ from apme_engine.remediation.registry import TransformRegistry
 from apme_engine.remediation.transforms.L007_shell_to_command import fix_shell_to_command
 from apme_engine.remediation.transforms.L008_local_action import fix_local_action
 from apme_engine.remediation.transforms.L009_empty_string import fix_empty_string
+from apme_engine.remediation.transforms.L010_ignore_errors import fix_ignore_errors
 from apme_engine.remediation.transforms.L011_literal_bool import fix_literal_bool
 from apme_engine.remediation.transforms.L012_latest import fix_latest
 from apme_engine.remediation.transforms.L013_changed_when import fix_changed_when
@@ -35,6 +36,7 @@ def build_default_registry() -> TransformRegistry:
     reg.register("L007", structured=fix_shell_to_command)
     reg.register("L008", structured=fix_local_action)
     reg.register("L009", structured=fix_empty_string)
+    reg.register("L010", structured=fix_ignore_errors)
     reg.register("L011", structured=fix_literal_bool)
     reg.register("L012", structured=fix_latest)
     reg.register("L013", structured=fix_changed_when)
@@ -56,8 +58,10 @@ def build_default_registry() -> TransformRegistry:
     reg.register("M003", structured=fix_fqcn)
     reg.register("M004", structured=fix_fqcn)
 
-    # OPA L005 also detects non-FQCN; reuse the same fixer (falls back to static map)
+    # OPA L002/L005 and native L026 also detect non-FQCN; reuse the same fixer
+    reg.register("L002", structured=fix_fqcn)
     reg.register("L005", structured=fix_fqcn)
+    reg.register("L026", structured=fix_fqcn)
 
     # Migration rules
     reg.register("M006", structured=fix_become_unreachable)

@@ -1,5 +1,6 @@
-"""Native rule L046: detect raw/command/shell without explicit args (free-form)."""
+"""Native rule L046: detect modules using free-form key=value syntax."""
 
+import re
 from dataclasses import dataclass
 from typing import cast
 
@@ -18,24 +19,33 @@ from apme_engine.engine.models import (
     RuleTag as Tag,
 )
 
-FREE_FORM_ACTIONS = frozenset(
+_KV_PATTERN = re.compile(r"\b\w+=\S")
+
+_COMMAND_MODULES = frozenset(
     {
-        "ansible.builtin.raw",
         "ansible.builtin.command",
         "ansible.builtin.shell",
-        "ansible.legacy.raw",
+        "ansible.builtin.raw",
+        "ansible.builtin.script",
         "ansible.legacy.command",
         "ansible.legacy.shell",
-        "raw",
+        "ansible.legacy.raw",
+        "ansible.legacy.script",
         "command",
         "shell",
+        "raw",
+        "script",
     }
 )
 
 
 @dataclass
 class NoFreeFormRule(Rule):
-    """Rule for avoiding raw/command/shell without explicit args.
+    """Rule for avoiding free-form key=value syntax on module actions.
+
+    Detects any module invoked with a string argument containing
+    ``key=value`` pairs (e.g. ``stat: path=/tmp``).  The preferred
+    style is a YAML mapping with explicit keys.
 
     Attributes:
         rule_id: Rule identifier.
@@ -48,7 +58,7 @@ class NoFreeFormRule(Rule):
     """
 
     rule_id: str = "L046"
-    description: str = "Avoid raw/command/shell without explicit args (use args: key)"
+    description: str = "Avoid free-form when calling module actions"
     enabled: bool = True
     name: str = "NoFreeForm"
     version: str = "v0.0.1"
@@ -70,7 +80,7 @@ class NoFreeFormRule(Rule):
         return bool(ctx.current.type == RunTargetType.Task)
 
     def process(self, ctx: AnsibleRunContext) -> RuleResult | None:
-        """Check for free-form raw/command/shell and return result.
+        """Check for free-form module arguments and return result.
 
         Args:
             ctx: Current Ansible run context.
@@ -88,24 +98,19 @@ class NoFreeFormRule(Rule):
                 file=cast("tuple[str | int, ...] | None", task.file_info()),
                 rule=self.get_metadata(),
             )
-        resolved = getattr(task.spec, "resolved_name", "") or ""
-        if resolved not in FREE_FORM_ACTIONS:
-            return RuleResult(
-                verdict=False,
-                file=cast("tuple[str | int, ...] | None", task.file_info()),
-                rule=self.get_metadata(),
-            )
         args = getattr(task, "args", None)
         raw = getattr(args, "raw", None) if args is not None else None
-        # Free-form: args.raw is a string, or module_options has "_raw" string (loader stores free-form there)
         if isinstance(raw, dict) and "_raw" in raw:
             raw = raw.get("_raw")
-        is_free_form = isinstance(raw, str) and raw.strip() != ""
+        resolved = getattr(task.spec, "resolved_name", "") or ""
+        is_free_form = False
+        if isinstance(raw, str) and raw.strip():
+            is_free_form = True if resolved in _COMMAND_MODULES else bool(_KV_PATTERN.search(raw))
         verdict = is_free_form
-        detail = {}
+        detail: dict[str, object] = {}
         if verdict:
             detail["module"] = resolved
-            detail["message"] = "use args: with a list or cmd: key instead of free-form string"
+            detail["message"] = "avoid using free-form when calling module actions"
         return RuleResult(
             verdict=verdict,
             detail=cast("YAMLDict | None", detail),

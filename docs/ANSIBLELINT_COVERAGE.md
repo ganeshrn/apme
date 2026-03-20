@@ -6,9 +6,9 @@ Coverage comparison against the **ansible-lint** codebase (rule `id` from `src/a
 
 | Status | Count |
 |--------|-------|
-| **Covered** (OPA, native, or Ansible) | 38 |
+| **Covered** (OPA, native, or Ansible) | 39 |
 | **Partial / overlap** | 4 |
-| **Not covered** | 6 |
+| **Not covered** | 5 |
 | **Internal / N/A** | 4 |
 
 ---
@@ -72,6 +72,7 @@ Coverage comparison against the **ansible-lint** codebase (rule `id` from `src/a
 | meta-no-tags | L054 | Role meta galaxy_tags |
 | meta-video-links | L055 | Role meta video_links URLs |
 | sanity | L056 | Path matches sanity ignore pattern |
+| yaml (line-length) | L060 | Line too long (> 160 characters) |
 
 ### Ansible runtime rules (L057–L059, M001–M004)
 
@@ -116,7 +117,8 @@ These are APME-specific rules with no direct ansible-lint equivalent. They use t
 | ansible-lint rule | Reason |
 |-------------------|--------|
 | role-argument-spec | Validates `meta/argument_spec.yml`; schema-heavy, could be added as native rule |
-| yaml | ansible-lint wraps yamllint; users can run yamllint separately |
+| yaml (line-length) | Covered by L060 (native); checks lines > 160 characters |
+| yaml (other) | ansible-lint wraps yamllint; users can run yamllint separately for other yaml rules |
 | load-failure | ansible-lint internal; our engine has its own error handling |
 | — | — |
 

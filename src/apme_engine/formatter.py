@@ -25,11 +25,10 @@ YAML_EXTENSIONS = {".yml", ".yaml"}
 
 JINJA_NORMALIZE_RE = re.compile(r"\{\{(\s*)(.*?)(\s*)\}\}")
 
+_JINJA_PIPE_RE = re.compile(r"(?<!\|)\|(?!\|)")
+
 TASK_KEY_ORDER = [
     "name",
-    "block",
-    "rescue",
-    "always",
     "when",
     "changed_when",
     "failed_when",
@@ -57,9 +56,13 @@ TASK_KEY_ORDER = [
     "environment",
     "vars",
     "args",
+    "block",
+    "rescue",
+    "always",
 ]
 
 _TASK_KEY_SET = set(TASK_KEY_ORDER)
+_BLOCK_BODY_KEYS = frozenset({"block", "rescue", "always"})
 
 
 @dataclass
@@ -81,23 +84,83 @@ class FormatResult:
     diff: str = field(default="", repr=False)
 
 
+def _normalize_jinja_pipes(inner: str) -> str:
+    """Normalize pipe operator spacing inside a Jinja expression.
+
+    Ensures single ``|`` operators (Jinja filters) have exactly one space
+    on each side.  Does not touch ``||`` (logical or).
+
+    Args:
+        inner: Inner content of a ``{{ ... }}`` expression (already stripped).
+
+    Returns:
+        Inner content with normalized pipe spacing.
+    """
+    parts = _JINJA_PIPE_RE.split(inner)
+    return " | ".join(part.strip() for part in parts)
+
+
 def _normalize_jinja(match: re.Match[str]) -> str:
-    """Normalize {{ foo }} spacing to exactly one space inside braces.
+    """Normalize ``{{ foo }}`` spacing: braces and filter pipes.
 
     Args:
         match: Regex match for Jinja expression with optional inner spacing.
 
     Returns:
-        Normalized Jinja string with exactly one space inside braces.
+        Normalized Jinja string with correct spacing.
     """
     inner: str = match.group(2).strip()
     if not inner:
         return "{{ }}"
+    inner = _normalize_jinja_pipes(inner)
     return "{{ " + inner + " }}"
 
 
+_BARE_JINJA_KEYS = frozenset({"when", "changed_when", "failed_when", "until", "that"})
+_BARE_JINJA_LINE_RE = re.compile(r"^(?P<prefix>\s+(?:" + "|".join(_BARE_JINJA_KEYS) + r"):\s+)(?P<value>.+)$")
+
+
+def _normalize_bare_jinja_pipes(text: str) -> str:
+    """Normalize ``|`` filter spacing in bare-Jinja keys like ``when:``.
+
+    Ansible evaluates ``when:`` values as Jinja without ``{{ }}``, so
+    ``foo|bool`` should become ``foo | bool``.  Only applies to known
+    keys that take Jinja expressions, to avoid touching values in other
+    contexts (e.g. shell pipes).
+
+    Args:
+        text: Raw YAML text to process.
+
+    Returns:
+        Text with normalized pipe spacing in bare-Jinja keys.
+    """
+    lines = text.split("\n")
+    changed = False
+    for i, line in enumerate(lines):
+        m = _BARE_JINJA_LINE_RE.match(line)
+        if m is None:
+            continue
+        value = m.group("value")
+        new_value = _JINJA_PIPE_RE.sub(
+            lambda pm, _v=value: (
+                ("" if pm.start() > 0 and _v[pm.start() - 1] == " " else " ")
+                + "|"
+                + ("" if pm.end() < len(_v) and _v[pm.end()] == " " else " ")
+            ),
+            value,
+        )
+        if new_value != value:
+            lines[i] = m.group("prefix") + new_value
+            changed = True
+    if not changed:
+        return text
+    return "\n".join(lines)
+
+
 def _fix_jinja_spacing(text: str) -> str:
-    return JINJA_NORMALIZE_RE.sub(_normalize_jinja, text)
+    text = JINJA_NORMALIZE_RE.sub(_normalize_jinja, text)
+    text = _normalize_bare_jinja_pipes(text)
+    return text
 
 
 def _fix_tabs(text: str) -> str:
@@ -191,11 +254,55 @@ _TASK_LIST_KEYS = frozenset({"tasks", "pre_tasks", "post_tasks", "handlers", "bl
 _TASK_ITEM_RE = re.compile(r"^(\s*)- \S")
 
 
+_PLAY_KEYS = frozenset({"hosts", "import_playbook"})
+
+
+def _is_bare_task_list(lines: list[str]) -> bool:
+    """Return True if the file is a bare task list (no ``tasks:`` parent key).
+
+    Bare task lists start with ``---`` followed by ``- name:`` or ``- module:``
+    at indent 0, typical of role ``tasks/main.yml`` or included task files.
+    Returns False for playbooks (first list item has ``hosts:``).
+
+    Args:
+        lines: Split lines of the YAML file.
+
+    Returns:
+        True if the file is a bare task list.
+    """
+    first_item_lines: list[str] = []
+    found_first = False
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or stripped == "---":
+            continue
+        if not found_first:
+            if not _TASK_ITEM_RE.match(line):
+                return False
+            found_first = True
+            first_item_lines.append(stripped)
+            continue
+        if _TASK_ITEM_RE.match(line):
+            break
+        first_item_lines.append(stripped)
+
+    if not found_first:
+        return False
+
+    for fl in first_item_lines:
+        key = fl.lstrip("- ").split(":")[0].strip()
+        if key in _PLAY_KEYS:
+            return False
+    return True
+
+
 def _add_task_spacing(text: str) -> str:
     """Insert a blank line between task list items when missing.
 
-    Only applies under known task-list keys (tasks, handlers, block, etc.)
-    so that non-task sequences (vars lists, loop items) are not affected.
+    Applies under known task-list keys (tasks, handlers, block, etc.)
+    and also to bare task-list files (top-level YAML sequence of tasks,
+    e.g. role ``tasks/main.yml``) so that non-task sequences (vars lists,
+    loop items) are not affected.
 
     Args:
         text: Formatted YAML text.
@@ -205,8 +312,8 @@ def _add_task_spacing(text: str) -> str:
     """
     lines = text.split("\n")
     result: list[str] = [lines[0]] if lines else []
-    in_task_list = False
-    task_list_indent = -1
+    in_task_list = _is_bare_task_list(lines)
+    task_list_indent = -1 if not in_task_list else 0
     for i in range(1, len(lines)):
         line = lines[i]
         stripped = line.rstrip()
@@ -225,13 +332,130 @@ def _add_task_spacing(text: str) -> str:
         m = _TASK_ITEM_RE.match(line)
         if in_task_list and m and result and result[-1].strip() != "":
             indent = m.group(1)
+            item_indent = len(indent)
+            if task_list_indent >= 0 and item_indent > task_list_indent + 2:
+                result.append(line)
+                continue
             is_mapping = i + 1 < len(lines) and lines[i + 1].startswith(indent + "  ")
             is_action = ":" in line
-            prev_is_list_header = result[-1].rstrip().endswith(":")
+            prev_stripped = result[-1].rstrip()
+            prev_key = prev_stripped.lstrip("- ").rstrip(":").strip()
+            prev_is_list_header = prev_stripped == "---" or (
+                prev_stripped.endswith(":") and prev_key in _TASK_LIST_KEYS
+            )
             if (is_mapping or is_action) and not prev_is_list_header:
                 result.append("")
         result.append(line)
     return "\n".join(result)
+
+
+def _compute_name_prefix(filename: str) -> str:
+    """Compute the ``name[prefix]`` prefix from the file path.
+
+    Per ansible-lint ``name[prefix]``, included task files not named
+    ``main.yml`` should prefix task names with the path stems relative to
+    the ``tasks/`` directory.
+
+    Examples::
+
+        tasks/deploy.yml          -> "deploy | "
+        tasks/foo/destroy.yml     -> "foo | destroy | "
+        tasks/main.yml            -> ""   (no prefix for main.yml at root)
+        tasks/foo/main.yml        -> "foo | main | "
+
+    Args:
+        filename: Path to the YAML file being formatted.
+
+    Returns:
+        Prefix string (e.g. ``"deploy | "``), or empty string if none needed.
+    """
+    p = Path(filename)
+
+    parts = p.parts
+    try:
+        tasks_idx = len(parts) - 1 - list(reversed(parts)).index("tasks")
+    except ValueError:
+        return ""
+
+    sub_parts = list(parts[tasks_idx + 1 :])
+    if not sub_parts:
+        return ""
+
+    sub_parts[-1] = Path(sub_parts[-1]).stem
+
+    if sub_parts == ["main"]:
+        return ""
+
+    return " | ".join(sub_parts) + " | "
+
+
+def _add_name_prefix(data: object, prefix: str) -> None:
+    """Prepend ``prefix`` to task ``name`` values that don't already have it.
+
+    Args:
+        data: CommentedSeq, CommentedMap, or nested structure with tasks.
+        prefix: The prefix string (e.g. ``"deploy | "``).
+    """
+    if not prefix:
+        return
+    if isinstance(data, CommentedSeq):
+        for item in data:
+            _add_name_prefix(item, prefix)
+    elif isinstance(data, CommentedMap):
+        name = data.get("name")
+        if isinstance(name, str) and name and not name.lower().startswith(prefix.lower()):
+            data["name"] = prefix + name
+
+        for nested_key in ("block", "rescue", "always"):
+            if nested_key in data:
+                _add_name_prefix(data[nested_key], prefix)
+
+
+def _capitalize_task_name(name: str) -> str:
+    """Capitalize the meaningful part of a task name, respecting ``name[prefix]``.
+
+    If the name contains `` | `` separators (from the ``name[prefix]`` rule),
+    the prefix portion is left as-is and only the first letter of the final
+    segment is capitalized.
+
+    Args:
+        name: Task name string, possibly with ``name[prefix]`` separators.
+
+    Returns:
+        Name with the meaningful segment capitalized.
+    """
+    sep = " | "
+    if sep in name:
+        idx = name.rfind(sep) + len(sep)
+        prefix_part = name[:idx]
+        rest = name[idx:]
+        if rest and not rest[0].isupper():
+            return prefix_part + rest[0].upper() + rest[1:]
+        return name
+    if name and not name[0].isupper():
+        return name[0].upper() + name[1:]
+    return name
+
+
+def _capitalize_name(data: object) -> None:
+    """Walk task/play mappings and capitalize the first letter of ``name`` values.
+
+    Args:
+        data: CommentedSeq, CommentedMap, or nested structure with tasks.
+    """
+    if isinstance(data, CommentedSeq):
+        for item in data:
+            _capitalize_name(item)
+    elif isinstance(data, CommentedMap):
+        name = data.get("name")
+        if isinstance(name, str) and name:
+            capitalized = _capitalize_task_name(name)
+            if capitalized != name:
+                data["name"] = capitalized
+
+        for nested_key in ("tasks", "pre_tasks", "post_tasks", "handlers", "block", "rescue", "always"):
+            if nested_key in data:
+                _capitalize_name(data[nested_key])
 
 
 def _reorder_task_keys(data: object) -> None:
@@ -267,6 +491,9 @@ def _reorder_task_keys(data: object) -> None:
 def _reorder_single_task(mapping: CommentedMap) -> None:
     """Reorder a single task/play CommentedMap: name first, then action, then known keys, then rest.
 
+    For block tasks, ``block``/``rescue``/``always`` are treated as the action
+    body and placed after metadata keys (matching ansible-lint key-order).
+
     Args:
         mapping: CommentedMap for a task or play block.
     """
@@ -277,6 +504,8 @@ def _reorder_single_task(mapping: CommentedMap) -> None:
     has_name = "name" in keys
     if not has_name:
         return
+
+    is_block_task = "block" in keys
 
     action_key = None
     for k in keys:
@@ -292,7 +521,14 @@ def _reorder_single_task(mapping: CommentedMap) -> None:
 
     for k in TASK_KEY_ORDER:
         if k in keys and k != "name":
+            if is_block_task and k in _BLOCK_BODY_KEYS:
+                continue
             desired.append(k)
+
+    if is_block_task:
+        for k in ("block", "rescue", "always"):
+            if k in keys:
+                desired.append(k)
 
     for k in keys:
         if k not in desired:
@@ -433,6 +669,12 @@ def _parse_kv_string(value: str) -> CommentedMap | None:
                 return None
             val = remaining[1:end]
             remaining = remaining[end + 1 :].lstrip()
+        elif remaining.startswith("{{"):
+            end = remaining.find("}}")
+            if end == -1:
+                return None
+            val = remaining[: end + 2]
+            remaining = remaining[end + 2 :].lstrip()
         else:
             parts = remaining.split(None, 1)
             val = parts[0]
@@ -509,6 +751,53 @@ def _force_tags_block_style(data: object) -> None:
                 _force_tags_block_style(data[nested_key])
 
 
+_MIN_ANSIBLE_VERSION_TUPLE = (2, 14, 0)
+_MIN_ANSIBLE_VERSION_STR = "2.14.0"
+
+
+def _parse_loose_version(raw: object) -> tuple[int, ...] | None:
+    """Parse a version string or float into a comparable tuple.
+
+    Handles ``"2.14.0"``, ``"2.5"``, and bare floats like ``2.5``.
+
+    Args:
+        raw: Version value (string, float, or int).
+
+    Returns:
+        Tuple of ints for comparison, or None if not parseable.
+    """
+    try:
+        parts = [int(p) for p in str(raw).split(".")]
+    except (ValueError, AttributeError):
+        return None
+    return tuple(parts)
+
+
+def _normalize_min_ansible_version(data: CommentedMap) -> None:
+    """Ensure ``galaxy_info.min_ansible_version`` is at least 2.14.0.
+
+    Role meta files targeting AAP 2.5+ should declare a minimum Ansible
+    version that is actually supported.  This bumps any value below 2.14.0
+    and coerces bare floats (e.g. ``2.5``) to proper semver strings.
+
+    Args:
+        data: Top-level CommentedMap (role meta/main.yml content).
+    """
+    galaxy_info = data.get("galaxy_info")
+    if not isinstance(galaxy_info, CommentedMap):
+        return
+    raw = galaxy_info.get("min_ansible_version")
+    if raw is None:
+        return
+    current = _parse_loose_version(raw)
+    if current is None:
+        return
+    if current < _MIN_ANSIBLE_VERSION_TUPLE:
+        galaxy_info["min_ansible_version"] = _MIN_ANSIBLE_VERSION_STR
+    elif not isinstance(raw, str):
+        galaxy_info["min_ansible_version"] = ".".join(str(p) for p in current)
+
+
 def format_content(text: str, filename: str = "<stdin>") -> FormatResult:
     """Format a YAML string.
 
@@ -546,15 +835,22 @@ def format_content(text: str, filename: str = "<stdin>") -> FormatResult:
             diff="",
         )
 
+    name_prefix = _compute_name_prefix(filename)
+
     if isinstance(data, CommentedSeq):
         for item in data:
             _expand_inline_kv_args(item)
             _force_tags_block_style(item)
+            _capitalize_name(item)
             _reorder_task_keys(item)
+        if name_prefix:
+            _add_name_prefix(data, name_prefix)
     elif isinstance(data, CommentedMap):
         _expand_inline_kv_args(data)
         _force_tags_block_style(data)
+        _capitalize_name(data)
         _reorder_task_keys(data)
+        _normalize_min_ansible_version(data)
 
     formatted = yaml.dumps(data)
 

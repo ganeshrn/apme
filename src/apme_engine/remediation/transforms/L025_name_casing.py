@@ -25,6 +25,16 @@ def fix_name_casing(sf: StructuredFile, violation: ViolationDict) -> bool:
     if not isinstance(name, str) or not name:
         return False
 
+    sep = " | "
+    if sep in name:
+        idx = name.rfind(sep) + len(sep)
+        prefix_part = name[:idx]
+        rest = name[idx:]
+        if not rest or rest[0].isupper():
+            return False
+        task["name"] = prefix_part + rest[0].upper() + rest[1:]
+        return True
+
     if name[0].isupper():
         return False
 

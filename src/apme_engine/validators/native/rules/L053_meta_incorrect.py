@@ -52,7 +52,7 @@ class MetaIncorrectRule(Rule):
         return bool(ctx.current.type == RunTargetType.Role)
 
     def process(self, ctx: AnsibleRunContext) -> RuleResult | None:
-        """Check role meta structure and return result.
+        """Check role meta structure and field types, return result.
 
         Args:
             ctx: AnsibleRunContext to process.
@@ -88,4 +88,55 @@ class MetaIncorrectRule(Rule):
                 file=file_info,
                 rule=self.get_metadata(),
             )
+
+        if isinstance(galaxy_info, dict):
+            type_errors = _check_galaxy_info_types(galaxy_info)
+            if type_errors:
+                return RuleResult(
+                    verdict=True,
+                    detail=cast(YAMLDict | None, {"message": "; ".join(type_errors)}),
+                    file=file_info,
+                    rule=self.get_metadata(),
+                )
+
         return RuleResult(verdict=False, file=file_info, rule=self.get_metadata())
+
+
+_GALAXY_INFO_STRING_FIELDS = (
+    "author",
+    "company",
+    "description",
+    "license",
+    "min_ansible_version",
+    "min_ansible_container_version",
+    "namespace",
+    "role_name",
+    "issue_tracker_url",
+    "repository",
+)
+
+
+def _check_galaxy_info_types(galaxy_info: dict[str, object]) -> list[str]:
+    """Validate known galaxy_info field types.
+
+    Args:
+        galaxy_info: The galaxy_info dict from meta/main.yml.
+
+    Returns:
+        List of error messages for type violations.
+    """
+    errors: list[str] = []
+    for field in _GALAXY_INFO_STRING_FIELDS:
+        value = galaxy_info.get(field)
+        if value is not None and not isinstance(value, str):
+            errors.append(f"$.galaxy_info.{field} {value!r} is not of type 'string'")
+
+    platforms = galaxy_info.get("platforms")
+    if platforms is not None and not isinstance(platforms, list):
+        errors.append("$.galaxy_info.platforms must be a list")
+
+    galaxy_tags = galaxy_info.get("galaxy_tags")
+    if galaxy_tags is not None and not isinstance(galaxy_tags, list):
+        errors.append("$.galaxy_info.galaxy_tags must be a list")
+
+    return errors

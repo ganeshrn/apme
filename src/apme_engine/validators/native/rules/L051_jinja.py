@@ -1,4 +1,4 @@
-"""Native rule L051: detect Jinja formatting without spaces inside {{ }}."""
+"""Native rule L051: detect Jinja formatting issues (brace spacing and filter pipe spacing)."""
 
 import re
 from dataclasses import dataclass
@@ -16,13 +16,17 @@ from apme_engine.engine.models import (
     RuleTag as Tag,
 )
 
-# Jinja should have spaces inside {{ }}: {{ foo }} not {{foo}}
 JINJA_NO_SPACE = re.compile(r"\{\{[^\s\}].*?\}\}|\{\{.*?[^\s\{]\}\}")
+JINJA_EXPR_RE = re.compile(r"\{\{\s*(.*?)\s*\}\}")
+JINJA_PIPE_BAD = re.compile(r"(?<!\|)\|(?!\|)(?:\S)|\S(?<!\|)\|(?!\|)")
 
 
 @dataclass
 class JinjaRule(Rule):
-    """Rule for Jinja formatting: use spaces inside {{ }} (e.g. {{ foo }}).
+    """Rule for Jinja formatting: brace spacing and filter pipe spacing.
+
+    Detects ``{{foo}}`` (missing brace spaces) and ``foo|bar`` (missing pipe
+    spaces) inside Jinja expressions.
 
     Attributes:
         rule_id: Rule identifier.
@@ -35,7 +39,7 @@ class JinjaRule(Rule):
     """
 
     rule_id: str = "L051"
-    description: str = "Jinja formatting: use spaces inside {{ }} (e.g. {{ foo }})"
+    description: str = "Jinja spacing could be improved"
     enabled: bool = True
     name: str = "Jinja"
     version: str = "v0.0.1"
@@ -56,7 +60,7 @@ class JinjaRule(Rule):
         return bool(ctx.current.type == RunTargetType.Task)
 
     def process(self, ctx: AnsibleRunContext) -> RuleResult | None:
-        """Check Jinja spacing and return result.
+        """Check Jinja spacing (braces and pipes) and return result.
 
         Args:
             ctx: AnsibleRunContext to process.
@@ -77,12 +81,20 @@ class JinjaRule(Rule):
                 for val in v.values():
                     if isinstance(val, str):
                         text += " " + val
-        violations = JINJA_NO_SPACE.findall(text)
-        verdict = len(violations) > 0
+
+        bad: list[str] = []
+        bad.extend(JINJA_NO_SPACE.findall(text))
+
+        for m in JINJA_EXPR_RE.finditer(text):
+            inner = m.group(1)
+            if JINJA_PIPE_BAD.search(inner):
+                bad.append(m.group(0))
+
+        verdict = len(bad) > 0
         detail: dict[str, object] = {}
-        if violations:
-            detail["bad_expressions"] = list(dict.fromkeys(violations))[:10]
-            detail["message"] = "use spaces inside Jinja expressions: {{ var }}"
+        if bad:
+            detail["bad_expressions"] = list(dict.fromkeys(bad))[:10]
+            detail["message"] = "Jinja2 spacing could be improved"
         return RuleResult(
             verdict=verdict,
             detail=cast(YAMLDict | None, detail),

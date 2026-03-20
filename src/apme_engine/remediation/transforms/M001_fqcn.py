@@ -41,7 +41,8 @@ _BUILTIN_FQCN: dict[str, str] = {
     "stat": "ansible.builtin.stat",
     "find": "ansible.builtin.find",
     "fetch": "ansible.builtin.fetch",
-    "synchronize": "ansible.builtin.synchronize",
+    "synchronize": "ansible.posix.synchronize",
+    "authorized_key": "ansible.posix.authorized_key",
     "package": "ansible.builtin.package",
     "dnf": "ansible.builtin.dnf",
     "setup": "ansible.builtin.setup",
@@ -76,16 +77,20 @@ _BUILTIN_FQCN: dict[str, str] = {
 def _resolve_fqcn(violation: ViolationDict, current_key: str) -> str | None:
     """Get the target FQCN from the violation or fall back to the static map.
 
+    Checks ``resolved_fqcn`` (from Ansible validator M001) and ``fqcn``
+    (from native validator L026).
+
     Args:
-        violation: Violation dict (may have resolved_fqcn from ansible-core).
+        violation: Violation dict (may have resolved_fqcn or fqcn).
         current_key: Current short module name.
 
     Returns:
         FQCN string, or None if not resolvable.
     """
-    fqcn = violation.get("resolved_fqcn")
-    if fqcn is not None and str(fqcn) != current_key:
-        return str(fqcn)
+    for field in ("resolved_fqcn", "fqcn"):
+        fqcn = violation.get(field)
+        if fqcn is not None and str(fqcn) != current_key and "." in str(fqcn):
+            return str(fqcn)
     return _BUILTIN_FQCN.get(current_key)
 
 

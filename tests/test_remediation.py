@@ -268,9 +268,12 @@ class TestDefaultRegistry:
         """Verifies default registry contains expected rule IDs and count."""
         reg = build_default_registry()
         for rule_id in (
+            "L002",
+            "L005",
             "L007",
             "L008",
             "L009",
+            "L010",
             "L011",
             "L012",
             "L013",
@@ -280,6 +283,7 @@ class TestDefaultRegistry:
             "L021",
             "L022",
             "L025",
+            "L026",
             "L043",
             "L046",
             "M001",
@@ -287,10 +291,9 @@ class TestDefaultRegistry:
             "M006",
             "M008",
             "M009",
-            "L005",
         ):
             assert rule_id in reg, f"{rule_id} missing from default registry"
-        assert len(reg) == 22
+        assert len(reg) == 25
 
 
 # ---------------------------------------------------------------------------

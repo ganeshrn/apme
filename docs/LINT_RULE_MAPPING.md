@@ -84,6 +84,7 @@ L001 was removed — its scope was limited to shell tasks without names, which i
 | L054 | L054_meta_no_tags.py | Role meta galaxy_tags |
 | L055 | L055_meta_video_links.py | Role meta video_links URLs |
 | L056 | L056_sanity.py | Path matches sanity ignore pattern |
+| L060 | L060_line_length.py | Line too long (> 160 characters) |
 
 ## Ansible validator rules — L057-L059
 
