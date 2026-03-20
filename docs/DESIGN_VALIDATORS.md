@@ -58,6 +58,8 @@ Every validator returns the same violation shape:
     "file": str,       # relative path
     "line": int,       # or [start, end]
     "path": str,       # hierarchy path
+    # Optional rule-specific metadata (forwarded via proto metadata map):
+    # "resolved_fqcn", "original_module", "with_key", "redirect_chain", "removal_msg"
 }
 ```
 

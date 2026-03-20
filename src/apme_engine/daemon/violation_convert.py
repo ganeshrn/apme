@@ -6,6 +6,32 @@ from apme.v1 import common_pb2
 from apme.v1.common_pb2 import LineRange, Violation
 from apme_engine.engine.models import RemediationClass, RemediationResolution, ViolationDict
 
+# Keys that live in the common Violation proto fields (not in metadata).
+_COMMON_KEYS = frozenset(
+    {
+        "rule_id",
+        "level",
+        "message",
+        "file",
+        "line",
+        "path",
+        "remediation_class",
+        "remediation_resolution",
+    }
+)
+
+# Rule-specific keys that transforms need; forwarded via proto metadata map.
+_METADATA_KEYS = frozenset(
+    {
+        "resolved_fqcn",
+        "original_module",
+        "fqcn",
+        "with_key",
+        "redirect_chain",
+        "removal_msg",
+    }
+)
+
 # Map string remediation class to proto enum (str keys for mypy compat with str,Enum)
 _REMEDIATION_CLASS_TO_PROTO: dict[str, int] = {
     RemediationClass.AUTO_FIXABLE.value: common_pb2.REMEDIATION_CLASS_AUTO_FIXABLE,  # type: ignore[attr-defined]
@@ -96,6 +122,15 @@ def violation_dict_to_proto(v: ViolationDict | Mapping[str, str | int | list[int
                 out.line = int(parts[0])
         except (ValueError, IndexError):
             pass
+
+    for key in _METADATA_KEYS:
+        val = v.get(key)
+        if val is not None:
+            if isinstance(val, list):
+                out.metadata[key] = ",".join(str(x) for x in val)  # type: ignore[attr-defined]
+            else:
+                out.metadata[key] = str(val)  # type: ignore[attr-defined]
+
     return out
 
 
@@ -120,7 +155,7 @@ def violation_proto_to_dict(v: Violation) -> ViolationDict:
         v.remediation_resolution,
         RemediationResolution.UNRESOLVED.value,
     )
-    return {
+    result: ViolationDict = {
         "rule_id": v.rule_id,
         "level": v.level,
         "message": v.message,
@@ -130,3 +165,12 @@ def violation_proto_to_dict(v: Violation) -> ViolationDict:
         "remediation_class": remediation_class,
         "remediation_resolution": resolution,
     }
+
+    for key, val in v.metadata.items():  # type: ignore[attr-defined]
+        if key in _METADATA_KEYS and val:
+            if key == "redirect_chain":
+                result[key] = val.split(",")
+            else:
+                result[key] = val
+
+    return result

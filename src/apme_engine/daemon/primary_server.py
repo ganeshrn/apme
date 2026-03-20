@@ -351,7 +351,7 @@ class PrimaryServicer(primary_pb2_grpc.PrimaryServicer):
             request_id=scan_id,
             project_root="",
             files=files,
-            hierarchy_payload=json.dumps(context_obj.hierarchy_payload).encode(),
+            hierarchy_payload=json.dumps(context_obj.hierarchy_payload, default=str).encode(),
             scandata=jsonpickle.encode(context_obj.scandata).encode(),
             ansible_core_version=ansible_core_version,
             collection_specs=collection_specs,

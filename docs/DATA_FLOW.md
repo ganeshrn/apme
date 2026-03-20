@@ -13,7 +13,8 @@ User runs:  apme-scan scan /path/to/project
 │                                                       │
 │  1. Walk project directory                            │
 │  2. Filter: TEXT_EXTENSIONS, skip SKIP_DIRS,          │
-│     exclude >2 MiB and binary files                   │
+│     skip SKIP_FILENAMES (.travis.yml), apply          │
+│     .apmeignore patterns, exclude >2 MiB/binary       │
 │  3. Build ScanRequest:                                │
 │     - scan_id (uuid)                                  │
 │     - project_root (basename)                         │
@@ -62,7 +63,8 @@ User runs:  apme-scan scan /path/to/project
 │     └────────────────────────────────────────────────────┘       │
 │                                                                  │
 │  6. Build ValidateRequest:                                       │
-│     - hierarchy_payload = json.dumps(ctx.hierarchy_payload)      │
+│     - hierarchy_payload = json.dumps(ctx.hierarchy_payload,      │
+│                                      default=str)                │
 │     - scandata = jsonpickle.encode(ctx.scandata)                 │
 │     - files, ansible_core_version, collection_specs              │
 │                                                                  │
@@ -251,7 +253,11 @@ message   : string   human-readable description
 file      : string   relative path to file
 line      : int      line number (or LineRange {start, end})
 path      : string   hierarchy path (e.g. "playbook > play > task")
+metadata  : map      rule-specific key/value pairs (e.g. resolved_fqcn,
+                      original_module, with_key, redirect_chain, removal_msg)
 ```
+
+The `metadata` map carries fields that transforms need but don't fit the common schema. For example, M001 violations include `resolved_fqcn` (the target FQCN from ansible-core introspection) and `original_module` (the literal YAML key). These are serialized through the gRPC `Violation.metadata` map field and round-tripped by `violation_convert.py`.
 
 The `rule_id` prefix convention:
 - No prefix → OPA rule

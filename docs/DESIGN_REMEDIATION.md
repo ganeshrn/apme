@@ -100,7 +100,7 @@ These are mechanical rewrites where the correct output is unambiguous given the 
 
 - **L021** — add `mode: '0644'` to `file`/`copy`/`template` tasks missing an explicit mode
 - **L007** — replace `ansible.builtin.shell` with `ansible.builtin.command` when no shell features are used
-- **M001** — rewrite short module names to FQCN (`debug` → `ansible.builtin.debug`)
+- **M001** — rewrite short module names to FQCN using `resolved_fqcn` from ansible-core introspection or OPA L005; escalates to AI (Tier 2) when no FQCN can be resolved
 - **M005** — rename deprecated parameter (`sudo:` → `become:`)
 
 The transform function receives the file content and violation, returns the corrected content. No ambiguity, no judgment.

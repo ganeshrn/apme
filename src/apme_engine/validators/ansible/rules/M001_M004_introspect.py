@@ -20,7 +20,6 @@ import json, sys
 
 data = json.loads(sys.stdin.read())
 module_names = data.get("modules", [])
-fallback_map = data.get("fallback_fqcn", {})
 results = {}
 
 from ansible.plugins.loader import module_loader
@@ -49,9 +48,6 @@ for name in module_names:
             info["removed"] = True
             info["removal_msg"] = str(e)
 
-    if not info["fqcn"] and not info["removed"] and name in fallback_map:
-        info["fqcn"] = fallback_map[name]
-
     results[name] = info
 
 json.dump(results, sys.stdout)
@@ -62,7 +58,6 @@ def _run_introspection(
     module_names: list[str],
     venv_root: Path,
     env_extra: dict[str, str] | None = None,
-    fallback_fqcn: dict[str, str] | None = None,
 ) -> dict[str, object]:
     """Run plugin introspection in the venv's Python. Returns {name: info_dict}.
 
@@ -70,9 +65,6 @@ def _run_introspection(
         module_names: List of module names to introspect.
         venv_root: Path to ansible venv root.
         env_extra: Optional extra environment variables.
-        fallback_fqcn: Static short-name-to-FQCN map used when the venv's
-            ``find_plugin_with_context`` fails to resolve (e.g. ``yum`` on
-            ansible-core >= 2.17 where the module routing throws).
 
     Returns:
         Dict mapping module name to info dict (fqcn, deprecated, etc.).
@@ -90,8 +82,6 @@ def _run_introspection(
         env.update(env_extra)
 
     payload: dict[str, object] = {"modules": module_names}
-    if fallback_fqcn:
-        payload["fallback_fqcn"] = fallback_fqcn
 
     try:
         result = subprocess.run(
@@ -143,12 +133,7 @@ def run(
     if not unique_modules:
         return []
 
-    from apme_engine.remediation.transforms.M001_fqcn import _BUILTIN_FQCN
-
-    short_names = {m for m in unique_modules if "." not in m}
-    fallback = {name: _BUILTIN_FQCN[name] for name in short_names if name in _BUILTIN_FQCN}
-
-    intro = _run_introspection(unique_modules, venv_root, env_extra, fallback_fqcn=fallback or None)
+    intro = _run_introspection(unique_modules, venv_root, env_extra)
     if not intro:
         return []
 
@@ -169,16 +154,20 @@ def run(
 
         # M004: Tombstoned / removed module
         if info.get("removed"):
-            violations.append(
-                {
-                    "rule_id": "M004",
-                    "level": "error",
-                    "message": str(info.get("removal_msg", "")) or f"Module {module_name} has been removed",
-                    "file": file_path,
-                    "line": line_num,
-                    "path": node.get("key", ""),
-                }
-            )
+            removal_fqcn = str(info.get("fqcn", ""))
+            m004: dict[str, object] = {
+                "rule_id": "M004",
+                "level": "error",
+                "message": str(info.get("removal_msg", "")) or f"Module {module_name} has been removed",
+                "file": file_path,
+                "line": line_num,
+                "path": node.get("key", ""),
+                "original_module": module_name,
+                "removal_msg": str(info.get("removal_msg", "")),
+            }
+            if removal_fqcn:
+                m004["resolved_fqcn"] = removal_fqcn
+            violations.append(m004)
             continue
 
         # M001: FQCN resolution
@@ -202,16 +191,18 @@ def run(
             warnings = info.get("warnings", [])
             w_list = warnings if isinstance(warnings, list) else []
             msg = str(w_list[0]) if w_list else f"Module {module_name} is deprecated"
-            violations.append(
-                {
-                    "rule_id": "M002",
-                    "level": "warning",
-                    "message": msg,
-                    "file": file_path,
-                    "line": line_num,
-                    "path": node.get("key", ""),
-                }
-            )
+            m002: dict[str, object] = {
+                "rule_id": "M002",
+                "level": "warning",
+                "message": msg,
+                "file": file_path,
+                "line": line_num,
+                "path": node.get("key", ""),
+                "original_module": module_name,
+            }
+            if fqcn:
+                m002["resolved_fqcn"] = fqcn
+            violations.append(m002)
 
         # M003: Redirects
         redirects = info.get("redirects", [])

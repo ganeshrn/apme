@@ -153,7 +153,7 @@ src/apme_engine/
 │   ├── cache_maintainer_main.py
 │   ├── launcher.py         Local multi-service daemon (start/stop/status)
 │   ├── session.py          FixSession state management (SessionStore)
-│   ├── chunked_fs.py       Chunked file streaming helpers
+│   ├── chunked_fs.py       Chunked file streaming + .apmeignore filtering
 │   ├── health_check.py     Health check utilities
 │   └── violation_convert.py  dict ↔ proto Violation conversion
 │

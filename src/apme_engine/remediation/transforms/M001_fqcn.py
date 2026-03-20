@@ -1,10 +1,15 @@
-"""M001/M003: Rewrite short module names to FQCN.
+"""M001/M003/L005: Rewrite short module names to FQCN.
 
 M001 violations carry ``resolved_fqcn`` from ansible-core's plugin loader.
-Falls back to a static builtin map when resolved_fqcn is not available.
+L005 violations carry ``resolved_fqcn`` from the engine's hierarchy payload.
+When the violation lacks a resolved FQCN the transform falls back to parsing
+the message text (``"Use FQCN: apt -> ansible.builtin.apt"``).  If that also
+fails the violation escalates to AI (Tier 2).
 """
 
 from __future__ import annotations
+
+import re
 
 from apme_engine.engine.models import ViolationDict
 from apme_engine.remediation.structured import StructuredFile
@@ -14,71 +19,18 @@ from apme_engine.remediation.transforms._helpers import (
     violation_line_to_int,
 )
 
-_BUILTIN_FQCN: dict[str, str] = {
-    "debug": "ansible.builtin.debug",
-    "command": "ansible.builtin.command",
-    "shell": "ansible.builtin.shell",
-    "raw": "ansible.builtin.raw",
-    "script": "ansible.builtin.script",
-    "copy": "ansible.builtin.copy",
-    "file": "ansible.builtin.file",
-    "template": "ansible.builtin.template",
-    "yum": "ansible.builtin.yum",
-    "apt": "ansible.builtin.apt",
-    "pip": "ansible.builtin.pip",
-    "service": "ansible.builtin.service",
-    "systemd": "ansible.builtin.systemd",
-    "user": "ansible.builtin.user",
-    "group": "ansible.builtin.group",
-    "cron": "ansible.builtin.cron",
-    "git": "ansible.builtin.git",
-    "get_url": "ansible.builtin.get_url",
-    "uri": "ansible.builtin.uri",
-    "unarchive": "ansible.builtin.unarchive",
-    "lineinfile": "ansible.builtin.lineinfile",
-    "replace": "ansible.builtin.replace",
-    "blockinfile": "ansible.builtin.blockinfile",
-    "stat": "ansible.builtin.stat",
-    "find": "ansible.builtin.find",
-    "fetch": "ansible.builtin.fetch",
-    "synchronize": "ansible.posix.synchronize",
-    "authorized_key": "ansible.posix.authorized_key",
-    "package": "ansible.builtin.package",
-    "dnf": "ansible.builtin.dnf",
-    "setup": "ansible.builtin.setup",
-    "ping": "ansible.builtin.ping",
-    "assert": "ansible.builtin.assert",
-    "fail": "ansible.builtin.fail",
-    "set_fact": "ansible.builtin.set_fact",
-    "pause": "ansible.builtin.pause",
-    "wait_for": "ansible.builtin.wait_for",
-    "wait_for_connection": "ansible.builtin.wait_for_connection",
-    "include_tasks": "ansible.builtin.include_tasks",
-    "import_tasks": "ansible.builtin.import_tasks",
-    "include_role": "ansible.builtin.include_role",
-    "import_role": "ansible.builtin.import_role",
-    "include_vars": "ansible.builtin.include_vars",
-    "add_host": "ansible.builtin.add_host",
-    "group_by": "ansible.builtin.group_by",
-    "hostname": "ansible.builtin.hostname",
-    "iptables": "ansible.builtin.iptables",
-    "known_hosts": "ansible.builtin.known_hosts",
-    "mount": "ansible.builtin.mount",
-    "reboot": "ansible.builtin.reboot",
-    "tempfile": "ansible.builtin.tempfile",
-    "meta": "ansible.builtin.meta",
-    "async_status": "ansible.builtin.async_status",
-    "gather_facts": "ansible.builtin.gather_facts",
-    "package_facts": "ansible.builtin.package_facts",
-    "slurp": "ansible.builtin.slurp",
-}
+_FQCN_FROM_MSG_RE = re.compile(
+    r"(?:Use FQCN|FQCN for module):\s*\S+\s*->\s*(\S+)",
+)
 
 
 def _resolve_fqcn(violation: ViolationDict, current_key: str) -> str | None:
-    """Get the target FQCN from the violation or fall back to the static map.
+    """Get the target FQCN from the violation metadata.
 
-    Checks ``resolved_fqcn`` (from Ansible validator M001) and ``fqcn``
-    (from native validator L026).
+    Checks ``resolved_fqcn`` (from Ansible validator M001 / OPA L005)
+    and ``fqcn`` (from native validator L026).  Falls back to parsing
+    the violation message for ``"X -> Y"`` patterns.  Returns None when
+    no source carries a usable FQCN so the violation escalates to AI.
 
     Args:
         violation: Violation dict (may have resolved_fqcn or fqcn).
@@ -89,9 +41,40 @@ def _resolve_fqcn(violation: ViolationDict, current_key: str) -> str | None:
     """
     for field in ("resolved_fqcn", "fqcn"):
         fqcn = violation.get(field)
-        if fqcn is not None and str(fqcn) != current_key and "." in str(fqcn):
+        if fqcn is not None and _is_valid_fqcn(str(fqcn), current_key):
             return str(fqcn)
-    return _BUILTIN_FQCN.get(current_key)
+
+    msg = str(violation.get("message", ""))
+    m = _FQCN_FROM_MSG_RE.search(msg)
+    if m:
+        candidate = m.group(1)
+        if _is_valid_fqcn(candidate, current_key):
+            return candidate
+
+    return None
+
+
+def _is_valid_fqcn(candidate: str, current_key: str) -> bool:
+    """Return True if candidate looks like a real FQCN, not an engine key.
+
+    Args:
+        candidate: String to validate as a FQCN.
+        current_key: The current YAML module key (to reject identity matches).
+
+    Returns:
+        True if candidate is a well-formed FQCN.
+    """
+    if candidate == current_key:
+        return False
+    if " " in candidate or "#" in candidate:
+        return False
+    if "/" in candidate or "\\" in candidate:
+        return False
+    if candidate.startswith("taskfile"):
+        return False
+    if candidate.endswith((".yml", ".yaml", ".json")):
+        return False
+    return "." in candidate
 
 
 def fix_fqcn(sf: StructuredFile, violation: ViolationDict) -> bool:

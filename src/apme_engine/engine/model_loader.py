@@ -1114,7 +1114,7 @@ def load_playbooks(
             relative_path = ""
             if fpath.startswith(path):
                 relative_path = fpath[len(path) :]
-            if "/roles/" in relative_path and not from_list:
+            if "/roles/" in relative_path and not from_list and not include_test_contents:
                 continue
             p = None
             try:

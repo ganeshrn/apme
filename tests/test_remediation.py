@@ -465,8 +465,8 @@ class TestFQCNTransform:
         assert "ansible.builtin.debug" in result.content
         assert "\n  debug:" not in result.content
 
-    def test_falls_back_to_static_map(self) -> None:
-        """Verifies static FQCN map used when no resolved_fqcn."""
+    def test_escalates_without_resolved_fqcn(self) -> None:
+        """Verifies no fix when violation lacks resolved_fqcn (escalates to AI)."""
         content = textwrap.dedent("""\
         - name: Copy file
           copy:
@@ -475,8 +475,7 @@ class TestFQCNTransform:
         """)
         violation = cast(ViolationDict, {"rule_id": "M001", "line": 1})
         result = _apply(fix_fqcn, content, violation)
-        assert result.applied is True
-        assert "ansible.builtin.copy" in result.content
+        assert result.applied is False
 
     def test_no_change_when_already_fqcn(self) -> None:
         """Verifies no change when module already FQCN."""
@@ -508,9 +507,13 @@ class TestFQCNTransform:
             name: httpd
             state: present
         """)
-        r1 = _apply(fix_fqcn, content, cast(ViolationDict, {"rule_id": "M001", "line": 1}))
+        violation = cast(
+            ViolationDict,
+            {"rule_id": "M001", "line": 1, "resolved_fqcn": "ansible.builtin.yum"},
+        )
+        r1 = _apply(fix_fqcn, content, violation)
         assert r1.applied is True
-        r2 = _apply(fix_fqcn, r1.content, cast(ViolationDict, {"rule_id": "M001", "line": 1}))
+        r2 = _apply(fix_fqcn, r1.content, violation)
         assert r2.applied is False
 
     def test_m003_redirect_uses_resolved_fqcn(self) -> None:

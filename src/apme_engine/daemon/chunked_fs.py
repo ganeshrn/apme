@@ -1,5 +1,6 @@
 """Build a ScanRequest from a local path (chunked filesystem)."""
 
+import fnmatch
 import os
 from collections.abc import Iterator
 from pathlib import Path
@@ -11,7 +12,9 @@ from apme.v1.primary_pb2 import ScanChunk, ScanOptions, ScanRequest
 CHUNK_MAX_BYTES = 1024 * 1024  # 1 MiB
 
 # Skip these dirs when walking (same kind of ignores as many linters)
-SKIP_DIRS = {".git", "__pycache__", ".venv", "venv", "node_modules", ".tox", "htmlcov"}
+SKIP_DIRS = {".git", "__pycache__", ".venv", "venv", "node_modules", ".tox", "htmlcov", ".github"}
+
+SKIP_FILENAMES = {".travis.yml", ".travis.yaml"}
 
 # Max file size to include (bytes); skip binary-ish or huge files
 MAX_FILE_SIZE = 2 * 1024 * 1024  # 2 MiB
@@ -36,12 +39,70 @@ TEXT_EXTENSIONS = {
 }
 
 
-def _should_include(path: Path, root: Path) -> bool:
+def _load_apmeignore(root: Path) -> list[str]:
+    """Load ignore patterns from a .apmeignore file in the project root.
+
+    Each non-blank, non-comment line is a glob pattern matched against the
+    relative path (directories match with a trailing ``/``).
+
+    Args:
+        root: Project root directory containing the .apmeignore file.
+
+    Returns:
+        List of glob pattern strings.
+    """
+    ignore_file = root / ".apmeignore"
+    if not ignore_file.is_file():
+        return []
+    patterns: list[str] = []
+    try:
+        for line in ignore_file.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if stripped and not stripped.startswith("#"):
+                patterns.append(stripped)
+    except OSError:
+        pass
+    return patterns
+
+
+def _matches_ignore(rel_path: str, patterns: list[str]) -> bool:
+    """Return True if rel_path matches any of the ignore patterns.
+
+    Args:
+        rel_path: Relative file path to check.
+        patterns: Glob patterns from .apmeignore.
+
+    Returns:
+        True if the path matches at least one pattern.
+    """
+    rel_parts = Path(rel_path).parts
+    for pat in patterns:
+        is_dir_pattern = pat.endswith("/")
+        normalized = pat.rstrip("/") if is_dir_pattern else pat
+
+        if is_dir_pattern:
+            dir_parts = Path(normalized).parts
+            if len(rel_parts) >= len(dir_parts) and rel_parts[: len(dir_parts)] == dir_parts:
+                return True
+
+        if fnmatch.fnmatch(rel_path, pat):
+            return True
+        if "/" in pat and fnmatch.fnmatch(rel_path, normalized):
+            return True
+
+        for part in rel_parts:
+            if fnmatch.fnmatch(part, normalized):
+                return True
+    return False
+
+
+def _should_include(path: Path, root: Path, ignore_patterns: list[str] | None = None) -> bool:
     """Determine if a file should be included in the scan based on size, dirs, extensions.
 
     Args:
         path: Absolute path to the file.
         root: Project root path for relative path checks.
+        ignore_patterns: Optional list of glob patterns from .apmeignore.
 
     Returns:
         True if the file should be included, False otherwise.
@@ -59,6 +120,10 @@ def _should_include(path: Path, root: Path) -> bool:
         return False
     parts = rel.parts
     if any(p in SKIP_DIRS for p in parts):
+        return False
+    if path.name in SKIP_FILENAMES:
+        return False
+    if ignore_patterns and _matches_ignore(str(rel), ignore_patterns):
         return False
     # Include known text extensions; include files with no extension (e.g. playbook)
     suffix = path.suffix.lower()
@@ -104,9 +169,12 @@ def build_scan_request(
     else:
         root = target
         to_visit = []
-        for dirpath, _dirnames, filenames in os.walk(root):
+        for dirpath, dirnames, filenames in os.walk(root):
+            dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
             for name in filenames:
                 to_visit.append(Path(dirpath) / name)
+
+    ignore_patterns = _load_apmeignore(root)
 
     files = []
     for path in to_visit:
@@ -116,7 +184,7 @@ def build_scan_request(
             rel = path.relative_to(root)
         except ValueError:
             continue
-        if not _should_include(path, root):
+        if not _should_include(path, root, ignore_patterns):
             continue
         try:
             content = path.read_bytes()

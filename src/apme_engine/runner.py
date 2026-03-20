@@ -81,6 +81,8 @@ def run_scan(
         base_dir=base_dir,
         install_dependencies=True,
         skip_dependency=False,
+        load_all_taskfiles=True,
+        include_test_contents=True,
     )
     engine_total_ms = (time.monotonic() - t0) * 1000
 

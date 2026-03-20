@@ -37,6 +37,9 @@ message Violation {
   string path = 7;
   RemediationClass remediation_class = 8;
   RemediationResolution remediation_resolution = 9;
+  // Rule-specific metadata (e.g. resolved_fqcn, original_module, with_key).
+  // Preserves fields that transforms need but don't fit the common schema.
+  map<string, string> metadata = 10;
 }
 
 message LineRange {

@@ -21,7 +21,7 @@ L001 was removed — its scope was limited to shell tasks without names, which i
 | fqcn | L002 | Use FQCN for module (syntactic check) |
 | play-name | L003 | Play should have a name |
 | deprecated-module | L004 | Deprecated module (static list) |
-| only-builtins | L005 | Use only ansible.builtin or ansible.legacy |
+| only-builtins | L005 | Use only ansible.builtin or ansible.legacy (checks original_module, emits resolved_fqcn when available) |
 | command-instead-of-module | L006 | Command used in place of preferred module |
 | command-instead-of-shell | L007 | Prefer command when no shell features needed |
 | deprecated-local-action | L008 | Do not use local_action; use delegate_to: localhost |
