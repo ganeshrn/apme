@@ -2,6 +2,18 @@
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
+> **WARNING: Proof-of-Concept / Rapid Prototype**
+>
+> This project is in an early, experimental state. APIs, CLI flags, gRPC
+> contracts, configuration formats, and internal architecture are all
+> **unstable and subject to breaking changes without notice**. There are no
+> stability guarantees, no migration paths between versions, and no
+> backward-compatibility commitments at this time.
+>
+> Do not depend on any interface or behavior remaining the same between
+> commits. If you are evaluating this project, expect things to move fast
+> and break often.
+
 Ansible Policy & Modernization Engine — a multi-validator static analysis platform for Ansible content. It parses playbooks, roles, collections, and task files into a structured hierarchy, then fans validation out in parallel across four independent backends (OPA/Rego, native Python, Ansible-runtime, and Gitleaks) to produce a single, unified list of violations.
 
 ## Architecture at a glance
