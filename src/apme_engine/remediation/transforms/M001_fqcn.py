@@ -2,8 +2,6 @@
 
 M001 violations carry ``resolved_fqcn`` from ansible-core's plugin loader.
 Falls back to a static builtin map when resolved_fqcn is not available.
-After resolving, follows known redirects from ``ansible_builtin_runtime.yml``
-so the final FQCN is the canonical target.
 """
 
 from __future__ import annotations
@@ -75,31 +73,12 @@ _BUILTIN_FQCN: dict[str, str] = {
     "slurp": "ansible.builtin.slurp",
 }
 
-_BUILTIN_REDIRECTS: dict[str, str] = {}
-
-
-def _follow_redirects(fqcn: str) -> str:
-    """Follow builtin redirect chains to the canonical module FQCN.
-
-    Args:
-        fqcn: Resolved FQCN that may have a redirect entry.
-
-    Returns:
-        Canonical FQCN after following all redirects.
-    """
-    seen: set[str] = set()
-    while fqcn in _BUILTIN_REDIRECTS and fqcn not in seen:
-        seen.add(fqcn)
-        fqcn = _BUILTIN_REDIRECTS[fqcn]
-    return fqcn
-
 
 def _resolve_fqcn(violation: ViolationDict, current_key: str) -> str | None:
     """Get the target FQCN from the violation or fall back to the static map.
 
     Checks ``resolved_fqcn`` (from Ansible validator M001) and ``fqcn``
-    (from native validator L026).  After resolution, follows known redirects
-    so the returned FQCN is the canonical target.
+    (from native validator L026).
 
     Args:
         violation: Violation dict (may have resolved_fqcn or fqcn).
@@ -111,11 +90,8 @@ def _resolve_fqcn(violation: ViolationDict, current_key: str) -> str | None:
     for field in ("resolved_fqcn", "fqcn"):
         fqcn = violation.get(field)
         if fqcn is not None and str(fqcn) != current_key and "." in str(fqcn):
-            return _follow_redirects(str(fqcn))
-    base = _BUILTIN_FQCN.get(current_key)
-    if base is not None:
-        return _follow_redirects(base)
-    return None
+            return str(fqcn)
+    return _BUILTIN_FQCN.get(current_key)
 
 
 def fix_fqcn(sf: StructuredFile, violation: ViolationDict) -> bool:

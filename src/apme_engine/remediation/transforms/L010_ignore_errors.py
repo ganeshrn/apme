@@ -10,8 +10,13 @@ from apme_engine.remediation.transforms._helpers import violation_line_to_int
 def fix_ignore_errors(sf: StructuredFile, violation: ViolationDict) -> bool:
     """Replace ``ignore_errors: true`` with ``failed_when: false``.
 
-    These are semantically equivalent, but ``failed_when: false`` is the
-    preferred pattern per ansible-lint's ``ignore-errors`` rule.
+    Note that these are not semantically identical: ``ignore_errors: true``
+    allows a task to fail but still records a failed result (which can
+    influence follow-up logic such as ``when: result is failed``), whereas
+    ``failed_when: false`` forces the task result to be treated as successful.
+    This transform intentionally applies the ansible-lint ``ignore-errors``
+    recommendation and may change behavior in plays that inspect failure
+    status explicitly.
 
     Args:
         sf: Parsed YAML file to modify in-place.

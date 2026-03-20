@@ -41,7 +41,7 @@ def _find_closing_quote(s: str, quote_char: str) -> int:
     """Return index of the unescaped closing quote in *s*, or -1.
 
     Args:
-        s: String starting after the opening quote character.
+        s: String that includes the opening quote character as the first character.
         quote_char: The quote character to match.
 
     Returns:

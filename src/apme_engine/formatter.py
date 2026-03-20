@@ -96,17 +96,8 @@ def _normalize_jinja_pipes(inner: str) -> str:
     Returns:
         Inner content with normalized pipe spacing.
     """
-
-    def _pad_pipe(m: re.Match[str]) -> str:
-        start = m.start()
-        end = m.end()
-        before = inner[start - 1] if start > 0 else " "
-        after = inner[end] if end < len(inner) else " "
-        left = "" if before == " " else " "
-        right = "" if after == " " else " "
-        return left + "|" + right
-
-    return _JINJA_PIPE_RE.sub(_pad_pipe, inner)
+    parts = _JINJA_PIPE_RE.split(inner)
+    return " | ".join(part.strip() for part in parts)
 
 
 def _normalize_jinja(match: re.Match[str]) -> str:
@@ -803,6 +794,8 @@ def _normalize_min_ansible_version(data: CommentedMap) -> None:
         return
     if current < _MIN_ANSIBLE_VERSION_TUPLE:
         galaxy_info["min_ansible_version"] = _MIN_ANSIBLE_VERSION_STR
+    elif not isinstance(raw, str):
+        galaxy_info["min_ansible_version"] = ".".join(str(p) for p in current)
 
 
 def format_content(text: str, filename: str = "<stdin>") -> FormatResult:

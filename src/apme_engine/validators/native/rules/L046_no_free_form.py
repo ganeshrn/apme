@@ -1,5 +1,6 @@
 """Native rule L046: detect modules using free-form key=value syntax."""
 
+import re
 from dataclasses import dataclass
 from typing import cast
 
@@ -16,6 +17,25 @@ from apme_engine.engine.models import (
 )
 from apme_engine.engine.models import (
     RuleTag as Tag,
+)
+
+_KV_PATTERN = re.compile(r"\b\w+=\S")
+
+_COMMAND_MODULES = frozenset(
+    {
+        "ansible.builtin.command",
+        "ansible.builtin.shell",
+        "ansible.builtin.raw",
+        "ansible.builtin.script",
+        "ansible.legacy.command",
+        "ansible.legacy.shell",
+        "ansible.legacy.raw",
+        "ansible.legacy.script",
+        "command",
+        "shell",
+        "raw",
+        "script",
+    }
 )
 
 
@@ -82,11 +102,13 @@ class NoFreeFormRule(Rule):
         raw = getattr(args, "raw", None) if args is not None else None
         if isinstance(raw, dict) and "_raw" in raw:
             raw = raw.get("_raw")
-        is_free_form = isinstance(raw, str) and raw.strip() != ""
+        resolved = getattr(task.spec, "resolved_name", "") or ""
+        is_free_form = False
+        if isinstance(raw, str) and raw.strip():
+            is_free_form = True if resolved in _COMMAND_MODULES else bool(_KV_PATTERN.search(raw))
         verdict = is_free_form
         detail: dict[str, object] = {}
         if verdict:
-            resolved = getattr(task.spec, "resolved_name", "") or ""
             detail["module"] = resolved
             detail["message"] = "avoid using free-form when calling module actions"
         return RuleResult(
