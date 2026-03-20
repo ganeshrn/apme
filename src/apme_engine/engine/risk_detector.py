@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import argparse
 import contextlib
 import json
 import os
@@ -11,7 +10,6 @@ import traceback
 from typing import cast
 
 from . import logger
-from .analyzer import load_taskcalls_in_trees
 from .keyutil import detect_type, key_delimiter
 from .models import (
     AnsibleRunContext,
@@ -322,40 +320,3 @@ def omit_node_details(node: RunTarget) -> dict[str, object]:
         "spec": spec,
     }
     return summary
-
-
-def main() -> None:
-    """CLI entry point: load taskcalls, run detect, optionally write output."""
-    parser = argparse.ArgumentParser(
-        prog="risk_detector.py",
-        description="Detect risks from tasks by checking rules",
-        epilog="end",
-        add_help=True,
-    )
-
-    parser.add_argument(
-        "-i",
-        "--input",
-        default="",
-        help="path to the input json (tasks_in_trees.json)",
-    )
-    parser.add_argument("-o", "--output", default="", help="path to the output json")
-    parser.add_argument("-v", "--verbose", default="", help="show details during the process")
-
-    args = parser.parse_args()
-
-    tasks_in_trees = load_taskcalls_in_trees(args.input)
-    # Convert TaskCallsInTree to AnsibleRunContext for detect()
-    contexts: list[AnsibleRunContext] = []
-    for tct in tasks_in_trees:
-        ctx = AnsibleRunContext.from_targets(
-            targets=cast(list[RunTarget], tct.taskcalls),
-            root_key=tct.root_key,
-        )
-        contexts.append(ctx)
-    if contexts:
-        detect(contexts)
-
-
-if __name__ == "__main__":
-    main()

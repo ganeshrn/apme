@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 import re
-import sys
 
 
 # glob.glob() may cause infinite loop when there is symlink loop
@@ -122,10 +121,3 @@ def pattern_match(pattern: str, fpath: str) -> re.Match[str] | None:
     regex_pattern = rf"^{pattern}$"
     result = re.match(regex_pattern, fpath)
     return result
-
-
-if __name__ == "__main__":
-    root_dir: str = sys.argv[1]
-    pattern = sys.argv[2]
-    found = safe_glob(pattern, root_dir=root_dir, recursive=False)
-    print(found)

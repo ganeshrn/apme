@@ -5,7 +5,6 @@ from __future__ import annotations
 import datetime
 import json
 import os
-import sys
 from dataclasses import dataclass, field
 from typing import cast
 
@@ -696,19 +695,3 @@ class ARIScanner:
         )
         elapsed = (end - begin).total_seconds()
         rec["elapsed"] = elapsed
-
-
-if __name__ == "__main__":
-    __target_type = sys.argv[1]
-    __target_name = sys.argv[2]
-    __dependency_dir = ""
-    if len(sys.argv) >= 4:
-        __dependency_dir = sys.argv[3]
-    c = ARIScanner(
-        root_dir=config.data_dir,
-    )
-    c.evaluate(
-        type=__target_type,
-        name=__target_name,
-        dependency_dir=__dependency_dir,
-    )

@@ -15,7 +15,6 @@ from apme_engine.engine.utils import (
     bool_values,
     bool_values_false,
     bool_values_true,
-    diff_files_data,
     equal,
     escape_local_path,
     escape_url,
@@ -36,13 +35,10 @@ from apme_engine.engine.utils import (
     recursive_copy_dict,
     remove_lock_file,
     report_to_display,
-    show_all_ram_metadata,
-    show_diffs,
     split_name_and_version,
     split_target_playbook_fullpath,
     split_target_taskfile_fullpath,
     unlock_file,
-    version_to_num,
 )
 
 
@@ -322,30 +318,6 @@ class TestSplitTargetTaskfileFullpath:
         assert taskfile == "onlydir"
 
 
-class TestVersionToNum:
-    """Tests for version_to_num conversion to numeric."""
-
-    def test_simple_version(self) -> None:
-        """Verifies 1.2.3 converts to 1.002003."""
-        assert version_to_num("1.2.3") == pytest.approx(1.002003)
-
-    def test_two_parts(self) -> None:
-        """Verifies 2.10 converts correctly."""
-        assert version_to_num("2.10") == pytest.approx(2.01)
-
-    def test_single_part(self) -> None:
-        """Verifies single part like 5 converts to 5.0."""
-        assert version_to_num("5") == pytest.approx(5.0)
-
-    def test_unknown(self) -> None:
-        """Verifies unknown version returns 0.0."""
-        assert version_to_num("unknown") == 0.0
-
-    def test_with_prerelease(self) -> None:
-        """Verifies prerelease suffix stripped before conversion."""
-        assert version_to_num("1.2.3-beta1") == pytest.approx(1.002003)
-
-
 class TestIsUrl:
     """Tests for is_url URL detection."""
 
@@ -431,87 +403,6 @@ class TestReportToDisplay:
         }
         result = report_to_display(report)
         assert "Something found" in result
-
-
-class TestShowAllRamMetadata:
-    """Tests for show_all_ram_metadata table output."""
-
-    def test_prints_table(self, capsys: pytest.CaptureFixture[str]) -> None:
-        """Verifies metadata prints to stdout with name and version.
-
-        Args:
-            capsys: Pytest output capture fixture.
-
-        """
-        meta = [{"name": "ns.col", "version": "1.0", "hash": "abc"}]
-        show_all_ram_metadata(meta)
-        out = capsys.readouterr().out
-        assert "ns.col" in out
-        assert "1.0" in out
-
-
-class TestDiffFilesData:
-    """Tests for diff_files_data created, deleted, updated detection."""
-
-    def test_created(self) -> None:
-        """Verifies file in files1 but not files2 marked as created."""
-        files1: dict[str, object] = {"files": [{"ftype": "file", "name": "new.yml", "chksum_sha256": "aaa"}]}
-        files2: dict[str, object] = {"files": []}
-        diffs = diff_files_data(files1, files2)
-        assert len(diffs) == 1
-        assert diffs[0]["type"] == "created"
-
-    def test_deleted(self) -> None:
-        """Verifies file in files2 but not files1 marked as deleted."""
-        files1: dict[str, object] = {"files": []}
-        files2: dict[str, object] = {"files": [{"ftype": "file", "name": "old.yml", "chksum_sha256": "bbb"}]}
-        diffs = diff_files_data(files1, files2)
-        assert len(diffs) == 1
-        assert diffs[0]["type"] == "deleted"
-
-    def test_updated(self) -> None:
-        """Verifies file with different checksum marked as updated."""
-        files1: dict[str, object] = {"files": [{"ftype": "file", "name": "changed.yml", "chksum_sha256": "new_hash"}]}
-        files2: dict[str, object] = {"files": [{"ftype": "file", "name": "changed.yml", "chksum_sha256": "old_hash"}]}
-        diffs = diff_files_data(files1, files2)
-        assert len(diffs) == 1
-        assert diffs[0]["type"] == "updated"
-
-    def test_no_diff(self) -> None:
-        """Verifies identical files produce no diff."""
-        files1: dict[str, object] = {"files": [{"ftype": "file", "name": "same.yml", "chksum_sha256": "aaa"}]}
-        files2: dict[str, object] = {"files": [{"ftype": "file", "name": "same.yml", "chksum_sha256": "aaa"}]}
-        diffs = diff_files_data(files1, files2)
-        assert len(diffs) == 0
-
-    def test_non_file_ftype_ignored(self) -> None:
-        """Verifies non-file ftypes like dir are ignored."""
-        files1: dict[str, object] = {"files": [{"ftype": "dir", "name": "somedir", "chksum_sha256": ""}]}
-        files2: dict[str, object] = {"files": []}
-        diffs = diff_files_data(files1, files2)
-        assert len(diffs) == 0
-
-    def test_non_list_files(self) -> None:
-        """Verifies returns empty list when files is not a list."""
-        diffs = diff_files_data({"files": "bad"}, {"files": None})
-        assert diffs == []
-
-
-class TestShowDiffs:
-    """Tests for show_diffs table output."""
-
-    def test_prints_table(self, capsys: pytest.CaptureFixture[str]) -> None:
-        """Verifies diffs printed to stdout with filepath and type.
-
-        Args:
-            capsys: Pytest output capture fixture.
-
-        """
-        diffs = [{"filepath": "new.yml", "type": "created"}]
-        show_diffs(diffs)
-        out = capsys.readouterr().out
-        assert "new.yml" in out
-        assert "created" in out
 
 
 class TestGetClassByArgType:

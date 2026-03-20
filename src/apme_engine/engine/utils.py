@@ -381,31 +381,6 @@ def split_target_taskfile_fullpath(fullpath: str) -> tuple[str, str]:
     return basedir, target_taskfile_path
 
 
-def version_to_num(ver: str) -> float:
-    """Convert a version string to a comparable numeric value.
-
-    Args:
-        ver: Version string (e.g. 1.2.3 or 1.2.3-suffix).
-
-    Returns:
-        Float for comparison; 0.0 for 'unknown'.
-
-    """
-    if ver == "unknown":
-        return 0.0
-    # version string can be 1.2.3-abcdxyz
-    ver_num_part = ver.split("-")[0]
-    parts = ver_num_part.split(".")
-    num: float = 0.0
-    if len(parts) >= 1 and parts[0].isnumeric():
-        num += float(parts[0])
-    if len(parts) >= 2 and parts[1].isnumeric():
-        num += float(parts[1]) * (0.001**1)
-    if len(parts) >= 3 and parts[2].isnumeric():
-        num += float(parts[2]) * (0.001**2)
-    return num
-
-
 def is_url(txt: str) -> bool:
     """Return True if the string looks like a URL (contains ://).
 
@@ -717,104 +692,6 @@ def summarize_findings_data(
         output_lines.append(ansi_table(["NAME", "VERSION", "SUGGESTED_FOR"], suggest_rows))
     output = "\n".join(output_lines)
     return output
-
-
-def show_all_ram_metadata(ram_meta_list: list[dict[str, str]]) -> None:
-    """Print a table of RAM metadata (name, version, hash) to stdout.
-
-    Args:
-        ram_meta_list: List of dicts with name, version, hash keys.
-
-    """
-    rows = [
-        [str(meta.get("name", "")), str(meta.get("version", "")), str(meta.get("hash", ""))] for meta in ram_meta_list
-    ]
-    print(ansi_table(["NAME", "VERSION", "HASH"], rows))
-
-
-def diff_files_data(files1: dict[str, object], files2: dict[str, object]) -> list[dict[str, str]]:
-    """Compare two file lists (by path and checksum) and return created/updated/deleted.
-
-    Args:
-        files1: First files dict (e.g. from scan) with 'files' list.
-        files2: Second files dict with 'files' list.
-
-    Returns:
-        List of dicts with type (created/updated/deleted) and filepath.
-
-    """
-    files_dict1: dict[str, str] = {}
-    files_list1 = files1.get("files", [])
-    if not isinstance(files_list1, list):
-        files_list1 = []
-    for finfo in files_list1:
-        if not isinstance(finfo, dict):
-            continue
-        ftype = str(finfo.get("ftype", ""))
-        if ftype != "file":
-            continue
-        fpath = str(finfo.get("name", ""))
-        hash_val = str(finfo.get("chksum_sha256", ""))
-        files_dict1[fpath] = hash_val
-
-    files_dict2: dict[str, str] = {}
-    files_list2 = files2.get("files", [])
-    if not isinstance(files_list2, list):
-        files_list2 = []
-    for finfo in files_list2:
-        if not isinstance(finfo, dict):
-            continue
-        ftype = str(finfo.get("ftype", ""))
-        if ftype != "file":
-            continue
-        fpath = str(finfo.get("name", ""))
-        hash_val = str(finfo.get("chksum_sha256", ""))
-        files_dict2[fpath] = hash_val
-
-    # TODO: support "replaced" type
-    diffs: list[dict[str, str]] = []
-    for fpath, hash_val in files_dict1.items():
-        if fpath in files_dict2:
-            if files_dict2[fpath] == hash_val:
-                continue
-            else:
-                diffs.append(
-                    {
-                        "type": "updated",
-                        "filepath": fpath,
-                    }
-                )
-        else:
-            diffs.append(
-                {
-                    "type": "created",
-                    "filepath": fpath,
-                }
-            )
-
-    for fpath, _ in files_dict2.items():
-        if fpath in files_dict1:
-            continue
-        else:
-            diffs.append(
-                {
-                    "type": "deleted",
-                    "filepath": fpath,
-                }
-            )
-
-    return diffs
-
-
-def show_diffs(diffs: list[dict[str, str]]) -> None:
-    """Print a table of file diffs (filepath, type) to stdout.
-
-    Args:
-        diffs: List of dicts with filepath and type keys.
-
-    """
-    rows = [[d["filepath"], d["type"]] for d in diffs]
-    print(ansi_table(["NAME", "DIFF_TYPE"], rows))
 
 
 def get_module_specs_by_ansible_doc(

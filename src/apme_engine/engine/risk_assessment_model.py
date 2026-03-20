@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import os
-import tarfile
 from dataclasses import dataclass, field
 from typing import cast
 
@@ -31,13 +30,11 @@ from .models import (
 )
 from .safe_glob import safe_glob
 from .utils import (
-    diff_files_data,
     escape_url,
     is_test_object,
     lock_file,
     remove_lock_file,
     unlock_file,
-    version_to_num,
 )
 
 
@@ -175,9 +172,7 @@ class RAMClient:
 
     Attributes:
         root_dir: Root directory for RAM data files.
-        findings_json_list_cache: Cached JSON strings of findings.
         findings_cache: Cached findings by key.
-        findings_search_cache: Cached findings search results.
         module_search_cache: Cached module search results.
         role_search_cache: Cached role search results.
         taskfile_search_cache: Cached taskfile search results.
@@ -193,10 +188,9 @@ class RAMClient:
 
     root_dir: str = ""
 
-    findings_json_list_cache: list[str] = field(default_factory=list)
-
     findings_cache: YAMLDict = field(default_factory=dict)
-    findings_search_cache: YAMLDict = field(default_factory=dict)
+    _findings_json_list_cache: list[str] = field(default_factory=list)
+    _findings_search_cache: YAMLDict = field(default_factory=dict)
 
     module_search_cache: YAMLDict = field(default_factory=dict)
     role_search_cache: YAMLDict = field(default_factory=dict)
@@ -240,7 +234,6 @@ class RAMClient:
         """Evict oldest entries from all caches when they exceed max_cache_size."""
         size = self.max_cache_size
         self._remove_old_item(self.findings_cache, size)
-        self._remove_old_item(self.findings_search_cache, size)
         self._remove_old_item(self.module_search_cache, size)
         self._remove_old_item(self.role_search_cache, size)
         self._remove_old_item(self.taskfile_search_cache, size)
@@ -538,7 +531,7 @@ class RAMClient:
         Returns:
             Tuple of (loaded, metadata, dependencies). metadata/dependencies are None if not found.
         """
-        findings = self.search_findings(name, version, type)
+        findings = self._search_findings(name, version, type)
         if not findings:
             return False, None, None
         if not isinstance(findings, Findings):
@@ -1208,42 +1201,17 @@ class RAMClient:
                 }
         return cast(YAMLDict | None, matched_obj)
 
-    def init_findings_json_list_cache(self) -> None:
-        """Populate findings_json_list_cache with all findings.json paths (collections + roles)."""
+    def _init_findings_json_list_cache(self) -> None:
+        """Populate _findings_json_list_cache with all findings.json paths (collections + roles)."""
         search_patterns = os.path.join(self.root_dir, "collections", "findings", "*", "*", "*", "findings.json")
         findings_json_list_coll = safe_glob(search_patterns)
         findings_json_list_coll = sort_by_version(findings_json_list_coll)
         search_patterns = os.path.join(self.root_dir, "roles", "findings", "*", "*", "*", "findings.json")
         findings_json_list_role = safe_glob(search_patterns)
         findings_json_list_role = sort_by_version(findings_json_list_role)
-        findings_json_list = findings_json_list_coll + findings_json_list_role
-        self.findings_json_list_cache = findings_json_list
+        self._findings_json_list_cache = findings_json_list_coll + findings_json_list_role
 
-    def list_all_ram_metadata(self) -> list[dict[str, str]]:
-        """List metadata (type, name, version, hash) for all findings in RAM.
-
-        Returns:
-            List of metadata dicts.
-        """
-        if not self.findings_json_list_cache:
-            self.init_findings_json_list_cache()
-        findings_json_list = self.findings_json_list_cache
-
-        metadata_list = []
-        for findings_path in findings_json_list:
-            parts = findings_path.split("/")
-
-            metadata_list.append(
-                {
-                    "type": parts[-5][:-1],  # collection or role
-                    "name": parts[-4],
-                    "version": parts[-3],
-                    "hash": parts[-2],
-                }
-            )
-        return metadata_list
-
-    def search_findings(
+    def _search_findings(
         self,
         target_name: str,
         target_version: str,
@@ -1262,21 +1230,20 @@ class RAMClient:
         Raises:
             ValueError: If target_name is empty.
         """
-        if not self.findings_json_list_cache:
-            self.init_findings_json_list_cache()
+        if not self._findings_json_list_cache:
+            self._init_findings_json_list_cache()
         args_str = json.dumps([target_name, target_version, target_type])
-        if args_str in self.findings_search_cache:
-            return cast(Findings | None, self.findings_search_cache[args_str])
+        if args_str in self._findings_search_cache:
+            return cast(Findings | None, self._findings_search_cache[args_str])
 
         if not target_name:
             raise ValueError("target name must be specified for searching RAM data")
         if not target_version:
             target_version = "*"
-        findings_json_list = self.findings_json_list_cache
         found_path_list = []
-        for findings_path in findings_json_list:
+        for findings_path in self._findings_json_list_cache:
             parts = findings_path.split("/")
-            _type = parts[-5][:-1]  # collection or role
+            _type = parts[-5][:-1]
             _name = parts[-4]
             _version = parts[-3]
             if _name != target_name:
@@ -1300,12 +1267,12 @@ class RAMClient:
                     mtime = tmp_mtime
         findings: Findings | None = None
         if os.path.exists(latest_findings_path):
-            findings = self.load_findings(latest_findings_path)
+            findings = self._load_findings(latest_findings_path)
 
-        self.findings_search_cache[args_str] = cast(YAMLValue, findings)
+        self._findings_search_cache[args_str] = cast(YAMLValue, findings)
         return findings
 
-    def load_findings(self, path: str) -> Findings | None:
+    def _load_findings(self, path: str) -> Findings | None:
         """Load Findings from a path (file or directory containing findings.json).
 
         Args:
@@ -1318,9 +1285,7 @@ class RAMClient:
         dir_path = path
         if basename == "findings.json":
             dir_path = os.path.dirname(path)
-
-        findings = cast(Findings | None, Findings.load(fpath=os.path.join(dir_path, "findings.json")))
-        return findings
+        return cast(Findings | None, Findings.load(fpath=os.path.join(dir_path, "findings.json")))
 
     def save_findings(self, findings: Findings, out_dir: str) -> None:
         """Save findings to findings.json in out_dir.
@@ -1459,68 +1424,30 @@ class RAMClient:
         with open(os.path.join(out_dir, "error.log"), "w") as file:
             file.write(error)
 
-    def diff(self, target_name: str, version1: str, version2: str) -> list[dict[str, str]]:
-        """Diff file data between two versions of a target.
 
-        Args:
-            target_name: Target name (e.g., collection FQCN).
-            version1: First version.
-            version2: Second version.
+def _version_to_num(ver: str) -> float:
+    """Convert a version string to a comparable numeric value.
 
-        Returns:
-            List of diff result dicts (e.g., added, removed, changed files).
+    Args:
+        ver: Version string (e.g. 1.2.3 or 1.2.3-suffix).
 
-        Raises:
-            ValueError: If either version is not found or has no file data.
-        """
-        findings1 = self.search_findings(target_name=target_name, target_version=version1)
-        if not findings1:
-            raise ValueError(f"{target_name}:{version1} is not found in RAM")
-
-        findings2 = self.search_findings(target_name=target_name, target_version=version2)
-        if not findings2:
-            raise ValueError(f"{target_name}:{version2} is not found in RAM")
-
-        definitions1 = _safe_dict(findings1.root_definitions.get("definitions", {}))
-        definitions2 = _safe_dict(findings2.root_definitions.get("definitions", {}))
-        coll_defs1 = _safe_list(definitions1.get("collections", []))
-        coll_defs2 = _safe_list(definitions2.get("collections", []))
-
-        files1 = None
-        files2 = None
-        if len(coll_defs1) > 0 and isinstance(coll_defs1[0], Collection):
-            files1 = coll_defs1[0].files
-        if len(coll_defs2) > 0 and isinstance(coll_defs2[0], Collection):
-            files2 = coll_defs2[0].files
-
-        if not files1:
-            raise ValueError(f"Files data of {target_name}:{version1} is not recorded")
-
-        if not files2:
-            raise ValueError(f"Files data of {target_name}:{version2} is not recorded")
-
-        result: list[dict[str, str]] = diff_files_data(files1, files2)
-        return result
-
-    def release(self, outfile: str) -> None:
-        """Create a tar.gz archive of indices and findings.
-
-        Args:
-            outfile: Path for the output tar.gz file.
-        """
-        indices = os.path.join(self.root_dir, "indices")
-        collection_findings = os.path.join(self.root_dir, "collections", "findings")
-        role_findings = os.path.join(self.root_dir, "roles", "findings")
-        with tarfile.open(outfile, "w:gz") as tar:
-            if os.path.exists(indices):
-                tar.add(indices, arcname="indices")
-            if os.path.exists(collection_findings):
-                tar.add(collection_findings, arcname="collections/findings")
-            if os.path.exists(role_findings):
-                tar.add(role_findings, arcname="roles/findings")
+    Returns:
+        Float for comparison; 0.0 for 'unknown'.
+    """
+    if ver == "unknown":
+        return 0.0
+    ver_num_part = ver.split("-")[0]
+    parts = ver_num_part.split(".")
+    num: float = 0.0
+    if len(parts) >= 1 and parts[0].isnumeric():
+        num += float(parts[0])
+    if len(parts) >= 2 and parts[1].isnumeric():
+        num += float(parts[1]) * (0.001**1)
+    if len(parts) >= 3 and parts[2].isnumeric():
+        num += float(parts[2]) * (0.001**2)
+    return num
 
 
-# newer version comes earlier, so version num should be sorted in a reversed order
 def _path_to_reversed_version_num(path: str) -> float:
     """Extract version from path and return negated version number for sort order.
 
@@ -1531,7 +1458,7 @@ def _path_to_reversed_version_num(path: str) -> float:
         Negated version number (higher versions sort first).
     """
     version = path.split("/findings/")[-1].split("/")[1]
-    return float(-1 * version_to_num(version))
+    return float(-1 * _version_to_num(version))
 
 
 def _path_to_collection_name(path: str) -> str:
@@ -1543,12 +1470,9 @@ def _path_to_collection_name(path: str) -> str:
     Returns:
         Name (first path segment after findings/).
     """
-    collection = path.split("/findings/")[-1].split("/")[0]
-    return collection
+    return path.split("/findings/")[-1].split("/")[0]
 
 
-# the latest known version comes first
-# `unknown` is the last
 def sort_by_version(path_list: list[str]) -> list[str]:
     """Sort paths by collection name and version (newest first).
 

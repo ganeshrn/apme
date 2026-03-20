@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import argparse
-import json
 from typing import cast
 
 import apme_engine.engine.logger as logger
 from apme_engine.engine.annotators.risk_annotator_base import RiskAnnotator
 
-from .models import AnsibleRunContext, RunTarget, TaskCall, TaskCallsInTree
+from .models import AnsibleRunContext, TaskCall, TaskCallsInTree
 from .utils import load_classes_in_dir
 
 annotator_cache: list[RiskAnnotator] = []
@@ -106,48 +104,3 @@ def analyze(contexts: list[AnsibleRunContext]) -> list[AnsibleRunContext]:
                 t.annotations.extend(result.annotations)
         logger.debug(f"analyze() {i + 1}/{num} done")
     return contexts
-
-
-def main() -> None:
-    """CLI entry point: load taskcalls, run analysis, and write results to JSON."""
-    parser = argparse.ArgumentParser(
-        prog="analyze.py",
-        description="analyze tasks",
-        epilog="end",
-        add_help=True,
-    )
-
-    parser.add_argument(
-        "-i",
-        "--input",
-        default="",
-        help="path to the input json (taskcalls_in_trees.json)",
-    )
-    parser.add_argument("-o", "--output", default="", help="path to the output json")
-
-    args = parser.parse_args()
-
-    taskcalls_in_trees = load_taskcalls_in_trees(args.input)
-    # Convert to AnsibleRunContext for analyze, then back to TaskCallsInTree for output
-    contexts = [
-        AnsibleRunContext.from_targets(
-            targets=cast(list[RunTarget], tct.taskcalls),
-            root_key=tct.root_key,
-        )
-        for tct in taskcalls_in_trees
-    ]
-    analyzed_contexts = analyze(contexts)
-    # Update taskcalls_in_trees with annotated tasks from analyzed_contexts
-    for tct, ctx in zip(taskcalls_in_trees, analyzed_contexts, strict=False):
-        for i, tc in enumerate(ctx.taskcalls):
-            if i < len(tct.taskcalls):
-                tct.taskcalls[i] = cast(TaskCall, tc)
-
-    if args.output != "":
-        lines = [json.dumps(single_tree_data) for single_tree_data in taskcalls_in_trees]
-        with open(args.output, mode="w") as file:
-            file.write("\n".join(lines))
-
-
-if __name__ == "__main__":
-    main()
