@@ -1,4 +1,4 @@
-"""Build per-matrix venvs: ansible-core + collections symlinked from cache."""
+"""Build per-matrix venvs: ansible-core + collections installed from cache or proxy."""
 
 import hashlib
 import os
@@ -12,6 +12,34 @@ from apme_engine.collection_cache.manager import (
     _parse_collection_spec,
     collection_path_in_cache,
 )
+
+_PROXY_ENV = "APME_GALAXY_PROXY_URL"
+
+
+def _proxy_url() -> str | None:
+    """Return the galaxy proxy URL if configured, else None."""
+    return os.environ.get(_PROXY_ENV, "").strip() or None
+
+
+def _spec_to_pip(spec: str) -> str:
+    """Convert a collection spec to a pip package name.
+
+    ``community.general:9.0.0`` → ``ansible-collection-community-general==9.0.0``
+    ``ansible.posix``           → ``ansible-collection-ansible-posix``
+
+    Args:
+        spec: Collection specifier (namespace.collection or namespace.collection:version).
+
+    Returns:
+        pip-installable package specifier.
+    """
+    namespace, collection = _parse_collection_spec(spec)
+    pkg = f"ansible-collection-{namespace}-{collection}"
+    if ":" in spec:
+        version = spec.split(":", 1)[1].strip()
+        if version:
+            pkg += f"=={version}"
+    return pkg
 
 
 def _uv_available() -> bool:
@@ -49,6 +77,9 @@ def _venv_site_packages(venv_root: Path) -> Path:
 def _venv_key(ansible_core_version: str, collection_specs: list[str]) -> str:
     """Stable key for (ansible-core version, collection set) to reuse venvs.
 
+    Includes a proxy marker when APME_GALAXY_PROXY_URL is set so that
+    symlink-based and pip-based venvs coexist without collision.
+
     Args:
         ansible_core_version: Ansible core version string.
         collection_specs: List of collection specifiers.
@@ -57,6 +88,8 @@ def _venv_key(ansible_core_version: str, collection_specs: list[str]) -> str:
         Hex digest string (first 16 chars) for cache key.
     """
     parts = [ansible_core_version] + sorted(s.strip() for s in collection_specs)
+    if _proxy_url():
+        parts.append("proxy")
     return hashlib.sha256("|".join(parts).encode()).hexdigest()[:16]
 
 
@@ -147,6 +180,59 @@ def _install_collection_python_deps(
         sys.stderr.flush()
 
 
+def _install_collections_via_proxy(
+    pip_python: Path,
+    collection_specs: list[str],
+    proxy_url: str,
+    use_uv: bool,
+) -> None:
+    """Install collections into the venv via the galaxy proxy (PEP 503).
+
+    Converts each collection spec to a pip package name and installs using
+    ``--extra-index-url`` pointed at the galaxy proxy.  The proxy fetches
+    tarballs from Galaxy on demand, converts to wheels, and caches them.
+
+    Python dependencies declared in collections' ``requirements.txt`` are
+    included in the wheel metadata, so pip/uv resolves them automatically.
+
+    Args:
+        pip_python: Python interpreter inside the venv.
+        collection_specs: Collection specifiers (e.g. ansible.posix, community.general:9.0.0).
+        proxy_url: Base URL of the galaxy proxy (e.g. http://localhost:8765).
+        use_uv: Whether to use uv for installation.
+    """
+    simple_url = proxy_url.rstrip("/") + "/simple/"
+    pip_specs = [_spec_to_pip(s) for s in collection_specs]
+
+    if use_uv:
+        cmd = [
+            "uv",
+            "pip",
+            "install",
+            "--python",
+            str(pip_python),
+            "--extra-index-url",
+            simple_url,
+            *pip_specs,
+        ]
+    else:
+        cmd = [
+            str(pip_python),
+            "-m",
+            "pip",
+            "install",
+            "--extra-index-url",
+            simple_url,
+            *pip_specs,
+        ]
+
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        sys.stderr.write(f"Warning: proxy collection install failed: {result.stderr or result.stdout}\n")
+        sys.stderr.flush()
+        raise subprocess.CalledProcessError(result.returncode, cmd, result.stdout, result.stderr)
+
+
 def build_venv(
     ansible_core_version: str,
     collection_specs: list[str],
@@ -232,30 +318,34 @@ def build_venv(
         )
 
     site = _venv_site_packages(venv_root)
-    ac = site / "ansible_collections"
-    ac.mkdir(parents=True, exist_ok=True)
 
-    for spec in collection_specs:
-        path = _resolve_collection_path(spec, root)
-        if path is None:
-            raise FileNotFoundError(
-                f"Collection not in cache: {spec}. Pull it first (e.g. apme-scan cache pull-galaxy {spec})."
-            )
-        namespace, collection = _parse_collection_spec(spec)
-        ns_dir = ac / namespace
-        ns_dir.mkdir(parents=True, exist_ok=True)
-        dest = ns_dir / collection
-        if dest.exists():
-            if dest.is_symlink():
-                dest.unlink()
+    proxy = _proxy_url()
+    if proxy and collection_specs:
+        _install_collections_via_proxy(pip_python, collection_specs, proxy, use_uv)
+    elif collection_specs:
+        ac = site / "ansible_collections"
+        ac.mkdir(parents=True, exist_ok=True)
+
+        for spec in collection_specs:
+            path = _resolve_collection_path(spec, root)
+            if path is None:
+                raise FileNotFoundError(
+                    f"Collection not in cache: {spec}. Pull it first (e.g. apme-scan cache pull-galaxy {{spec}})."
+                )
+            namespace, collection = _parse_collection_spec(spec)
+            ns_dir = ac / namespace
+            ns_dir.mkdir(parents=True, exist_ok=True)
+            dest = ns_dir / collection
+            if dest.exists():
+                if dest.is_symlink():
+                    dest.unlink()
+                else:
+                    shutil.rmtree(dest)
+            if symlink_collections:
+                dest.symlink_to(path.resolve())
             else:
-                shutil.rmtree(dest)
-        if symlink_collections:
-            dest.symlink_to(path.resolve())
-        else:
-            shutil.copytree(path, dest)
+                shutil.copytree(path, dest)
 
-    if collection_specs:
         _install_collection_python_deps(venv_root, site, pip_python, use_uv)
 
     return venv_root

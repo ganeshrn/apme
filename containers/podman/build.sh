@@ -8,6 +8,6 @@ podman build -t apme-native:latest -f containers/native/Dockerfile .
 podman build -t apme-opa:latest -f containers/opa/Dockerfile .
 podman build -t apme-ansible:latest -f containers/ansible/Dockerfile .
 podman build -t apme-gitleaks:latest -f containers/gitleaks/Dockerfile .
-podman build -t apme-cache-maintainer:latest -f containers/cache-maintainer/Dockerfile .
+podman build -t apme-galaxy-proxy:latest -f containers/galaxy-proxy/Dockerfile .
 podman build -t apme-cli:latest -f containers/cli/Dockerfile .
 echo "Images built. Start pod from repo root: podman play kube containers/podman/pod.yaml"

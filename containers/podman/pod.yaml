@@ -1,5 +1,6 @@
-# Podman pod: Primary, Native, OPA, Ansible, Cache maintainer.
+# Podman pod: Primary, Native, OPA, Ansible, Gitleaks, Galaxy Proxy.
 # All validators implement the unified Validator gRPC service (validate.proto).
+# Galaxy Proxy serves collections as Python wheels via PEP 503 (ADR-031).
 # CLI is run on-the-fly with: ./run-cli.sh [args]
 # Start from repo root: podman play kube pod.yaml
 # Requires: images built first (./build.sh) and cache paths (defaults below).
@@ -25,8 +26,8 @@ spec:
           value: "127.0.0.1:50053"
         - name: GITLEAKS_GRPC_ADDRESS
           value: "127.0.0.1:50056"
-        - name: APME_CACHE_GRPC_ADDRESS
-          value: "127.0.0.1:50052"
+        - name: APME_GALAXY_PROXY_URL
+          value: "http://127.0.0.1:8765"
       ports:
         - containerPort: 50051
           hostPort: 50051
@@ -51,15 +52,11 @@ spec:
       env:
         - name: APME_ANSIBLE_VALIDATOR_LISTEN
           value: "0.0.0.0:50053"
-        - name: APME_CACHE_ROOT
-          value: "/cache"
+        - name: APME_GALAXY_PROXY_URL
+          value: "http://127.0.0.1:8765"
       ports:
         - containerPort: 50053
           hostPort: 50053
-      volumeMounts:
-        - name: cache
-          mountPath: /cache
-          readOnly: true
     - name: gitleaks
       image: apme-gitleaks:latest
       env:
@@ -68,22 +65,19 @@ spec:
       ports:
         - containerPort: 50056
           hostPort: 50056
-    - name: cache-maintainer
-      image: apme-cache-maintainer:latest
+    - name: galaxy-proxy
+      image: apme-galaxy-proxy:latest
       env:
-        - name: APME_CACHE_MAINTAINER_LISTEN
-          value: "0.0.0.0:50052"
-        - name: APME_CACHE_ROOT
-          value: "/cache"
+        - name: APME_GALAXY_PROXY_PORT
+          value: "8765"
       ports:
-        - containerPort: 50052
-          hostPort: 50052
+        - containerPort: 8765
+          hostPort: 8765
       volumeMounts:
-        - name: cache
+        - name: proxy-cache
           mountPath: /cache
   volumes:
-    - name: cache
+    - name: proxy-cache
       hostPath:
-        # Replaced by up.sh with APME_CACHE_HOST_PATH or XDG cache default
-        path: __APME_CACHE_PATH__
+        path: __APME_CACHE_PATH__/proxy
         type: DirectoryOrCreate

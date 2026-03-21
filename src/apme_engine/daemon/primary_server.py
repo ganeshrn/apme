@@ -285,10 +285,20 @@ async def _ensure_collections_cached(collection_specs: list[str], scan_id: str) 
     Calls PullGalaxy for each spec (idempotent — no-op if already cached).
     Failures are logged but never abort the scan.
 
+    When ``APME_GALAXY_PROXY_URL`` is set, collection management is delegated
+    to the proxy (on-demand via ``uv pip install``), so this step is skipped.
+
     Args:
         collection_specs: Collection specifiers (e.g. community.general:9.0.0).
         scan_id: Request ID for log correlation.
     """
+    if os.environ.get("APME_GALAXY_PROXY_URL", "").strip():
+        sys.stderr.write(
+            f"[req={scan_id}] Cache: skipping pre-pull (galaxy proxy handles on demand)\n"
+        )
+        sys.stderr.flush()
+        return
+
     cache_addr = os.environ.get("APME_CACHE_GRPC_ADDRESS")
     if not cache_addr or not collection_specs:
         return
