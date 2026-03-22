@@ -37,9 +37,22 @@ import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from apme_engine.collection_cache.config import get_cache_root
-
 _PROXY_ENV = "APME_GALAXY_PROXY_URL"
+
+
+def get_data_root() -> Path:
+    """Return the APME data root directory for session venv storage.
+
+    Reads ``APME_COLLECTION_CACHE`` from the environment.  Falls back to
+    ``~/.apme-data/collection-cache`` when unset.
+
+    Returns:
+        Path to the data root directory.
+    """
+    base = os.environ.get("APME_COLLECTION_CACHE", "").strip()
+    if base:
+        return Path(base).expanduser().resolve()
+    return Path(os.path.expanduser("~/.apme-data/collection-cache")).resolve()
 
 
 def _proxy_url() -> str | None:
@@ -332,7 +345,7 @@ class VenvSessionManager:
                 created.  Defaults to ``$CACHE_ROOT/sessions/``.
             ttl_seconds: How long an unused venv persists before reaping.
         """
-        self._root = sessions_root or (get_cache_root() / "sessions")
+        self._root = sessions_root or (get_data_root() / "sessions")
         self._root.mkdir(parents=True, exist_ok=True)
         self._ttl = ttl_seconds
 

@@ -401,7 +401,6 @@ service Primary {
   rpc FormatStream(stream ScanChunk) returns (FormatResponse);
   rpc FixSession(stream SessionCommand) returns (stream SessionEvent);
   rpc Health(HealthRequest) returns (HealthResponse);
-  // Cache proxy RPCs (PullGalaxy, PullRequirements, CloneOrg)
 }
 
 message FixOptions {

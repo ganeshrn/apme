@@ -216,9 +216,9 @@ $SESSIONS_ROOT/
 #### Changes
 
 - **Proto**: `session_id` added to `ScanRequest`, `ScanResponse`, `ScanOptions`, `FixOptions`; `session_id` + `venv_path` added to `ValidateRequest`
-- **VenvSessionManager**: Refactored from flat `sessions/<sid>/venv/` to multi-version `sessions/<sid>/<version>/venv/` layout. `acquire()` does incremental installs. `reap_expired()` operates per core-version venv. New public helpers `create_base_venv()` and `install_collections_incremental()` in `venv_builder.py`.
+- **VenvSessionManager**: Refactored from flat `sessions/<sid>/venv/` to multi-version `sessions/<sid>/<version>/venv/` layout. `acquire()` does incremental installs. `reap_expired()` operates per core-version venv. Public helpers `create_base_venv()` and `install_collections_incremental()` in `venv_manager/session.py`.
 - **Primary**: Creates `VenvSessionManager` singleton. Checks for warm session before ARI scan (passes `dependency_dir`). Calls `acquire()` after collection discovery for incremental install. Sets `venv_path` on `ValidateRequest`.
-- **Ansible validator**: When `venv_path` is set in request, uses it directly (read-only). Falls back to `build_venv()` when empty.
+- **Ansible validator**: Requires `venv_path` from Primary (read-only consumer). Returns `INFRA-001` error when no venv is provided.
 - **ARI scanner**: `run_scan()` receives `dependency_dir` pointing to the session venv's site-packages. The `install_dependencies` parameter and the entire ARI dependency download pipeline have been removed (see Phase 4). ARI never downloads collections — the session manager is the sole authority.
 - **Pod topology**: `sessions` volume added — read-write for Primary, read-only for Ansible validator.
 

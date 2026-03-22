@@ -82,7 +82,7 @@ User runs:  apme-scan scan /path/to/project
 │     │  │                                                  │      │
 │     │  ├─► Ansible :50053                                 │      │
 │     │  │   - Write files to temp dir                      │      │
-│     │  │   - Create ephemeral venv (UV-cached)            │      │
+│     │  │   - Use session venv from Primary (read-only)     │      │
 │     │  │   - Run AnsibleValidator (syntax, argspec,       │      │
 │     │  │     FQCN, deprecation, redirect, removed)        │      │
 │     │  │   → violations[] + ValidatorDiagnostics          │      │

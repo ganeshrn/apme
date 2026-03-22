@@ -101,9 +101,9 @@ Every validator returns the same violation shape:
 | **Input** | `context.root_dir` (files on disk) + `context.hierarchy_payload` |
 | **Execution** | Uses ansible-core's plugin loader, `ansible-playbook --syntax-check`, argspec extraction |
 | **Rules** | L057–L059 (syntax/argspec), M001–M004 (FQCN resolution, deprecation, redirects, removed modules) |
-| **Container** | `apme-ansible` with UV cache pre-warmed for ansible-core 2.18/2.19/2.20; ephemeral per-request venvs created at runtime |
+| **Container** | `apme-ansible` with UV cache pre-warmed for ansible-core 2.18/2.19/2.20; session-scoped venvs managed by the Primary orchestrator via `VenvSessionManager` |
 
-**Why separate container**: Requires actual ansible-core installation; multi-version support needs isolated venvs; collection cache mounted read-only
+**Why separate container**: Requires actual ansible-core installation; multi-version support needs isolated venvs; sessions volume mounted read-only
 
 ### Gitleaks (Secrets)
 

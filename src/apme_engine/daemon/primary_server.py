@@ -49,12 +49,12 @@ from apme.v1.primary_pb2 import (
     Tier1Summary,
 )
 from apme.v1.validate_pb2 import ValidateRequest
-from apme_engine.collection_cache.venv_session import VenvSessionManager
 from apme_engine.daemon.session import ResourceExhaustedError, SessionState, SessionStore
 from apme_engine.daemon.violation_convert import violation_dict_to_proto, violation_proto_to_dict
 from apme_engine.engine.jsonpickle_handlers import register_engine_handlers
 from apme_engine.engine.models import AnsibleRunContext, ViolationDict
 from apme_engine.runner import run_scan
+from apme_engine.venv_manager.session import VenvSessionManager
 
 _MAX_CONCURRENT_RPCS = int(os.environ.get("APME_PRIMARY_MAX_RPCS", "16"))
 _GRPC_MAX_MSG = 50 * 1024 * 1024  # 50 MiB — hierarchy+scandata can exceed the 4 MiB default
@@ -142,19 +142,29 @@ def _normalize_scandata_contexts(scandata: object) -> None:
     scandata.contexts = valid
 
 
-def _write_chunked_fs(project_root: str, files: list[File]) -> Path:
+def _write_chunked_fs(files: list[File]) -> Path:
     """Write request.files into a temp directory; return path to that directory.
 
+    File paths are sanitised: absolute paths and ``..`` segments are rejected
+    to prevent writes outside the temp directory.
+
     Args:
-        project_root: Name for project root (used in path structure).
         files: List of File protos with path and content.
 
     Returns:
         Path to the created temp directory.
+
+    Raises:
+        ValueError: If a file path is absolute or escapes the temp root.
     """
     tmp = Path(tempfile.mkdtemp(prefix="apme_primary_"))
     for f in files:
-        path = tmp / f.path
+        rel = Path(f.path)
+        if rel.is_absolute() or ".." in rel.parts:
+            raise ValueError(f"Unsafe file path rejected: {f.path!r}")
+        path = (tmp / rel).resolve()
+        if not path.is_relative_to(tmp):
+            raise ValueError(f"Path escapes temp root: {f.path!r}")
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(f.content)
     return tmp
@@ -352,8 +362,8 @@ class PrimaryServicer(primary_pb2_grpc.PrimaryServicer):
         Returns:
             Tuple of (violations, ScanDiagnostics or None, resolved session_id).
         """
-        from apme_engine.collection_cache.venv_session import _venv_site_packages
         from apme_engine.validators.ansible._venv import DEFAULT_VERSION
+        from apme_engine.venv_manager.session import _venv_site_packages
 
         scan_t0 = time.monotonic()
         collection_specs = list(collection_specs or [])
@@ -569,12 +579,14 @@ class PrimaryServicer(primary_pb2_grpc.PrimaryServicer):
             if not request.files:
                 return ScanResponse(scan_id=scan_id, violations=[])
 
-            temp_dir = await asyncio.get_event_loop().run_in_executor(
-                None,
-                _write_chunked_fs,  # type: ignore[arg-type]
-                request.project_root or "project",
-                list(request.files),
-            )
+            try:
+                temp_dir = await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    _write_chunked_fs,  # type: ignore[arg-type]
+                    list(request.files),
+                )
+            except ValueError as ve:
+                await context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(ve))
             assert temp_dir is not None
 
             opts = request.options if request.HasField("options") else None
@@ -816,6 +828,8 @@ class PrimaryServicer(primary_pb2_grpc.PrimaryServicer):
 
         except ResourceExhaustedError as e:
             await context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, str(e))
+        except ValueError as ve:
+            await context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(ve))
         except Exception as e:
             import traceback
 
@@ -919,7 +933,6 @@ class PrimaryServicer(primary_pb2_grpc.PrimaryServicer):
         temp_dir = await asyncio.get_event_loop().run_in_executor(
             None,
             _write_chunked_fs,
-            "project",
             list(all_files),
         )
         session.temp_dir = temp_dir

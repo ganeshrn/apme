@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Pre-warm UV cache for ansible-core versions at image build time.
-# Venvs are now ephemeral (created per-request and destroyed after),
-# but UV caches the wheels so runtime venv creation is near-instant.
+# Session-scoped venvs are created by the Primary orchestrator,
+# but UV caches the wheels so venv creation is near-instant.
 set -e
 
 VERSIONS="2.18 2.19 2.20"

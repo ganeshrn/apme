@@ -68,7 +68,6 @@ src/apme_engine/
 │   ├── scan.py             Scan subcommand (ScanStream RPC)
 │   ├── format_cmd.py       Format subcommand (FormatStream RPC)
 │   ├── fix.py              Fix subcommand (FixSession bidi stream, ADR-028)
-│   ├── cache.py            Cache subcommands via Primary proxy
 │   ├── health.py           Health-check subcommand
 │   ├── daemon_cmd.py       daemon start/stop/status
 │   ├── discovery.py        resolve_primary() — gRPC channel setup
@@ -155,10 +154,8 @@ src/apme_engine/
 │   ├── health_check.py     Health check utilities
 │   └── violation_convert.py  dict ↔ proto Violation conversion
 │
-└── collection_cache/       Session venv management (VenvSessionManager)
-    ├── config.py            Data-root path configuration
-    ├── venv_session.py      Session venv lifecycle (VenvSessionManager, galaxy proxy)
-    └── _fqcn_resolve.py     FQCN resolution against cache
+└── venv_manager/           Session venv management
+    └── session.py           VenvSessionManager lifecycle (galaxy proxy installs)
 ```
 
 ## Adding a new rule
@@ -460,7 +457,7 @@ Defined in `pyproject.toml`:
 
 | Command | Module | Purpose |
 |---------|--------|---------|
-| `apme-scan` | `apme_engine.cli:main` | CLI (scan, format, fix, cache, health-check) |
+| `apme-scan` | `apme_engine.cli:main` | CLI (scan, format, fix, health-check) |
 | `apme-primary` | `apme_engine.daemon.primary_main:main` | Primary daemon |
 | `apme-native-validator` | `apme_engine.daemon.native_validator_main:main` | Native validator daemon |
 | `apme-opa-validator` | `apme_engine.daemon.opa_validator_main:main` | OPA validator daemon |

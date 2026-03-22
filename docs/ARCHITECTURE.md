@@ -63,9 +63,6 @@ service Primary {
   rpc FormatStream(stream ScanChunk) returns (FormatResponse);
   rpc Health(HealthRequest) returns (HealthResponse);
   rpc FixSession(stream SessionCommand) returns (stream SessionEvent);  // ADR-028
-  rpc PullGalaxy(PullGalaxyRequest) returns (PullGalaxyResponse);       // cache proxy
-  rpc PullRequirements(PullRequirementsRequest) returns (PullRequirementsResponse);
-  rpc CloneOrg(CloneOrgRequest) returns (CloneOrgResponse);
 }
 ```
 

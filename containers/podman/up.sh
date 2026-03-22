@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Start the APME pod (Primary, Ansible, OPA, Cache maintainer). Run from repo root.
+# Start the APME pod (Primary, Native, Ansible, OPA, Gitleaks, Galaxy Proxy). Run from repo root.
 # CLI is not part of the pod; use run-cli.sh to run a scan with CWD mounted.
 #
 # Cache host path: default is XDG cache (${XDG_CACHE_HOME:-$HOME/.cache}/apme).
