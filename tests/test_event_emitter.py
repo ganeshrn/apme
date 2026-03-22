@@ -128,7 +128,7 @@ class FailingSink:
         raise RuntimeError("boom")
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture(autouse=True)  # type: ignore[untyped-decorator]
 def _clear_sinks() -> Iterator[None]:
     """Ensure sink list is empty before and after each test.
 
