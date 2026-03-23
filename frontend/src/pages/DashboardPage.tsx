@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { listScans, listSessions } from "../services/api";
-import type { ScanSummary, SessionSummary } from "../types/api";
+import type { ScanSummary } from "../types/api";
 import { StatusBadge } from "../components/StatusBadge";
 import { timeAgo } from "../services/format";
 
@@ -18,14 +18,16 @@ function deduplicateBySession(scans: ScanSummary[]): ScanSummary[] {
 export function DashboardPage() {
   const navigate = useNavigate();
   const [scans, setScans] = useState<ScanSummary[]>([]);
-  const [sessions, setSessions] = useState<SessionSummary[]>([]);
+  const [totalScansCount, setTotalScansCount] = useState(0);
+  const [totalSessionsCount, setTotalSessionsCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([listScans(50, 0), listSessions(50, 0)])
       .then(([scanData, sessionData]) => {
         setScans(scanData.items);
-        setSessions(sessionData.items);
+        setTotalScansCount(scanData.total);
+        setTotalSessionsCount(sessionData.total);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -47,7 +49,7 @@ export function DashboardPage() {
 
       <div className="apme-cards-grid">
         <div className="apme-metric-card">
-          <div className="apme-metric-value">{sessions.length}</div>
+          <div className="apme-metric-value">{totalSessionsCount}</div>
           <div className="apme-metric-label">Projects</div>
         </div>
         <div className="apme-metric-card">
@@ -67,7 +69,7 @@ export function DashboardPage() {
           <div className="apme-metric-label">Manual Review</div>
         </div>
         <div className="apme-metric-card">
-          <div className="apme-metric-value">{scans.length}</div>
+          <div className="apme-metric-value">{totalScansCount}</div>
           <div className="apme-metric-label">Total Scans</div>
         </div>
       </div>

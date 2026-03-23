@@ -18,7 +18,7 @@ From the repo root:
 ./containers/podman/build.sh
 ```
 
-This builds seven images:
+This builds nine images:
 
 | Image | Dockerfile | Purpose |
 |-------|------------|---------|
@@ -28,6 +28,8 @@ This builds seven images:
 | `apme-ansible:latest` | `containers/ansible/Dockerfile` | Ansible validator (reads session venvs) |
 | `apme-gitleaks:latest` | `containers/gitleaks/Dockerfile` | Gitleaks secret scanner + gRPC wrapper |
 | `apme-galaxy-proxy:latest` | `containers/galaxy-proxy/Dockerfile` | PEP 503 proxy: Galaxy tarballs → Python wheels |
+| `apme-gateway:latest` | `containers/gateway/Dockerfile` | REST/gRPC gateway + SQLite persistence |
+| `apme-ui:latest` | `containers/ui/Dockerfile` | React SPA dashboard (nginx) |
 | `apme-cli:latest` | `containers/cli/Dockerfile` | CLI client |
 
 ### Start the Pod
@@ -36,7 +38,7 @@ This builds seven images:
 ./containers/podman/up.sh
 ```
 
-This runs `podman play kube containers/podman/pod.yaml`, which starts the pod `apme-pod` with six containers (Primary, Native, OPA, Ansible, Gitleaks, Galaxy Proxy). A sessions directory is created for session-scoped venvs.
+This runs `podman play kube containers/podman/pod.yaml`, which starts the pod `apme-pod` with eight containers (Primary, Native, OPA, Ansible, Gitleaks, Galaxy Proxy, Gateway, UI). A sessions directory and gateway data directory are created for session-scoped venvs and persistent scan data.
 
 ### Run CLI Commands
 
@@ -57,8 +59,8 @@ The `fix` command uses a **bidirectional streaming RPC** (`FixSession`, ADR-028)
 ### Stop the Pod
 
 ```bash
-podman pod stop apme-pod
-podman pod rm apme-pod
+./containers/podman/down.sh          # stop pod only
+./containers/podman/down.sh --wipe   # stop pod and delete gateway database
 ```
 
 ### Health Check
@@ -116,7 +118,9 @@ Reports status of all services (Primary, Native, OPA, Ansible, Gitleaks) with la
 
 | Name | Host Path | Container Mount | Services | Access |
 |------|-----------|-----------------|----------|--------|
-| `sessions` | `apme-sessions/` | `/sessions` | Primary, Ansible | rw (primary), ro (ansible) |
+| `sessions` | `$CACHE/sessions` | `/sessions` | Primary, Ansible | rw (primary), ro (ansible) |
+| `gateway-data` | `$CACHE/gateway` | `/data` | Gateway | rw |
+| `proxy-cache` | `$CACHE/proxy` | `/cache` | Galaxy Proxy | rw |
 | `workspace` | CWD (CLI only) | `/workspace` | CLI | rw |
 
 ---
@@ -207,7 +211,10 @@ See `PODMAN_OPA_ISSUES.md` for common Podman rootless issues:
 cd /your/project && /path/to/run-cli.sh
 
 # Stop
-podman pod stop apme-pod && podman pod rm apme-pod
+./containers/podman/down.sh
+
+# Stop and wipe database
+./containers/podman/down.sh --wipe
 ```
 
 ### Port Map
@@ -219,6 +226,9 @@ podman pod stop apme-pod && podman pod rm apme-pod
 | 50054 | OPA | `APME_OPA_VALIDATOR_LISTEN` |
 | 50055 | Native | `APME_NATIVE_VALIDATOR_LISTEN` |
 | 50056 | Gitleaks | `APME_GITLEAKS_VALIDATOR_LISTEN` |
+| 50060 | Gateway (gRPC) | `APME_GATEWAY_GRPC_LISTEN` |
+| 8080 | Gateway (HTTP) | `APME_GATEWAY_HTTP_LISTEN` |
+| 8081 | UI (nginx) | — |
 | 8765 | Galaxy Proxy | `APME_GALAXY_PROXY_URL` |
 
 ---

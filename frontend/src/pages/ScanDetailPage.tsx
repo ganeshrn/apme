@@ -396,13 +396,15 @@ export function ScanDetailPage() {
       {/* Pipeline logs — collapsible */}
       {scan.logs.length > 0 && (
         <div className="apme-table-container" style={{ marginBottom: 24 }}>
-          <div
-            style={{ padding: "12px 20px", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, borderBottom: logsCollapsed ? "none" : "1px solid var(--apme-border)" }}
+          <button
+            type="button"
+            style={{ width: "100%", background: "none", border: "none", color: "inherit", padding: "12px 20px", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, borderBottom: logsCollapsed ? "none" : "1px solid var(--apme-border)" }}
             onClick={() => setLogsCollapsed((p) => !p)}
+            aria-expanded={!logsCollapsed}
           >
             <span style={{ color: "var(--apme-text-dimmed)" }}>{logsCollapsed ? "\u25B6" : "\u25BC"}</span>
             <span style={{ fontSize: 14, fontWeight: 600 }}>Pipeline Log ({scan.logs.length})</span>
-          </div>
+          </button>
           {!logsCollapsed && (
             <table className="apme-data-table">
               <thead>
@@ -462,7 +464,7 @@ export function ScanDetailPage() {
                     <span className={`apme-severity ${severityClass(v.level, v.rule_id)}`}>
                       {severityLabel(v.level, v.rule_id)}
                     </span>
-                    <span className="apme-rule-id" title={getRuleDescription(v.rule_id)}>{v.rule_id}</span>
+                    <span className="apme-rule-id" title={getRuleDescription(v.rule_id) || v.rule_id}>{v.rule_id}</span>
                     <span className="apme-badge running" style={{ fontSize: 10, visibility: v.remediation_class > 0 ? "visible" : "hidden" }}>
                       {tierLabel(v.remediation_class) || "\u00A0"}
                     </span>
