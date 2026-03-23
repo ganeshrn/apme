@@ -62,10 +62,10 @@ pip install -r requirements.txt
 pip install -e ".[dev]"
 
 # Run a scan
-apme-scan /path/to/playbook-or-project
+apme-scan scan /path/to/playbook-or-project
 
 # JSON output
-apme-scan --json .
+apme-scan scan --json .
 
 # Diagnostics: summary + top 10 slowest rules
 apme-scan scan -v .
@@ -106,7 +106,7 @@ cd /path/to/your/project
 /path/to/apme/containers/podman/run-cli.sh
 
 # With options
-containers/podman/run-cli.sh --json .
+containers/podman/run-cli.sh scan --json .
 ```
 
 ### Health check
@@ -217,11 +217,15 @@ src/apme_engine/
   │   ├── ansible/      Ansible-runtime rules (L057–L059, M001–M004)
   │   └── gitleaks/     Gitleaks wrapper (SEC:* — secret detection)
   ├── daemon/           gRPC server implementations
-  ├── collection_cache/ Session venv management (VenvSessionManager)
+  ├── venv_manager/     Session-scoped venv lifecycle (VenvSessionManager)
+  ├── remediation/      Tier 1 transforms + AI escalation
   ├── formatter.py      YAML formatter (phase 1 remediation)
-  ├── cli.py            CLI entry point (scan, format, fix, health-check)
+  ├── cli/              CLI entry point (scan, format, fix, health-check)
   └── runner.py         scan orchestration
-containers/             Dockerfiles + Podman pod config
+src/apme_gateway/       API gateway (FastAPI, REST/WebSocket, SQLite)
+src/galaxy_proxy/       Galaxy → PEP 503 wheel proxy
+frontend/               React operator UI (Vite + TypeScript)
+containers/             Containerfiles + Podman pod config
 docs/                   architecture, design, rule mapping
 tests/                  unit, integration, rule doc coverage
 ```
@@ -275,9 +279,9 @@ tests/                  unit, integration, rule doc coverage
 - **Preflight checks**: auto-discover Abbenay daemon socket, health check before AI calls.
 - See [DESIGN_AI_ESCALATION.md](docs/DESIGN_AI_ESCALATION.md) for the full design.
 
-### Phase 4 — Web UI
+### Phase 4 — Web UI (in progress)
 
-Dashboards, findings management, remediation queue, enterprise tracking. See [DESIGN_DASHBOARD.md](docs/DESIGN_DASHBOARD.md) for the full design: API gateway (FastAPI), REST/WebSocket API, persistence (SQLite/PostgreSQL), auth (OAuth2/OIDC), and Vue 3 frontend.
+Operator UI for scan + fix sessions, health monitoring, and findings management. API gateway (FastAPI), REST/WebSocket API, persistence (SQLite), and React frontend. See [DESIGN_DASHBOARD.md](docs/DESIGN_DASHBOARD.md) for the full design.
 
 ## License
 
