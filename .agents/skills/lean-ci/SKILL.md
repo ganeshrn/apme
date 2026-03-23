@@ -4,6 +4,11 @@ description: >
   Guide for writing and modifying GitHub Actions workflows in this repository.
   Use when creating CI/CD pipelines, adding workflow jobs, modifying build steps,
   or debugging CI failures. Enforces the project's lean CI philosophy.
+argument-hint: "[workflow-name]"
+user-invocable: true
+metadata:
+  author: APME Team
+  version: 1.0.0
 ---
 
 # Lean CI

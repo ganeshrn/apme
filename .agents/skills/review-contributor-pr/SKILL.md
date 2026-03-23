@@ -6,6 +6,11 @@ description: >
   contributor's branch, or ensure a PR meets project standards before merge.
   Follow this skill so contributor PRs are reviewed consistently and avoid
   rework (prek failures, outdated base, weak description).
+argument-hint: "<PR number or URL>"
+user-invocable: true
+metadata:
+  author: APME Team
+  version: 1.0.0
 ---
 
 # Review Contributor PR

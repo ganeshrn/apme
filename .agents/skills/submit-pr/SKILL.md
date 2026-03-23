@@ -1,6 +1,11 @@
 ---
 name: submit-pr
 description: Prepare and submit a pull request for the APME project. Syncs with upstream, creates a feature branch, runs pre-commit checks (prek/ruff), updates documentation and ADRs as needed, commits with conventional commits, then creates the PR via gh. Use when the user asks to submit, create, or open a pull request, or says "submit PR", "open PR", "create PR".
+argument-hint: "[branch-name] [--title 'PR title']"
+user-invocable: true
+metadata:
+  author: APME Team
+  version: 1.0.0
 ---
 
 # Submit PR

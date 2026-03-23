@@ -4,6 +4,11 @@ description: >
   Guide for handling pull request reviews, including automated (Copilot) and
   human reviewer feedback. Use when responding to PR comments, resolving
   review threads, or updating PRs after review.
+argument-hint: "<PR number>"
+user-invocable: true
+metadata:
+  author: APME Team
+  version: 1.0.0
 ---
 
 # PR Review
