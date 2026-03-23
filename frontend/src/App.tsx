@@ -1,6 +1,7 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { DashboardPage } from "./pages/DashboardPage";
+import { NewScanPage } from "./pages/NewScanPage";
 import { ScanDetailPage } from "./pages/ScanDetailPage";
 import { ScansPage } from "./pages/ScansPage";
 import { TopViolationsPage } from "./pages/TopViolationsPage";
@@ -14,6 +15,7 @@ export function App() {
       <Layout>
         <Routes>
           <Route path="/" element={<DashboardPage />} />
+          <Route path="/new-scan" element={<NewScanPage />} />
           <Route path="/scans" element={<ScansPage />} />
           <Route path="/scans/:scanId" element={<ScanDetailPage />} />
           <Route path="/violations" element={<TopViolationsPage />} />

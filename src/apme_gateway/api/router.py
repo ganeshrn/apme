@@ -1,13 +1,15 @@
-"""Read-only REST API endpoints for the gateway.
+"""REST API endpoints for the gateway.
 
-All endpoints are GET-only.  Write operations happen exclusively via the
-gRPC Reporting servicer (engine push model, ADR-020).  The DELETE endpoint
-is provided for scan record housekeeping.
+Read endpoints serve persisted scan data.  Write operations happen via the
+gRPC Reporting servicer (engine push model, ADR-020).  The ``POST /scans``
+endpoint initiates a scan by streaming files to Primary and relaying
+real-time progress back via SSE (ADR-029).
 """
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Form, HTTPException, Query, UploadFile
+from fastapi.responses import StreamingResponse
 
 from apme_gateway.api.schemas import (
     AiAcceptanceEntry,
@@ -313,4 +315,54 @@ def _scan_to_summary(scan: Scan) -> ScanSummary:
         auto_fixable=scan.auto_fixable,
         ai_candidate=scan.ai_candidate,
         manual_review=scan.manual_review,
+    )
+
+
+# ── Scan Initiation (ADR-029) ────────────────────────────────────────
+
+
+@router.post("/scans")  # type: ignore[untyped-decorator]
+async def initiate_scan(
+    files: list[UploadFile],
+    ansible_version: str = Form(default=""),
+    collections: str = Form(default=""),
+) -> StreamingResponse:
+    """Initiate a scan by uploading files and stream progress via SSE.
+
+    The gateway writes uploaded files to a temp directory, streams
+    ``ScanChunk`` messages to Primary via gRPC, and relays real-time
+    ``ScanEvent`` progress back to the browser as Server-Sent Events.
+
+    Args:
+        files: Uploaded files (multipart/form-data).
+        ansible_version: Optional Ansible core version constraint.
+        collections: Optional comma-separated collection specifiers.
+
+    Returns:
+        StreamingResponse with ``text/event-stream`` content type.
+    """
+    from apme_gateway.config import load_config
+    from apme_gateway.scan_client import UploadedFile, run_scan_stream
+
+    cfg = load_config()
+
+    uploaded: list[UploadedFile] = []
+    for f in files:
+        content = await f.read()
+        rel_path = f.filename or "unknown"
+        uploaded.append(UploadedFile(relative_path=rel_path, content=content))
+
+    coll_list = [c.strip() for c in collections.split(",") if c.strip()] if collections else None
+
+    event_stream = run_scan_stream(
+        uploaded,
+        cfg.primary_address,
+        ansible_version=ansible_version,
+        collections=coll_list,
+    )
+
+    return StreamingResponse(
+        event_stream,
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

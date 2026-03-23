@@ -7,6 +7,7 @@ interface LayoutProps {
 }
 
 const NAV_ITEMS = [
+  { path: "/new-scan", label: "New Scan", icon: "+" },
   { path: "/", label: "Dashboard", icon: "\u25A0" },
   { path: "/scans", label: "Scans", icon: "\u2630" },
   { path: "/violations", label: "Top Violations", icon: "\u26A0" },
