@@ -123,23 +123,25 @@ def _health_check(address: str, timeout: float = 3.0) -> bool:
 
 
 def _check_port_available(host: str, port: int) -> bool:
-    """Return True if *port* on *host* is free (nobody listening).
+    """Return True if *port* on *host* is free (bind succeeds).
+
+    Uses ``bind()`` instead of ``connect()`` so the check works for
+    non-loopback addresses like ``0.0.0.0`` and avoids socket leaks.
 
     Args:
         host: Host to probe.
         port: TCP port number.
 
     Returns:
-        True when the port is available (connection refused).
+        True when the port is available (bind succeeds).
     """
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.settimeout(0.5)
-    try:
-        sock.connect((host, port))
-        sock.close()
-        return False
-    except (ConnectionRefusedError, OSError):
-        return True
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        try:
+            sock.bind((host, port))
+        except OSError:
+            return False
+        else:
+            return True
 
 
 def _assert_ports_free(host: str, ports: dict[str, int]) -> None:
