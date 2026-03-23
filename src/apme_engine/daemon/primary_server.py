@@ -1359,7 +1359,6 @@ class PrimaryServicer(primary_pb2_grpc.PrimaryServicer):
                 idx += 1
         return proposals
 
-
     @staticmethod
     def _session_apply_approved(
         session: SessionState,
@@ -1402,8 +1401,7 @@ class PrimaryServicer(primary_pb2_grpc.PrimaryServicer):
             session.approved_ids.add(pid)
             applied += 1
 
-        if not session.proposals:
-            session.status = 3  # COMPLETE
+        session.status = 3  # COMPLETE — user has finished reviewing
         return applied
 
     async def _session_build_result(

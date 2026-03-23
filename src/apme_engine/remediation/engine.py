@@ -632,9 +632,10 @@ class RemediationEngine:
 
             feedback = new_feedback
             logger.debug(
-                "AI attempt %d: validation failed, %s",
+                "AI attempt %d: validation failed, %s\n%s",
                 attempt + 1,
                 "retrying" if attempt < self._max_ai_attempts - 1 else "giving up",
+                feedback or "(no feedback)",
             )
         else:
             for v in violations:
@@ -700,7 +701,10 @@ class RemediationEngine:
         Returns:
             Tuple of (is_valid, transforms_applied, feedback_for_retry).
         """
-        baseline_keys = {(str(v.get("rule_id", "")), str(v.get("line", ""))) for v in self._scan_fn([file_path])}
+        from collections import Counter  # noqa: PLC0415
+
+        baseline_violations = self._scan_fn([file_path])
+        baseline_counts: Counter[str] = Counter(str(v.get("rule_id", "")) for v in baseline_violations)
 
         patched = apply_patches(original_content, patches)
 
@@ -747,9 +751,7 @@ class RemediationEngine:
             Path(file_path).write_text(patched, encoding="utf-8")
             post_violations = self._scan_fn([file_path])
 
-            new_violations = [
-                v for v in post_violations if (str(v.get("rule_id", "")), str(v.get("line", ""))) not in baseline_keys
-            ]
+            new_violations = _find_truly_new_violations(post_violations, baseline_counts)
 
             if not new_violations:
                 return True, 0, None
@@ -771,9 +773,7 @@ class RemediationEngine:
 
                 Path(file_path).write_text(content, encoding="utf-8")
                 remaining_all = self._scan_fn([file_path])
-                remaining_new = [
-                    v for v in remaining_all if (str(v.get("rule_id", "")), str(v.get("line", ""))) not in baseline_keys
-                ]
+                remaining_new = _find_truly_new_violations(remaining_all, baseline_counts)
 
                 if not remaining_new:
                     return True, transforms_applied, None
@@ -788,6 +788,35 @@ class RemediationEngine:
             return False, transforms_applied, "\n".join(feedback_lines)
         finally:
             Path(file_path).write_text(original_content, encoding="utf-8")
+
+
+def _find_truly_new_violations(
+    post_violations: list[ViolationDict],
+    baseline_counts: dict[str, int],
+) -> list[ViolationDict]:
+    """Identify violations that are genuinely new, not just line-shifted.
+
+    AI patches change line counts, so pre-existing violations appear at
+    different line numbers.  Instead of exact (rule_id, line) matching,
+    compare per-rule counts: only violations whose rule_id count *exceeds*
+    the baseline are considered new.
+    """
+    from collections import Counter  # noqa: PLC0415
+
+    post_counts: Counter[str] = Counter(str(v.get("rule_id", "")) for v in post_violations)
+
+    increased_rules = {rid for rid, cnt in post_counts.items() if cnt > baseline_counts.get(rid, 0)}
+    if not increased_rules:
+        return []
+
+    budget: dict[str, int] = {rid: post_counts[rid] - baseline_counts.get(rid, 0) for rid in increased_rules}
+    new_violations: list[ViolationDict] = []
+    for v in post_violations:
+        rid = str(v.get("rule_id", ""))
+        if rid in budget and budget[rid] > 0:
+            new_violations.append(v)
+            budget[rid] -= 1
+    return new_violations
 
 
 def _chunk_violations(

@@ -671,6 +671,12 @@ class AbbenayProvider:
             )
             return None, []
 
+        logger.debug(
+            "Abbenay raw response (%d chars) for %s: %.500s",
+            len(response_text),
+            file_path,
+            response_text,
+        )
         return _parse_batch_response(response_text, file_content)
 
     async def propose_unit_fixes(
