@@ -35,7 +35,7 @@ import logging
 import shutil
 import tempfile
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -123,7 +123,13 @@ async def _collect_uploads(ws: WebSocket, temp_dir: Path) -> dict[str, Any]:
 
         elif msg_type == "file":
             safe = _sanitize_path(msg["path"])
-            content = base64.b64decode(msg["content"])
+            try:
+                content = base64.b64decode(msg["content"], validate=True)
+            except Exception:
+                await ws.send_json(
+                    {"type": "error", "message": f"Invalid base64 content for {safe}"}
+                )
+                continue
             dest = temp_dir / safe
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_bytes(content)
@@ -175,13 +181,13 @@ async def _ws_command_reader(
 
 
 async def _command_stream(
-    chunks: list[ScanChunk],
+    chunks: Iterator[ScanChunk],
     queue: asyncio.Queue[SessionCommand | None],
 ) -> AsyncIterator[SessionCommand]:
     """Yield upload chunks then queued interactive commands.
 
     Args:
-        chunks: Pre-built ScanChunk upload messages.
+        chunks: ScanChunk upload messages (consumed lazily).
         queue: Queue of interactive commands from the WebSocket reader.
 
     Yields:
@@ -357,24 +363,25 @@ async def handle_session(
 
         scan_id = str(uuid.uuid4())
 
-        chunks = list(
-            yield_scan_chunks(
+        def _chunks_with_fix_options() -> Iterator[ScanChunk]:
+            chunk_iter = yield_scan_chunks(
                 temp_dir,
                 scan_id=scan_id,
                 project_root_name="upload",
                 ansible_core_version=ansible_version or None,
                 collection_specs=collections or None,
             )
-        )
-
-        if chunks:
-            first = chunks[0]
+            first_chunk = next(chunk_iter, None)
+            if first_chunk is None:
+                return
             fix_opts = FixOptions(
                 ansible_core_version=ansible_version,
                 collection_specs=collections or [],
                 enable_ai=enable_ai,
             )
-            first.fix_options.CopyFrom(fix_opts)  # type: ignore[union-attr]
+            first_chunk.fix_options.CopyFrom(fix_opts)  # type: ignore[union-attr]
+            yield first_chunk
+            yield from chunk_iter
 
         command_queue: asyncio.Queue[SessionCommand | None] = asyncio.Queue()
         done = asyncio.Event()
@@ -384,7 +391,7 @@ async def handle_session(
             stub = primary_pb2_grpc.PrimaryStub(channel)  # type: ignore[no-untyped-call]
 
             async def _cmd_iter() -> AsyncIterator[SessionCommand]:
-                async for cmd in _command_stream(chunks, command_queue):
+                async for cmd in _command_stream(_chunks_with_fix_options(), command_queue):
                     yield cmd
 
             response_stream = stub.FixSession(_cmd_iter(), timeout=timeout)

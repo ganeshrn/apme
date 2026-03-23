@@ -548,10 +548,11 @@ function DiffView({ before, after }: { before: string; after: string }) {
         <div className="apme-diff-pane-header">Before</div>
         <pre className="apme-diff-content apme-diff-remove">
           {beforeLines.map((line, i) => (
-            <div key={i} className="apme-diff-line">
+            <span key={i} className="apme-diff-line">
               <span className="apme-diff-linenum">{i + 1}</span>
               {line}
-            </div>
+              {"\n"}
+            </span>
           ))}
         </pre>
       </div>
@@ -559,10 +560,11 @@ function DiffView({ before, after }: { before: string; after: string }) {
         <div className="apme-diff-pane-header">After</div>
         <pre className="apme-diff-content apme-diff-add">
           {afterLines.map((line, i) => (
-            <div key={i} className="apme-diff-line">
+            <span key={i} className="apme-diff-line">
               <span className="apme-diff-linenum">{i + 1}</span>
               {line}
-            </div>
+              {"\n"}
+            </span>
           ))}
         </pre>
       </div>

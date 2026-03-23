@@ -107,11 +107,11 @@ Client → Server messages:
 Server → Client messages:
 
 ```json
-{"type": "session_created", "session_id": "abc-123", "scan_id": "scan-456"}
-{"type": "progress", "message": "Running native validator...", "percent": 45}
-{"type": "tier1_complete", "fixes": [...]}
-{"type": "proposals", "items": [{"id": "p1", "path": "...", "diff": "...", "confidence": 0.92}]}
-{"type": "result", "summary": {...}}
+{"type": "session_created", "session_id": "abc-123", "scan_id": "scan-456", "ttl_seconds": 600}
+{"type": "progress", "phase": "validation", "message": "Running native validator...", "level": 2}
+{"type": "tier1_complete", "idempotency_ok": true, "patches": [...], "format_diffs": [...]}
+{"type": "proposals", "tier": 2, "status": "AWAITING_APPROVAL", "proposals": [{"id": "p1", "file": "playbooks/deploy.yml", "rule_id": "M001", "confidence": 0.92, ...}]}
+{"type": "result", "scan_id": "scan-456", "patches": [...], "remaining_violations": [...]}
 ```
 
 ### OpenAPI
