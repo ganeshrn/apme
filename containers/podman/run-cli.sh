@@ -25,6 +25,7 @@ rc=0
 podman run \
   --name "$CLI_NAME" \
   --pod apme-pod \
+  --restart=no \
   -v "$(pwd)":/workspace:Z \
   -w /workspace \
   -e APME_PRIMARY_ADDRESS=127.0.0.1:50051 \

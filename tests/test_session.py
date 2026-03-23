@@ -126,6 +126,14 @@ class FakeGrpcContext:
         """
         self._details = details
 
+    def peer(self) -> str:
+        """Return a fake peer address.
+
+        Returns:
+            Fake peer identifier string.
+        """
+        return "ipv4:127.0.0.1:50051"
+
 
 class _AbortSignal(Exception):
     """Raised by FakeGrpcContext.abort to break out of the servicer.

@@ -713,7 +713,16 @@ class PrimaryServicer(primary_pb2_grpc.PrimaryServicer):
 
         with attach_stream_sink(queue):
             try:
-                logger.info("ScanStream: start (%d files, req=%s)", len(all_files), scan_id)
+                peer = context.peer()
+                metadata = dict(context.invocation_metadata() or ())
+                user_agent = metadata.get("user-agent", "unknown")
+                logger.info(
+                    "ScanStream: start (%d files, req=%s, peer=%s, ua=%s)",
+                    len(all_files),
+                    scan_id,
+                    peer,
+                    user_agent,
+                )
 
                 if not all_files:
                     yield ScanEvent(result=ScanResponse(scan_id=scan_id, violations=[], logs=[]))
@@ -919,6 +928,14 @@ class PrimaryServicer(primary_pb2_grpc.PrimaryServicer):
                     self._session_upload_append(session, chunk)
 
                     if chunk.last:
+                        peer = context.peer()
+                        logger.info(
+                            "FixSession: processing %d file(s) (session_id=%s, scan_id=%s, peer=%s)",
+                            len(session.original_files),
+                            session.session_id,
+                            scan_id,
+                            peer,
+                        )
                         async for event in self._session_process(session, scan_id):
                             yield event
 
@@ -1047,8 +1064,6 @@ class PrimaryServicer(primary_pb2_grpc.PrimaryServicer):
             ansible_core_version = scan_opts.ansible_core_version
             collection_specs = list(scan_opts.collection_specs)
             fix_session_id = scan_opts.session_id
-
-        logger.info("FixSession: processing %d file(s) (session=%s)", len(all_files), scan_id)
 
         if not all_files:
             session.status = 3  # COMPLETE
