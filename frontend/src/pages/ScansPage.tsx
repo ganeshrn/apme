@@ -19,6 +19,10 @@ export function ScansPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    setPage(1);
+  }, [sessionFilter]);
+
+  useEffect(() => {
     setLoading(true);
     const offset = (page - 1) * PAGE_SIZE;
     listScans(PAGE_SIZE, offset, sessionFilter)
