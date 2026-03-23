@@ -58,7 +58,7 @@ def test_sidebar_nav_items(dashboard: Page) -> None:
     Args:
         dashboard: Page positioned on the dashboard.
     """
-    expected = ["Dashboard", "Scans", "Top Violations", "Fix Tracker", "AI Metrics", "Health"]
+    expected = ["New Scan", "Dashboard", "Scans", "Top Violations", "Fix Tracker", "AI Metrics", "Health"]
     items = dashboard.locator(".apme-nav .apme-nav-item")
     expect(items).to_have_count(len(expected))
     for i, label in enumerate(expected):
@@ -170,3 +170,147 @@ def test_health_shows_status(dashboard: Page) -> None:
     status = dashboard.locator(".apme-data-table td")
     if status.count() >= 2:
         expect(status.first).to_have_text("Gateway")
+
+
+# ── New Scan (Operator UI) ───────────────────────────────────────────
+
+
+@pytest.fixture()  # type: ignore[untyped-decorator]
+def new_scan_page(page: Page) -> Page:
+    """Navigate to the New Scan page and wait for the form.
+
+    Args:
+        page: Playwright page fixture.
+
+    Returns:
+        Page positioned on /new-scan.
+    """
+    page.goto(f"{_BASE}/new-scan", wait_until="networkidle")
+    page.wait_for_selector(".apme-page-title", timeout=10_000)
+    return page
+
+
+def test_navigate_to_new_scan(dashboard: Page) -> None:
+    """Clicking New Scan in sidebar navigates to /new-scan.
+
+    Args:
+        dashboard: Page positioned on the dashboard.
+    """
+    dashboard.click("text=New Scan")
+    dashboard.wait_for_url(f"{_BASE}/new-scan", timeout=5_000)
+    expect(dashboard.locator(".apme-page-title")).to_have_text("New Scan")
+
+
+def test_new_scan_page_title(new_scan_page: Page) -> None:
+    """New Scan page displays the correct title.
+
+    Args:
+        new_scan_page: Page positioned on /new-scan.
+    """
+    expect(new_scan_page.locator(".apme-page-title")).to_have_text("New Scan")
+
+
+def test_new_scan_tabs(new_scan_page: Page) -> None:
+    """New Scan page has Upload and Project tabs, with Project disabled.
+
+    Args:
+        new_scan_page: Page positioned on /new-scan.
+    """
+    tabs = new_scan_page.locator(".apme-tab")
+    expect(tabs).to_have_count(2)
+    expect(tabs.nth(0)).to_have_text("Upload Files")
+    expect(tabs.nth(1)).to_have_text("Project (SCM)")
+    expect(tabs.nth(1)).to_be_disabled()
+
+
+def test_new_scan_drop_zone_visible(new_scan_page: Page) -> None:
+    """Upload tab shows the drag-and-drop zone.
+
+    Args:
+        new_scan_page: Page positioned on /new-scan.
+    """
+    drop_zone = new_scan_page.locator(".apme-drop-zone")
+    expect(drop_zone).to_be_visible()
+    expect(drop_zone).to_contain_text("Drop Ansible files here")
+
+
+def test_new_scan_directory_button(new_scan_page: Page) -> None:
+    """Select Directory button is visible.
+
+    Args:
+        new_scan_page: Page positioned on /new-scan.
+    """
+    btn = new_scan_page.locator("button:has-text('Select Directory')")
+    expect(btn).to_be_visible()
+
+
+def test_new_scan_start_disabled_without_files(new_scan_page: Page) -> None:
+    """Start Scan button is disabled when no files are selected.
+
+    Args:
+        new_scan_page: Page positioned on /new-scan.
+    """
+    btn = new_scan_page.locator("button:has-text('Start Scan')")
+    expect(btn).to_be_disabled()
+
+
+def test_new_scan_advanced_options(new_scan_page: Page) -> None:
+    """Advanced Options panel expands to show version and collections inputs.
+
+    Args:
+        new_scan_page: Page positioned on /new-scan.
+    """
+    new_scan_page.click("text=Advanced Options")
+    expect(new_scan_page.locator("#ansible-version")).to_be_visible()
+    expect(new_scan_page.locator("#collections")).to_be_visible()
+
+
+def test_new_scan_file_upload_enables_start(new_scan_page: Page) -> None:
+    """Uploading a file via the hidden input enables the Start Scan button.
+
+    Args:
+        new_scan_page: Page positioned on /new-scan.
+    """
+    file_input = new_scan_page.locator(".apme-scan-form input[type='file'][multiple]")
+    file_input.set_input_files(
+        {
+            "name": "playbook.yml",
+            "mimeType": "text/yaml",
+            "buffer": b"---\n- hosts: all\n  tasks: []\n",
+        }
+    )
+
+    expect(new_scan_page.locator(".apme-file-list")).to_be_visible()
+    expect(new_scan_page.locator(".apme-file-item")).to_have_count(1)
+    expect(new_scan_page.locator(".apme-file-name")).to_contain_text("playbook.yml")
+
+    btn = new_scan_page.locator("button:has-text('Start Scan')")
+    expect(btn).to_be_enabled()
+
+
+def test_new_scan_file_remove(new_scan_page: Page) -> None:
+    """Removing a file from the list updates the count.
+
+    Args:
+        new_scan_page: Page positioned on /new-scan.
+    """
+    file_input = new_scan_page.locator(".apme-scan-form input[type='file'][multiple]")
+    file_input.set_input_files(
+        [
+            {
+                "name": "a.yml",
+                "mimeType": "text/yaml",
+                "buffer": b"---\n",
+            },
+            {
+                "name": "b.yml",
+                "mimeType": "text/yaml",
+                "buffer": b"---\n",
+            },
+        ]
+    )
+
+    expect(new_scan_page.locator(".apme-file-item")).to_have_count(2)
+
+    new_scan_page.locator(".apme-file-remove").first.click()
+    expect(new_scan_page.locator(".apme-file-item")).to_have_count(1)
