@@ -216,6 +216,7 @@ def run(
 
     python = venv_root / "bin" / "python"
     if not python.is_file():
+        sys.stderr.write(f"{RULE_ID}: venv python not found at {python}, skipping\n")
         return []
 
     env = dict(os.environ)

@@ -74,6 +74,7 @@ def _run_introspection(
 
     python = venv_root / "bin" / "python"
     if not python.is_file():
+        sys.stderr.write(f"M001-M004: venv python not found at {python}, skipping introspection\n")
         return {}
 
     env = dict(os.environ)
