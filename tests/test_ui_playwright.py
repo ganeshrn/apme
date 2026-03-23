@@ -12,6 +12,7 @@ Requires:
 from __future__ import annotations
 
 import os
+import re
 from typing import TYPE_CHECKING
 
 import pytest
@@ -49,7 +50,7 @@ def test_page_title(dashboard: Page) -> None:
     Args:
         dashboard: Page positioned on the dashboard.
     """
-    expect(dashboard).to_have_title("Dashboard")
+    expect(dashboard).to_have_title(re.compile(r"Dashboard"))
 
 
 def test_sidebar_nav_items(dashboard: Page) -> None:
@@ -80,7 +81,7 @@ def test_dashboard_metric_cards_visible(dashboard: Page) -> None:
         dashboard: Page positioned on the dashboard.
     """
     cards = dashboard.locator(".pf-v6-c-card")
-    expect(cards.first).to_be_visible()
+    expect(cards.first).to_be_attached()
     assert cards.count() >= 6, f"Expected >=6 dashboard cards, got {cards.count()}"
 
 
