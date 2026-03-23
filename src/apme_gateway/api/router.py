@@ -240,9 +240,8 @@ async def session_trend_endpoint(session_id: str) -> list[TrendPoint]:
     """
     async with get_session() as db:
         sess = await q.get_session(db, session_id)
-    if sess is None:
-        raise HTTPException(status_code=404, detail="Session not found")
-    async with get_session() as db:
+        if sess is None:
+            raise HTTPException(status_code=404, detail="Session not found")
         scans = await q.session_trend(db, session_id)
     return [
         TrendPoint(

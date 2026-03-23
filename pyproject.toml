@@ -54,8 +54,11 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests", "src/apme_engine/validators/native/rules"]
 pythonpath = ["src"]
-addopts = "-v --tb=short -m 'not integration'"
-markers = ["integration: marks tests as integration (may use network or external deps)"]
+addopts = "-v --tb=short -m 'not integration and not ui'"
+markers = [
+    "integration: marks tests as integration (may use network or external deps)",
+    "ui: marks tests as browser/Playwright tests (require running UI + gateway stack)",
+]
 asyncio_mode = "auto"
 
 [tool.coverage.run]

@@ -1,8 +1,8 @@
 """Playwright-based browser tests for the APME Executive Dashboard.
 
 These tests verify layout, navigation, and theme toggling against a live
-gateway + UI stack.  Mark as integration so they are skipped in the normal
-unit-test run.
+gateway + UI stack.  Marked ``ui`` so they are skipped in both the normal
+unit-test run and the daemon integration run.
 
 Requires:
     pytest-playwright (``pip install pytest-playwright``)
@@ -16,14 +16,14 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-pytest.importorskip("playwright", reason="pytest-playwright not installed")
+pytest.importorskip("pytest_playwright", reason="pytest-playwright not installed")
 
 if TYPE_CHECKING:
     from playwright.sync_api import Page
 
 from playwright.sync_api import expect  # noqa: E402
 
-pytestmark = pytest.mark.integration
+pytestmark = pytest.mark.ui
 
 _BASE = os.environ.get("APME_UI_URL", "http://localhost:8081")
 

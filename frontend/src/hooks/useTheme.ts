@@ -17,7 +17,11 @@ export function useTheme() {
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
-    localStorage.setItem("apme-theme", theme);
+    try {
+      localStorage.setItem("apme-theme", theme);
+    } catch {
+      /* blocked localStorage */
+    }
   }, [theme]);
 
   const toggle = useCallback(() => {
