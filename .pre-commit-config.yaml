@@ -15,6 +15,10 @@ repos:
           - types-protobuf
           - types-PyYAML
           - grpc-stubs
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.10.12
+    hooks:
+      - id: uv-lock
   - repo: https://github.com/jsh9/pydoclint
     rev: 0.8.3
     hooks:
