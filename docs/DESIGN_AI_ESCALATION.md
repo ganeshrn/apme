@@ -435,7 +435,7 @@ $ apme-scan health-check --include-ai
   opa      (localhost:50054)  ok   15ms
   ansible  (localhost:50053)  ok   22ms
   proxy    (localhost:8765)   ok    5ms
-  abbenay  (unix:///run/user/1000/abbenay/daemon.sock)  ok  v2026.3.6-alpha  18ms
+  abbenay  (unix:///run/user/1000/abbenay/daemon.sock)  ok  v2026.3.7-alpha  18ms
 ```
 
 ---
@@ -535,7 +535,7 @@ The `--model` flag is passed through to `AbbenayClient.chat(model=...)`. If omit
 
 ## MCP Tools
 
-Dynamic MCP registration is available in Abbenay `v2026.3.6-alpha` (DR-025 merged).
+Dynamic MCP registration is available in Abbenay `v2026.3.7-alpha` (DR-025 merged).
 
 ### Ansible Docstring Server
 
@@ -580,7 +580,7 @@ Currently pinned via VCS URL to the release tag:
 ```toml
 [project.optional-dependencies]
 ai = [
-    "abbenay-client @ git+https://github.com/redhat-developer/abbenay.git@v2026.3.6-alpha#subdirectory=packages/python",
+    "abbenay-client @ git+https://github.com/redhat-developer/abbenay.git@v2026.3.7-alpha#subdirectory=packages/python",
 ]
 ```
 
@@ -613,7 +613,7 @@ podman pull ghcr.io/redhat-developer/abbenay:latest
 |-----|---------|
 | `:main` | Latest merged code |
 | `:sha-<short>` | Specific commit |
-| `:2026.3.6-alpha` | Release (no `v` prefix) |
+| `:2026.3.7-alpha` | Release (no `v` prefix) |
 | `:latest` | Latest stable release |
 
 ```

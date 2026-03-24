@@ -45,9 +45,9 @@ fi
 # CACHE_PATH is escaped for sed since it may contain special chars;
 # everything else goes through envsubst so secrets stay out of argv.
 ESCAPED_PATH=$(printf '%s\n' "$CACHE_PATH" | sed -e 's/\\/\\\\/g' -e 's/[&|]/\\&/g')
-export OPENROUTER_API_KEY APME_AI_MODEL
+export OPENROUTER_API_KEY APME_AI_MODEL APME_ROOT="$ROOT"
 sed "s|path: __APME_CACHE_PATH__|path: ${ESCAPED_PATH}|" containers/podman/pod.yaml \
-  | envsubst '$OPENROUTER_API_KEY $APME_AI_MODEL' \
+  | envsubst '$OPENROUTER_API_KEY $APME_AI_MODEL $APME_ROOT' \
   | podman play kube -
 
 echo "Pod apme-pod started (cache: $CACHE_PATH). Run a scan: containers/podman/run-cli.sh"

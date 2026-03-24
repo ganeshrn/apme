@@ -18,10 +18,10 @@ From the repo root:
 ./containers/podman/build.sh
 ```
 
-This builds ten images:
+This builds nine images and pulls one official image:
 
-| Image | Dockerfile | Purpose |
-|-------|------------|---------|
+| Image | Source | Purpose |
+|-------|--------|---------|
 | `apme-primary:latest` | `containers/primary/Dockerfile` | Orchestrator + engine + session venv manager |
 | `apme-native:latest` | `containers/native/Dockerfile` | Native Python validator |
 | `apme-opa:latest` | `containers/opa/Dockerfile` | OPA + gRPC wrapper |
@@ -30,8 +30,8 @@ This builds ten images:
 | `apme-galaxy-proxy:latest` | `containers/galaxy-proxy/Dockerfile` | PEP 503 proxy: Galaxy tarballs → Python wheels |
 | `apme-gateway:latest` | `containers/gateway/Dockerfile` | REST API + gRPC Reporting service (SQLite) |
 | `apme-ui:latest` | `containers/ui/Dockerfile` | React SPA served by nginx (proxies API to Gateway) |
-| `apme-abbenay:latest` | `containers/abbenay/Dockerfile` | Abbenay AI daemon (LLM gateway for Tier 2 remediation) |
 | `apme-cli:latest` | `containers/cli/Dockerfile` | CLI client |
+| `ghcr.io/redhat-developer/abbenay:2026.3.7-alpha` | [Official image](https://github.com/redhat-developer/abbenay/pkgs/container/abbenay) (pulled) | Abbenay AI daemon (LLM gateway for Tier 2 remediation) |
 
 ### Configure Abbenay AI (optional)
 
@@ -157,7 +157,7 @@ The OPA binary runs internally on `localhost:8181`; the gRPC wrapper proxies to 
 | `OPENROUTER_API_KEY` | — | LLM provider API key (from `containers/abbenay/.env`) |
 | `APME_ABBENAY_TOKEN` | `apme-dev-token` | Consumer token (must match `config.yaml` consumers section) |
 
-Abbenay is configured via `containers/abbenay/config.yaml`. The default config uses OpenRouter as the LLM provider. To add providers or models, edit the `providers` section. API keys are injected from environment variables — never committed to the config file.
+Abbenay uses the official container image (`ghcr.io/redhat-developer/abbenay`) with `containers/abbenay/config.yaml` volume-mounted at runtime. The default config uses OpenRouter as the LLM provider. To add providers or models, edit the `providers` section. API keys are injected from environment variables — never committed to the config file.
 
 The Abbenay daemon exposes a gRPC API on port 50057. Primary connects to it for AI model listing (`ListAIModels`) and batch remediation requests.
 

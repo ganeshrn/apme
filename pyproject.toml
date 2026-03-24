@@ -24,7 +24,7 @@ dependencies = [
 
 [project.optional-dependencies]
 ai = [
-    "abbenay-client @ https://github.com/redhat-developer/abbenay/releases/download/v2026.3.6-alpha/abbenay_client-2026.3.6a0-py3-none-any.whl#sha256=f35258ffc4679729b06d11e91ff042a4add7807a6c437eaf497004c1958af9a3",
+    "abbenay-client @ https://github.com/redhat-developer/abbenay/releases/download/v2026.3.7-alpha/abbenay_client-2026.3.7a0-py3-none-any.whl#sha256=44b502731174bc942ebc56127e5dfae9ae0f81d3885fd42f5d33cd6e5bf66080",
 ]
 proxy = [
     "fastapi>=0.100",
