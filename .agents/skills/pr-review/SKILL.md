@@ -84,12 +84,41 @@ import is intentionally side-effect only.
 ## Workflow
 
 1. After pushing a PR, wait for both CI and Copilot review.
-2. Read all review comments and CI logs.
+2. Check CI status and read all review comments.
 3. Fix all issues in a single commit (or minimal commits).
 4. Reply to each comment with a brief explanation of how it was resolved and
    the commit hash (e.g., "Removed unused imports. Fixed in abc1234.").
 5. **Resolve each review thread** after replying. Every thread must have both
    a closing reply and an explicit resolution — replying alone is not enough.
+
+### Checking CI status
+
+Always check CI checks as part of the review workflow. Fix failures before
+addressing review comments — a green build is a prerequisite for merge.
+
+```bash
+# List failing checks (replace N with PR number)
+gh pr checks N --json name,state --jq '.[] | select(.state != "SUCCESS" and .state != "PENDING")'
+
+# Get the log link for a specific failed check
+gh pr checks N --json name,state,link --jq '.[] | select(.name == "CHECK_NAME") | .link'
+
+# View failed job logs directly
+gh run view RUN_ID --log-failed 2>&1 | tail -80
+```
+
+Common CI failures and how to fix them:
+
+- **prek (ruff format)**: Run `ruff format` locally on changed files. Long
+  type annotations and function signatures often need line wrapping.
+- **prek (mypy)**: Add type annotations to all new functions. Use the correct
+  `type: ignore` code (e.g., `[assignment]` vs `[method-assign]`). Run
+  `mypy FILE` locally to verify.
+- **prek (pydoclint)**: Ensure all public functions have Google-style
+  docstrings with Args/Returns sections.
+- **test / test-ai**: Run `pytest tests/ -x --ignore=tests/integration` locally
+  to reproduce. Update tests when behavior changes (e.g., new retry logic
+  changes expected call counts).
 
 ### Replying to review comments
 
