@@ -104,3 +104,9 @@ export interface HealthStatus {
   database: string;
   components: ComponentHealth[];
 }
+
+export interface AiModelInfo {
+  id: string;
+  provider: string;
+  name: string;
+}

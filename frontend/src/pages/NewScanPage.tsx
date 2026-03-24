@@ -16,6 +16,7 @@ import {
   TextInput,
 } from '@patternfly/react-core';
 import JSZip from 'jszip';
+import { AI_MODEL_STORAGE_KEY } from './SettingsPage';
 import {
   useSessionStream,
   type Patch,
@@ -83,6 +84,7 @@ export function NewScanPage() {
       ansibleVersion,
       collections: colls.length ? colls : undefined,
       enableAi,
+      aiModel: enableAi ? (localStorage.getItem(AI_MODEL_STORAGE_KEY) ?? undefined) : undefined,
     });
   }, [files, ansibleVersion, collections, enableAi, startSession]);
 

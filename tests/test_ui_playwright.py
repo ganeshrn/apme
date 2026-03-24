@@ -68,6 +68,7 @@ def test_sidebar_nav_items(dashboard: Page) -> None:
         "Fix Tracker",
         "AI Metrics",
         "Health",
+        "Settings",
     ]
     nav = dashboard.locator("[data-testid='page-navigation']")
     for label in expected:
@@ -323,3 +324,97 @@ def test_new_scan_file_remove(new_scan_page: Page) -> None:
 
     new_scan_page.locator("button[aria-label^='Remove']").first.click()
     expect(new_scan_page.locator(".apme-file-item")).to_have_count(1)
+
+
+# -- Settings Page -----------------------------------------------------------
+
+
+@pytest.fixture()  # type: ignore[untyped-decorator]
+def settings_page(page: Page) -> Page:
+    """Navigate to the Settings page and wait for the page header.
+
+    Args:
+        page: Playwright page fixture.
+
+    Returns:
+        Page positioned on /settings.
+    """
+    page.goto(f"{_BASE}/settings", wait_until="networkidle")
+    page.wait_for_selector("[data-testid='page-title']", timeout=10_000)
+    return page
+
+
+def test_navigate_to_settings(dashboard: Page) -> None:
+    """Clicking Settings in sidebar navigates to /settings.
+
+    Args:
+        dashboard: Page positioned on the dashboard.
+    """
+    dashboard.locator("[data-testid='settings']").click()
+    dashboard.wait_for_url(f"{_BASE}/settings", timeout=5_000)
+    expect(dashboard.locator("[data-testid='page-title']")).to_have_text("Settings")
+
+
+def test_settings_page_title(settings_page: Page) -> None:
+    """Settings page displays the correct title.
+
+    Args:
+        settings_page: Page positioned on /settings.
+    """
+    expect(settings_page.locator("[data-testid='page-title']")).to_have_text("Settings")
+
+
+def test_settings_ai_config_heading(settings_page: Page) -> None:
+    """Settings page shows the AI Configuration heading.
+
+    Args:
+        settings_page: Page positioned on /settings.
+    """
+    expect(settings_page.locator("h3:has-text('AI Configuration')")).to_be_visible()
+
+
+def test_settings_model_picker_or_empty(settings_page: Page) -> None:
+    """Settings page shows either the model picker or an empty-state message.
+
+    Args:
+        settings_page: Page positioned on /settings.
+    """
+    picker_or_empty = settings_page.locator("#ai-model, div:has-text('No models available')")
+    expect(picker_or_empty.first).to_be_visible()
+
+
+def test_settings_model_selection_persists(settings_page: Page) -> None:
+    """Selecting a model persists in localStorage across reload.
+
+    Args:
+        settings_page: Page positioned on /settings.
+    """
+    picker = settings_page.locator("#ai-model")
+    if not picker.is_visible():
+        pytest.skip("No models available — Abbenay not running")
+
+    options = picker.locator("option")
+    if options.count() < 1:
+        pytest.skip("No model options in picker")
+
+    first_value = options.first.get_attribute("value") or ""
+    picker.select_option(value=first_value)
+
+    stored = settings_page.evaluate("() => localStorage.getItem('apme-ai-model')")
+    assert stored == first_value, f"Expected '{first_value}' in localStorage, got '{stored}'"
+
+    settings_page.reload(wait_until="networkidle")
+    settings_page.wait_for_selector("#ai-model", timeout=10_000)
+    reloaded_value = settings_page.locator("#ai-model").input_value()
+    assert reloaded_value == first_value, (
+        f"After reload, picker value should be '{first_value}', got '{reloaded_value}'"
+    )
+
+
+def test_settings_info_text(settings_page: Page) -> None:
+    """Settings page shows explanatory text about model preference.
+
+    Args:
+        settings_page: Page positioned on /settings.
+    """
+    expect(settings_page.locator("p:has-text('stored in your browser')")).to_be_visible()

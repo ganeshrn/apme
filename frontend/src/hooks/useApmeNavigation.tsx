@@ -10,6 +10,7 @@ import { TopViolationsPage } from '../pages/TopViolationsPage';
 import { FixTrackerPage } from '../pages/FixTrackerPage';
 import { AiMetricsPage } from '../pages/AiMetricsPage';
 import { HealthPage } from '../pages/HealthPage';
+import { SettingsPage } from '../pages/SettingsPage';
 
 export function useApmeNavigation(): PageNavigationItem[] {
   return useMemo<PageNavigationItem[]>(
@@ -24,6 +25,7 @@ export function useApmeNavigation(): PageNavigationItem[] {
       { id: 'fix-tracker', path: 'fix-tracker', label: 'Fix Tracker', element: <FixTrackerPage /> },
       { id: 'ai-metrics', path: 'ai-metrics', label: 'AI Metrics', element: <AiMetricsPage /> },
       { id: 'health', path: 'health', label: 'Health', element: <HealthPage /> },
+      { id: 'settings', path: 'settings', label: 'Settings', element: <SettingsPage /> },
     ],
     [],
   );

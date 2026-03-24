@@ -84,4 +84,25 @@ describe("api service", () => {
     const { getHealth } = await import("../services/api");
     await expect(getHealth()).rejects.toThrow("404");
   });
+
+  it("listAiModels calls /api/v1/ai/models", async () => {
+    const models = [
+      { id: "openai/gpt-4o", provider: "openai", name: "gpt-4o" },
+      { id: "anthropic/claude-sonnet-4", provider: "anthropic", name: "claude-sonnet-4" },
+    ];
+    mockFetch.mockReturnValueOnce(jsonResponse(models));
+    const { listAiModels } = await import("../services/api");
+    const result = await listAiModels();
+    expect(result).toHaveLength(2);
+    expect(result[0]!.id).toBe("openai/gpt-4o");
+    expect(result[1]!.provider).toBe("anthropic");
+    expect(mockFetch).toHaveBeenCalledWith("/api/v1/ai/models", expect.objectContaining({ headers: { Accept: "application/json" } }));
+  });
+
+  it("listAiModels returns empty array on empty response", async () => {
+    mockFetch.mockReturnValueOnce(jsonResponse([]));
+    const { listAiModels } = await import("../services/api");
+    const result = await listAiModels();
+    expect(result).toHaveLength(0);
+  });
 });

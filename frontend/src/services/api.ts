@@ -1,5 +1,6 @@
 import type {
   AiAcceptanceEntry,
+  AiModelInfo,
   FixRateEntry,
   HealthStatus,
   PaginatedResponse,
@@ -73,4 +74,8 @@ export function getFixRates(limit = 20): Promise<FixRateEntry[]> {
 
 export function getAiAcceptance(): Promise<AiAcceptanceEntry[]> {
   return request(`/stats/ai-acceptance`);
+}
+
+export function listAiModels(): Promise<AiModelInfo[]> {
+  return request(`/ai/models`);
 }
