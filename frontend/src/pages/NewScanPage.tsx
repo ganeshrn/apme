@@ -98,9 +98,9 @@ export function NewScanPage() {
 
   const handleReconnect = useCallback(() => {
     if (sessionId) {
-      resumeSession(sessionId);
+      resumeSession(sessionId, scanId ?? undefined);
     }
-  }, [sessionId, resumeSession]);
+  }, [sessionId, scanId, resumeSession]);
 
   const isRunning =
     status === 'connecting' ||

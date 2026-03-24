@@ -419,6 +419,7 @@ async def handle_session(
     primary_address: str,
     *,
     resume_session_id: str | None = None,
+    resume_scan_id: str | None = None,
 ) -> None:
     """Bridge a WebSocket connection to a Primary FixSession gRPC stream.
 
@@ -438,12 +439,14 @@ async def handle_session(
         primary_address: gRPC address of the Primary orchestrator.
         resume_session_id: If set, resume this existing session instead
             of starting a new upload.
+        resume_scan_id: Original scan_id for the session being resumed,
+            so event forwarding preserves scan-based links.
     """
     temp_dir: Path | None = None
     try:
         if resume_session_id:
-            scan_id = resume_session_id
-            logger.info("Resuming session %s", resume_session_id)
+            scan_id = resume_scan_id or resume_session_id
+            logger.info("Resuming session %s (scan_id=%s)", resume_session_id, scan_id)
         else:
             temp_dir = Path(tempfile.mkdtemp(prefix="apme-gw-session-"))
             options = await _collect_uploads(ws, temp_dir)
@@ -511,6 +514,7 @@ async def handle_session(
                         "message": f"Engine error: {e.details()}",
                     },
                 )
+                done.set()
             finally:
                 if not done.is_set():
                     logger.warning(

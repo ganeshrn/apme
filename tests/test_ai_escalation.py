@@ -877,7 +877,7 @@ class TestEngineAIEscalation:
         assert len(report.ai_proposed[0].patches) == 1
 
     def test_engine_ai_failed_on_none_response(self, tmp_path: Path) -> None:
-        """Engine sets AI_FAILED when provider returns None.
+        """Engine retries then sets AI_FAILED when provider always returns None.
 
         Args:
             tmp_path: Pytest temporary directory fixture.
@@ -894,13 +894,13 @@ class TestEngineAIEscalation:
                 },
             ]
 
-        provider = MockAIProvider(patch_results=[None])
+        provider = MockAIProvider(patch_results=[None, None])
         reg = TransformRegistry()
         engine = RemediationEngine(reg, scan_fn, max_passes=1, ai_provider=provider)
         report = engine.remediate([str(playbook)], apply=False)
 
         assert len(report.ai_proposed) == 0
-        assert provider.call_count == 1
+        assert provider.call_count == 2
 
     def test_engine_retries_on_validation_failure(self, tmp_path: Path) -> None:
         """Engine retries batch when re-validation finds new violations.

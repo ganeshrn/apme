@@ -305,7 +305,7 @@ export function useSessionStream() {
   );
 
   const resumeSession = useCallback(
-    (sid: string) => {
+    (sid: string, originalScanId?: string) => {
       if (wsRef.current) {
         wsRef.current.close();
         wsRef.current = null;
@@ -314,9 +314,11 @@ export function useSessionStream() {
       setCanReconnect(false);
       updateStatus("connecting");
 
-      const ws = new WebSocket(
-        wsUrl(`/api/v1/ws/session?resume=${encodeURIComponent(sid)}`),
-      );
+      let url = `/api/v1/ws/session?resume=${encodeURIComponent(sid)}`;
+      if (originalScanId) {
+        url += `&scan_id=${encodeURIComponent(originalScanId)}`;
+      }
+      const ws = new WebSocket(wsUrl(url));
       wsRef.current = ws;
 
       ws.onopen = () => {

@@ -606,7 +606,7 @@ class RemediationEngine:
 
             if patches is None:
                 logger.warning(
-                    "AI attempt %d/%d: response unparseable (truncated/malformed JSON), %s",
+                    "AI attempt %d/%d: provider returned no patches (error or unparseable response), %s",
                     attempt + 1,
                     self._max_ai_attempts,
                     "giving up" if is_last else "retrying",
@@ -614,9 +614,9 @@ class RemediationEngine:
                 if is_last:
                     break
                 feedback = (
-                    "Your previous response was malformed JSON (likely truncated). "
+                    "Your previous response could not be used. "
                     "Respond with ONLY a valid JSON object — no markdown fences, "
-                    "no extra text. Keep the response concise."
+                    "no extra text. Keep the response concise to avoid truncation."
                 )
                 continue
 
