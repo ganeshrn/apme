@@ -44,7 +44,7 @@ Six app containers, one pod. All inter-service communication is gRPC. The Galaxy
 - **Single parse, multiple validators** — the engine parses Ansible content once and produces a hierarchy payload + scandata; validators consume it independently.
 - **Parallel fan-out** — Primary calls Native, OPA, Ansible, and Gitleaks validators concurrently via `asyncio.gather()`; total latency = max(validators), not sum.
 - **Unified gRPC contract** — every validator implements the same `Validator` service (`validate.proto`); adding a new validator means implementing one RPC.
-- **100+ rules** across four backends: OPA Rego (L003–L025, M006/M008/M009/M011, R118), native Python (L026–L105, M005/M010, R101–R501), Ansible runtime (L057–L059, M001–M004), Gitleaks (SEC:* — 800+ secret patterns).
+- **100+ rules** across four backends: OPA Rego (L003–L025, L061–L072, M006/M008/M009/M011, R118), native Python (L026–L105, M005/M010, R101–R501), Ansible runtime (L057–L059, M001–M004), Gitleaks (SEC:* — 800+ secret patterns).
 - **Secret scanning** — Gitleaks binary wrapped in gRPC; scans all project files for hardcoded credentials, API keys, private keys. Vault-encrypted files and Jinja2 expressions are automatically filtered.
 - **Multi ansible-core version support** — the Primary orchestrator builds session-scoped venvs per ansible-core version (UV-cached); argspec and deprecation checks run against the requested version. Venvs are shared read-only with validators via a `/sessions` volume.
 - **Structured diagnostics** — every validator reports per-rule timing data via the gRPC contract; use `-v` for summaries or `-vv` for full per-rule breakdowns.
@@ -213,7 +213,7 @@ src/apme_engine/
   ├── validators/
   │   ├── base.py       Validator protocol + ScanContext
   │   ├── native/       Python rules (L026–L105, M005/M010, R101–R501)
-  │   ├── opa/          Rego bundle (L003–L025, M006/M008/M009/M011, R118)
+  │   ├── opa/          Rego bundle (L003–L025, L061–L072, M006/M008/M009/M011, R118)
   │   ├── ansible/      Ansible-runtime rules (L057–L059, M001–M004)
   │   └── gitleaks/     Gitleaks wrapper (SEC:* — secret detection)
   ├── daemon/           gRPC server implementations

@@ -11,7 +11,7 @@ Rule IDs categorize the **type of check**, not the validator that runs it. The v
 
 **Note:** `src/apme_engine/validators/native/rules/rule_versions.json` includes entries for both previous (R301, R302, ...) and current (L026, L027, ...) IDs for the renumbered rules; the loader uses the current rule_id (L###) when looking up version info.
 
-## OPA (Rego) rules — L003-L025, R118
+## OPA (Rego) rules mapped from ansible-lint — L003-L025, R118
 
 L001 was removed — its scope was limited to shell tasks without names, which is a strict subset of L024 (all tasks should have a name).
 
@@ -139,7 +139,7 @@ These rules detect patterns that break or behave differently under ansible-core 
 
 ## Usage
 
-- In output, violations use their rule ID directly: **L003**-**L059**, **M001**-**M013**, **R###**.
+- In output, violations use their rule ID directly (e.g. **L###**, **M###**, **R###**, **P###** when policy rules are enabled). Implemented IDs are non-contiguous; see the tables above for the exact set of rules.
 - Native (Python) lint violations include the **native:** prefix (e.g. **native:L026**) for backward compatibility.
 - To map an old ID to the current one, use the tables above.
 - Filtering by rule (e.g. `--rule L057`) uses the rule ID.
