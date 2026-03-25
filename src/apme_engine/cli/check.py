@@ -48,7 +48,7 @@ class _ScanSummaryCompat:
             self.auto_fixable = 0
             self.ai_candidate = 0
             self.manual_review = 0
-            self.by_resolution = {}
+            self.by_resolution: dict[str, int] = {}
             return
         self.auto_fixable = int(report.fixed)
         self.ai_candidate = int(report.remaining_ai)

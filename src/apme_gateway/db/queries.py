@@ -283,7 +283,7 @@ async def project_severity_breakdown(
 
     stmt = select(Violation.level, func.count()).where(Violation.scan_id == latest_scan_id).group_by(Violation.level)
     result = await db.execute(stmt)
-    return dict(result.all())
+    return {row[0]: row[1] for row in result.all()}
 
 
 async def project_trend(

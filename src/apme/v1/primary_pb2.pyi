@@ -97,6 +97,7 @@ class FixReport:
     remaining_manual: int
     oscillation_detected: bool
     remaining_violations: list[Violation]
+    fixed_violations: list[Violation]
     def __init__(self, **kwargs: object) -> None: ...
 
 # ---------------------------------------------------------------------------
@@ -186,6 +187,7 @@ class SessionResult:
     patches: list[FilePatch]
     report: FixReport | None
     remaining_violations: list[Violation]
+    fixed_violations: list[Violation]
     def __init__(self, **kwargs: object) -> None: ...
 
 class ExpirationWarning:

@@ -16,7 +16,7 @@ import os
 import uuid
 
 from fastapi import APIRouter, HTTPException, Query, WebSocket
-from starlette.websockets import WebSocketDisconnect  # type: ignore[import-not-found]
+from starlette.websockets import WebSocketDisconnect
 
 from apme_gateway.api.schemas import (
     ActivityDetail,
@@ -134,7 +134,7 @@ async def _check_component(name: str, env_var: str, default: str) -> ComponentHe
     )
 
 
-@router.get("/health")  # type: ignore[untyped-decorator]
+@router.get("/health")
 async def health() -> HealthStatus:
     """Check gateway health including database and upstream services.
 
@@ -162,7 +162,7 @@ async def health() -> HealthStatus:
     )
 
 
-@router.get("/ai/models")  # type: ignore[untyped-decorator]
+@router.get("/ai/models")
 async def list_ai_models() -> list[AiModelInfo]:
     """Return AI models available from the Abbenay daemon via Primary.
 
@@ -196,7 +196,7 @@ async def list_ai_models() -> list[AiModelInfo]:
 # ── Project CRUD (ADR-037) ───────────────────────────────────────────
 
 
-@router.post("/projects", status_code=201)  # type: ignore[untyped-decorator]
+@router.post("/projects", status_code=201)
 async def create_project(body: CreateProjectRequest) -> ProjectSummary:
     """Create a new project.
 
@@ -225,7 +225,7 @@ async def create_project(body: CreateProjectRequest) -> ProjectSummary:
     )
 
 
-@router.get("/projects")  # type: ignore[untyped-decorator]
+@router.get("/projects")
 async def list_projects(
     sort_by: str = Query(default="created_at"),
     order: str = Query(default="desc"),
@@ -295,7 +295,7 @@ def _compute_violation_trend(scans: list[Scan]) -> str:
     return "stable"
 
 
-@router.get("/projects/{project_id}")  # type: ignore[untyped-decorator]
+@router.get("/projects/{project_id}")
 async def get_project_detail(project_id: str) -> ProjectDetail:
     """Fetch a project with latest activity info.
 
@@ -337,7 +337,7 @@ async def get_project_detail(project_id: str) -> ProjectDetail:
     )
 
 
-@router.patch("/projects/{project_id}")  # type: ignore[untyped-decorator]
+@router.patch("/projects/{project_id}")
 async def update_project(
     project_id: str,
     body: UpdateProjectRequest,
@@ -377,7 +377,7 @@ async def update_project(
     )
 
 
-@router.delete("/projects/{project_id}", status_code=204)  # type: ignore[untyped-decorator]
+@router.delete("/projects/{project_id}", status_code=204)
 async def delete_project_endpoint(project_id: str) -> None:
     """Delete a project and cascade to its scan rows.
 
@@ -396,7 +396,7 @@ async def delete_project_endpoint(project_id: str) -> None:
 # ── Project-scoped endpoints (ADR-037) ───────────────────────────────
 
 
-@router.get("/projects/{project_id}/activity")  # type: ignore[untyped-decorator]
+@router.get("/projects/{project_id}/activity")
 async def list_project_activity(
     project_id: str,
     limit: int = Query(default=50, ge=1, le=200),
@@ -425,7 +425,7 @@ async def list_project_activity(
     return PaginatedResponse(total=total, limit=limit, offset=offset, items=items)
 
 
-@router.get("/projects/{project_id}/violations")  # type: ignore[untyped-decorator]
+@router.get("/projects/{project_id}/violations")
 async def list_project_violations(
     project_id: str,
     severity: str | None = Query(default=None),
@@ -476,7 +476,7 @@ async def list_project_violations(
     ]
 
 
-@router.get("/projects/{project_id}/trend")  # type: ignore[untyped-decorator]
+@router.get("/projects/{project_id}/trend")
 async def project_trend_endpoint(
     project_id: str,
     limit: int = Query(default=20, ge=1, le=100),
@@ -513,7 +513,7 @@ async def project_trend_endpoint(
 # ── Dashboard (ADR-037) ─────────────────────────────────────────────
 
 
-@router.get("/dashboard/summary")  # type: ignore[untyped-decorator]
+@router.get("/dashboard/summary")
 async def dashboard_summary_endpoint() -> DashboardSummary:
     """Return cross-project aggregate statistics.
 
@@ -522,10 +522,10 @@ async def dashboard_summary_endpoint() -> DashboardSummary:
     """
     async with get_session() as db:
         summary = await q.dashboard_summary(db)
-    return DashboardSummary(**summary)
+    return DashboardSummary(**summary)  # type: ignore[arg-type]
 
 
-@router.get("/dashboard/rankings")  # type: ignore[untyped-decorator]
+@router.get("/dashboard/rankings")
 async def dashboard_rankings(
     sort_by: str = Query(default="health_score"),
     order: str = Query(default="desc"),
@@ -543,10 +543,13 @@ async def dashboard_rankings(
     """
     async with get_session() as db:
         rankings = await q.project_rankings(db, sort_by=sort_by, order=order, limit=limit)
-    return [ProjectRanking(**r) for r in rankings]
+    return [
+        ProjectRanking(**r)  # type: ignore[arg-type]
+        for r in rankings
+    ]
 
 
-@router.get("/sessions")  # type: ignore[untyped-decorator]
+@router.get("/sessions")
 async def list_sessions(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
@@ -575,7 +578,7 @@ async def list_sessions(
     return PaginatedResponse(total=total, limit=limit, offset=offset, items=items)
 
 
-@router.get("/sessions/{session_id}")  # type: ignore[untyped-decorator]
+@router.get("/sessions/{session_id}")
 async def get_session_detail(session_id: str) -> SessionDetail:
     """Fetch a session and its activity rows.
 
@@ -601,7 +604,7 @@ async def get_session_detail(session_id: str) -> SessionDetail:
     )
 
 
-@router.get("/activity")  # type: ignore[untyped-decorator]
+@router.get("/activity")
 async def list_activity(
     session_id: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
@@ -624,7 +627,7 @@ async def list_activity(
     return PaginatedResponse(total=total, limit=limit, offset=offset, items=items)
 
 
-@router.get("/activity/{activity_id}")  # type: ignore[untyped-decorator]
+@router.get("/activity/{activity_id}")
 async def get_activity_detail(activity_id: str) -> ActivityDetail:
     """Fetch one activity run with violations, proposals, and logs.
 
@@ -698,7 +701,7 @@ async def get_activity_detail(activity_id: str) -> ActivityDetail:
     )
 
 
-@router.delete("/activity/{activity_id}", status_code=204)  # type: ignore[untyped-decorator]
+@router.delete("/activity/{activity_id}", status_code=204)
 async def delete_activity(activity_id: str) -> None:
     """Delete an activity row and its related data.
 
@@ -714,7 +717,7 @@ async def delete_activity(activity_id: str) -> None:
         raise HTTPException(status_code=404, detail="Activity not found")
 
 
-@router.get("/violations/top")  # type: ignore[untyped-decorator]
+@router.get("/violations/top")
 async def top_violations(
     limit: int = Query(default=20, ge=1, le=100),
 ) -> list[TopViolation]:
@@ -731,7 +734,7 @@ async def top_violations(
     return [TopViolation(rule_id=rule_id, count=count) for rule_id, count in rows]
 
 
-@router.get("/sessions/{session_id}/trend")  # type: ignore[untyped-decorator]
+@router.get("/sessions/{session_id}/trend")
 async def session_trend_endpoint(session_id: str) -> list[TrendPoint]:
     """Return violation trend for a session over time.
 
@@ -761,7 +764,7 @@ async def session_trend_endpoint(session_id: str) -> list[TrendPoint]:
     ]
 
 
-@router.get("/stats/remediation-rates")  # type: ignore[untyped-decorator]
+@router.get("/stats/remediation-rates")
 async def remediation_rates_endpoint(
     limit: int = Query(default=20, ge=1, le=100),
 ) -> list[RemediationRateEntry]:
@@ -778,7 +781,7 @@ async def remediation_rates_endpoint(
     return [RemediationRateEntry(rule_id=rule_id, fix_count=count) for rule_id, count in rows]
 
 
-@router.get("/stats/ai-acceptance")  # type: ignore[untyped-decorator]
+@router.get("/stats/ai-acceptance")
 async def ai_acceptance_endpoint() -> list[AiAcceptanceEntry]:
     """Return per-rule AI proposal acceptance statistics.
 
@@ -832,7 +835,7 @@ def _to_activity_summary(scan: Scan) -> ActivitySummary:
 # ── Project WebSocket (ADR-037) ──────────────────────────────────────
 
 
-@router.websocket("/projects/{project_id}/ws/operate")  # type: ignore[untyped-decorator]
+@router.websocket("/projects/{project_id}/ws/operate")
 async def project_operate_ws(
     websocket: WebSocket,
     project_id: str,
@@ -943,9 +946,9 @@ async def project_operate_ws(
 
                 def _extract_line(v: object) -> int | None:
                     if v.HasField("line"):  # type: ignore[attr-defined]
-                        return v.line  # type: ignore[attr-defined]
+                        return v.line  # type: ignore[attr-defined, no-any-return]
                     if v.HasField("line_range"):  # type: ignore[attr-defined]
-                        return v.line_range.start  # type: ignore[attr-defined]
+                        return v.line_range.start  # type: ignore[attr-defined, no-any-return]
                     return None
 
                 fixed_violations_json = [
@@ -1082,7 +1085,7 @@ async def project_operate_ws(
 # ── Playground WebSocket (ADR-028 / ADR-029) ─────────────────────────
 
 
-@router.websocket("/ws/session")  # type: ignore[untyped-decorator]
+@router.websocket("/ws/session")
 async def session_ws(
     websocket: WebSocket,
     resume: str | None = None,

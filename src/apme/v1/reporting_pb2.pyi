@@ -8,6 +8,7 @@ from apme.v1.common_pb2 import (
     Violation,
 )
 from apme.v1.primary_pb2 import (
+    FilePatch,
     FixReport,
     ScanDiagnostics,
 )
@@ -45,6 +46,8 @@ class FixCompletedEvent:
     report: FixReport
     proposals: list[ProposalOutcome]
     logs: list[ProgressUpdate]
+    fixed_violations: list[Violation]
+    patches: list[FilePatch]
     def __init__(
         self,
         *,
@@ -58,6 +61,8 @@ class FixCompletedEvent:
         report: FixReport | None = ...,
         proposals: Iterable[ProposalOutcome] | None = ...,
         logs: Iterable[ProgressUpdate] | None = ...,
+        fixed_violations: Iterable[Violation] | None = ...,
+        patches: Iterable[FilePatch] | None = ...,
     ) -> None: ...
 
 class ProposalOutcome:

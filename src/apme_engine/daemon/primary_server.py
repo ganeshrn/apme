@@ -1173,7 +1173,7 @@ class PrimaryServicer(primary_pb2_grpc.PrimaryServicer):
         session.remaining_manual = list(report.remaining_manual)
 
         remaining_violations = [violation_dict_to_proto(v) for v in report.remaining_ai + report.remaining_manual]
-        fixed_violation_protos = [violation_dict_to_proto(v) for v in report.fixed_violations]  # type: ignore[arg-type]
+        fixed_violation_protos = [violation_dict_to_proto(v) for v in report.fixed_violations]
         session.report = FixReport(
             passes=report.passes,
             fixed=report.fixed,
