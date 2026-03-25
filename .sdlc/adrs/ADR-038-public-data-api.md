@@ -22,6 +22,14 @@ Three forces shape this decision:
 
 3. **APME should not know consumer schemas.** Building integrations for each consumer (AA API, Insights client, Controller callback) means APME must understand every consumer's data model and transport. This inverts the dependency: APME should expose its data; consumers should come and get it.
 
+### The chuck wagon principle
+
+Think of APME as a chuck wagon on a cattle drive. The cook prepares the food (scan data, violations, health scores) and has it ready at the wagon. When a meal is ready, the cook rings the dinner bell triangle — but doesn't carry custom plates to every cowboy's tent. The cowboys hear the bell, walk over, and serve themselves from the spread. One wants steak (deprecated module violations). Another wants beans (a health score for a pre-flight gate). They all come to the same wagon.
+
+The push model — where APME builds integrations to deliver data into AA's schema, Controller's callback format, and Insights' transport — is the cook running around camp with custom plates, needing to know who's vegetarian, who wants extra sauce, and where everyone sleeps. It doesn't scale and it's not the cook's job.
+
+APME rings the bell (webhook notification) and serves the food (REST API). Consumers come and get it.
+
 ### What already exists
 
 The Gateway (ADR-029, ADR-037) provides:
