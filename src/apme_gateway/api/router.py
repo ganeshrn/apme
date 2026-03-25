@@ -870,10 +870,14 @@ async def project_operate_ws(
             with contextlib.suppress(Exception):
                 kind = event.WhichOneof("event")  # type: ignore[attr-defined]
 
-            if kind == "progress":
+            async def _ensure_started() -> None:
+                nonlocal started_sent
                 if not started_sent:
                     started_sent = True
                     await websocket.send_json({"type": "started", "scan_id": op_scan_id})
+
+            if kind == "progress":
+                await _ensure_started()
                 prog = event.progress  # type: ignore[attr-defined]
                 await websocket.send_json(
                     {
@@ -883,6 +887,7 @@ async def project_operate_ws(
                     }
                 )
             elif kind == "proposals":
+                await _ensure_started()
                 props = event.proposals  # type: ignore[attr-defined]
                 items = [
                     {
@@ -900,6 +905,7 @@ async def project_operate_ws(
             elif kind == "approval_ack":
                 await websocket.send_json({"type": "approval_ack"})
             elif kind == "result":
+                await _ensure_started()
                 res = event.result  # type: ignore[attr-defined]
                 summary = getattr(res, "summary", None)
                 if summary is not None:
