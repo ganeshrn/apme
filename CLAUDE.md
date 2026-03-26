@@ -6,7 +6,7 @@ This document is the authoritative source of truth for AI agents. All developmen
 
 ## Overview
 
-APME is a multi-service system that automates policy enforcement and modernization of Ansible content for AAP 2.5+. Services: Primary Orchestrator, Native/OPA/Ansible/Gitleaks Validators, Galaxy Proxy, Remediation Engine, CLI.
+APME is a multi-service system that automates policy enforcement and modernization of Ansible content for AAP 2.5+. Services: Primary Orchestrator, Native/OPA/Ansible/Gitleaks Validators, Galaxy Proxy, Remediation Engine, Gateway (REST + persistence), UI (React SPA), CLI.
 
 ## Architecture
 
@@ -19,7 +19,10 @@ APME is a multi-service system that automates policy enforcement and modernizati
 │  ┌────┴─────────────────────────────────────┐  ┌──────────┐          │
 │  │         Galaxy Proxy :8765 (PEP 503)     │  │ Abbenay  │          │
 │  └──────────────────────────────────────────┘  │  :50057  │          │
-│                                                 └──────────┘          │
+│  ┌──────────────────────┐  ┌──────────┐        └──────────┘          │
+│  │ Gateway :50060/:8080 │  │ UI :8081 │                              │
+│  │ REST + gRPC + DB     │  │ (nginx)  │                              │
+│  └──────────────────────┘  └──────────┘                              │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -78,7 +81,7 @@ See [SECURITY.md](/SECURITY.md) for comprehensive guidelines.
 
 ## Container Rebuild Rules
 
-Rebuild required after modifying: `src/**/*.py`, `validators/**/*.py`, `proto/**/*.proto`, `pyproject.toml`, `Containerfile*`
+Rebuild required after modifying: `src/**/*.py`, `proto/**/*.proto`, `pyproject.toml`, `containers/**`
 
 **Workflow:** `stop` → `build` → `start`
 

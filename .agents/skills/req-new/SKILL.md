@@ -91,7 +91,57 @@ Dependencies? (internal REQs, external tools, or "none")
 Initial status? (1=Draft, 2=In Review, 3=Approved)
 ```
 
-### 5. Create Directory Structure
+### 5. Architectural Compatibility Check
+
+**CRITICAL: Do this BEFORE creating the spec directory.**
+
+Read the **Architectural Invariants** section of `AGENTS.md`. Evaluate the
+proposed requirement against the invariants and present:
+
+```
+## Architectural Compatibility
+
+| Invariant | Impact |
+|-----------|--------|
+| Validators read-only | OK / CONFLICT: [describe] |
+| gRPC between services | OK / CONFLICT: [describe] |
+| Async + executor | OK / CONFLICT: [describe] |
+| Unified Validator contract | OK / CONFLICT: [describe] |
+| Stateless engine | OK / CONFLICT: [describe] |
+| Scale pods not services | OK / CONFLICT: [describe] |
+| Session venvs Primary-owned | OK / CONFLICT: [describe] |
+| Rule ID conventions | OK / CONFLICT: [describe] |
+| OPA subprocess | OK / CONFLICT: [describe] |
+| FixSession unified path | OK / CONFLICT: [describe] |
+| Engine never queries out | OK / CONFLICT: [describe] |
+| Built-in bundles closed | OK / CONFLICT: [describe] |
+
+Dependency direction preserved: [Y/N]
+Engine remains caller-agnostic: [Y/N]
+Detection/mutation separation maintained: [Y/N]
+```
+
+**If conflict detected:**
+```
+⚠ This requirement conflicts with architectural invariant(s): [list]
+
+This REQ cannot be created until the conflict is resolved:
+1. Redesign the requirement to work within the architecture
+2. Create an ADR first (/adr-new) that justifies the exception
+3. Abandon the requirement
+
+Which approach? (1/2/3)
+```
+
+**If option 2 chosen:** Create the ADR first, then return to `/req-new` with
+the ADR reference as a dependency.
+
+**If clean:** Include in the requirement's Dependencies section:
+```
+- Architectural compatibility: Verified (no invariant conflicts)
+```
+
+### 6. Create Directory Structure
 
 ```
 .sdlc/specs/REQ-NNN-feature-slug/
@@ -114,7 +164,7 @@ Initial status? (1=Draft, 2=In Review, 3=Approved)
 - **Created**: YYYY-MM-DD
 ```
 
-### 6. Update Indexes
+### 7. Update Indexes
 
 **Update `.sdlc/specs/README.md`:**
 ```
@@ -124,11 +174,11 @@ Initial status? (1=Draft, 2=In Review, 3=Approved)
 **Update phase file (if assigned):**
 Add REQ to phase's requirements table in `.sdlc/phases/PHASE-NNN/phase.md`.
 
-### 7. Find Related Artifacts
+### 8. Find Related Artifacts
 
 Search for related REQs, ADRs, open DRs. Show top 3-5.
 
-### 8. Summary
+### 9. Summary
 
 ```
 Done!

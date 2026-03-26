@@ -56,8 +56,7 @@ class ClassName:
 Before marking complete:
 
 - [ ] Unit tests pass (`pytest tests/`)
-- [ ] Linting passes (`ruff check src/`)
-- [ ] Type checking passes (`mypy src/`)
+- [ ] Pre-commit checks pass (`prek run --all-files`)
 - [ ] Integration test: [specific test description]
 - [ ] Manual verification: [specific steps]
 

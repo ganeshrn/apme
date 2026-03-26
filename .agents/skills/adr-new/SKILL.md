@@ -110,7 +110,57 @@ From a DR? (number, or skip)
 ```
 If provided, link ADR to DR and update DR with ADR reference.
 
-### 4. Create ADR File
+### 4. Consistency and Invariant Check
+
+**Before creating the ADR file**, verify consistency with the existing
+architecture.
+
+**Step A — Read `AGENTS.md` Architectural Invariants.** Check if this ADR
+would modify, supersede, or conflict with any of the invariants:
+
+```
+Invariant consistency check:
+| Invariant | Status |
+|-----------|--------|
+| 1. Validators read-only | Consistent / MODIFIES — [explain] |
+| 2. gRPC between services | Consistent / MODIFIES — [explain] |
+| ... | ... |
+```
+
+**Step B — Read `.sdlc/adrs/README.md`.** Check for conflicts with existing
+accepted ADRs. Specifically look for:
+- ADRs this decision would contradict without superseding
+- ADRs that cover the same scope (potential duplicate)
+- ADRs this should explicitly reference as "Related Decisions"
+
+```
+Existing ADR consistency:
+- ADR-NNN: [compatible / superseded by this ADR / contradicted — explain]
+```
+
+**If this ADR modifies an invariant:**
+```
+⚠ This ADR modifies architectural invariant [N]: [name]
+
+This requires:
+1. Explicit "Supersedes" or "Amends" reference to the original ADR
+2. Update to AGENTS.md Architectural Invariants after acceptance
+3. Human approval — invariant changes cannot be auto-accepted
+
+Include in ADR body: "This ADR amends invariant [N] because [rationale]"
+```
+
+**If this ADR contradicts an existing accepted ADR without superseding it:**
+```
+⚠ This ADR contradicts ADR-NNN without superseding it.
+
+Either:
+1. Add "Supersedes: ADR-NNN" to this ADR
+2. Modify this ADR to be compatible with ADR-NNN
+3. Explain why both can coexist (add to Related Decisions)
+```
+
+### 5. Create ADR File
 
 Create `.sdlc/adrs/ADR-NNN-title-slug.md` using template.
 
@@ -128,20 +178,20 @@ Fill:
 - References (originating DR if applicable)
 - Revision history with initial entry
 
-### 5. Update Index
+### 6. Update Index
 
 Edit `.sdlc/adrs/README.md`:
 - Add row: `| [ADR-NNN](ADR-NNN-slug.md) | Title | Status | YYYY-MM |`
 - Insert in numerical order
 - Add to Changelog table
 
-### 6. Link to DR (if applicable)
+### 7. Link to DR (if applicable)
 
 If ADR originated from a DR:
 - Update DR's "Related Artifacts" to reference ADR
 - If DR open, note that ADR captures the decision
 
-### 7. Summary
+### 8. Summary
 
 ```
 Done!

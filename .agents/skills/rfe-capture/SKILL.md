@@ -111,16 +111,71 @@ Present findings:
 - Related existing work: [DR-NNN, REQ-NNN]
 ```
 
-### Phase 4: Decision
+### Phase 4: Architectural Impact Assessment
 
-Based on research, recommend ONE of:
+**CRITICAL: Do this BEFORE recommending any action.**
+
+Read the **Architectural Invariants** section of `AGENTS.md`. Evaluate the RFE
+against every invariant. Present findings:
+
+```
+## Architectural Impact
+
+### Invariant Check
+| # | Invariant | Impact |
+|---|-----------|--------|
+| 1 | Validators are read-only | No impact / CONFLICT: [describe] |
+| 2 | gRPC between backend services | No impact / CONFLICT: [describe] |
+| 3 | Async servers + executor discipline | No impact / CONFLICT: [describe] |
+| 4 | Unified Validator contract | No impact / CONFLICT: [describe] |
+| 5 | Stateless engine, edge persistence | No impact / CONFLICT: [describe] |
+| 6 | Scale pods, not services | No impact / CONFLICT: [describe] |
+| 7 | Session venvs are Primary-owned | No impact / CONFLICT: [describe] |
+| 8 | Rule ID conventions (ADR-008) | No impact / CONFLICT: [describe] |
+| 9 | OPA uses subprocess, not REST | No impact / CONFLICT: [describe] |
+| 10 | FixSession is the unified client path | No impact / CONFLICT: [describe] |
+| 11 | Engine never queries out; only emits | No impact / CONFLICT: [describe] |
+| 12 | Built-in validator bundles are closed | No impact / CONFLICT: [describe] |
+
+### Dependency Direction
+- Does this require engine to know about the caller? [Y/N]
+- Does this require engine to import from gateway? [Y/N]
+- Does this add state to the engine? [Y/N]
+
+### Separation of Concerns
+- Does this mix detection and mutation in a validator? [Y/N]
+- Does this put persistence logic in the engine? [Y/N]
+- Does this require a non-gRPC protocol between backend services? [Y/N]
+```
+
+**If ANY conflict is found:**
+```
+⚠ ARCHITECTURAL CONFLICT DETECTED
+
+This RFE conflicts with invariant(s) [N]. Before proceeding:
+1. Can the feature be designed to work within the existing architecture?
+2. If not, an ADR is required to justify the exception (use /adr-new)
+3. Do NOT create a REQ that violates invariants without an accepted ADR
+
+Redesign suggestion: [propose alternative that respects the architecture]
+```
+
+**If the RFE requires the engine to be aware of the caller** (e.g., "engine
+should format output differently for the UI vs CLI"), this is always a conflict.
+The engine produces a `ScanResponse` / `SessionEvent` — presentation is the
+caller's responsibility.
+
+### Phase 5: Decision
+
+Based on research and architectural impact, recommend ONE of:
 
 | Outcome | When | Action |
 |---------|------|--------|
 | **No artifact needed** | Capability exists | Document in Jira comment, close |
 | **Bug/task on existing REQ** | Small gap in existing feature | Create task under REQ-NNN |
 | **New DR needed** | Architectural question to resolve | Use `/dr-new` |
-| **New REQ needed** | Genuine new capability | Use `/req-new` |
+| **New REQ needed** | Genuine new capability, no invariant conflicts | Use `/req-new` |
+| **ADR required first** | Conflicts with invariants | Use `/adr-new` before `/req-new` |
 | **Defer to other team** | Belongs in AA/AAP roadmap | Document and redirect |
 
 ```
@@ -128,6 +183,7 @@ Based on research, recommend ONE of:
 
 Based on research, I recommend: [outcome]
 
+Architectural impact: [clean / requires ADR]
 Rationale:
 - [reason 1]
 - [reason 2]
@@ -135,7 +191,7 @@ Rationale:
 Proceed? (Y to execute, N to discuss, D for different approach)
 ```
 
-### Phase 5: Execute (if artifact needed)
+### Phase 6: Execute (if artifact needed)
 
 **If creating DR:**
 - Use `/dr-new` with research context pre-filled
@@ -150,7 +206,7 @@ Proceed? (Y to execute, N to discuss, D for different approach)
 - Use `/task-new` on the appropriate existing REQ
 - Reference the external RFE in task description
 
-### Phase 6: Attribution
+### Phase 7: Attribution
 
 When creating artifacts from AI-assisted research:
 - "Raised By" should credit the human author
@@ -224,3 +280,7 @@ Proceed? (Y/N)
 3. **Ignoring ecosystem boundaries** — static vs runtime matters
 4. **Wrong numbering** — check existing specs before assigning numbers
 5. **Missing cross-references** — link to related DRs/REQs/ADRs
+6. **Skipping architectural impact** — always check AGENTS.md invariants
+7. **Making the engine caller-aware** — engine produces data, callers format it
+8. **Putting state in the engine** — persistence belongs in the Gateway
+9. **Mixing detection and mutation** — validators detect, remediation engine fixes

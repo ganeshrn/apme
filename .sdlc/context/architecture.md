@@ -2,7 +2,7 @@
 
 ## Overview
 
-APME is a six-container gRPC microservice deployed as a single Podman pod. The Primary service runs the engine (parse → annotate → hierarchy), then fans validation out in parallel to four independent validator backends over a unified gRPC contract. The CLI is ephemeral — run on-the-fly with the project directory mounted.
+APME is a multi-container gRPC microservice deployed as a single Podman pod. The Primary service runs the engine (parse → annotate → hierarchy), then fans validation out in parallel to four independent validator backends over a unified gRPC contract. The CLI is ephemeral — run on-the-fly with the project directory mounted.
 
 **Key principles:**
 - All inter-service communication is **gRPC** — no REST, no message queue, no service discovery
@@ -26,11 +26,15 @@ APME is a six-container gRPC microservice deployed as a single Podman pod. The P
 │  │  venvs   │  │          │  │          │  │ (ro)     │  │          │ │
 │  └────┬─────┘  └──────────┘  └──────────┘  └──────────┘  └──────────┘ │
 │       │                                                                │
-│  ┌────┴─────────────────────────────────────┐                         │
-│  │      Galaxy Proxy :8765 (PEP 503)       │                         │
-│  │  Ansible Galaxy → Python wheels on      │                         │
-│  │  demand; caching handled by proxy + uv  │                         │
+│  ┌────┴─────────────────────────────────────┐  ┌──────────┐          │
+│  │      Galaxy Proxy :8765 (PEP 503)       │  │ Abbenay  │          │
+│  │  Ansible Galaxy → Python wheels on      │  │  :50057  │          │
+│  │  demand; caching handled by proxy + uv  │  └──────────┘          │
 │  └──────────────────────────────────────────┘                         │
+│  ┌──────────────────────┐  ┌──────────┐                              │
+│  │ Gateway :50060/:8080 │  │ UI :8081 │                              │
+│  │ REST + gRPC + DB     │  │ (nginx)  │                              │
+│  └──────────────────────┘  └──────────┘                              │
 └────────────────────────────────────────────────────────────────────────┘
 
      ┌──────────┐
@@ -46,10 +50,12 @@ APME is a six-container gRPC microservice deployed as a single Podman pod. The P
 |---------|-------|------|------|
 | **Primary** | apme-primary | 50051 | Runs the engine (parse → annotate → hierarchy); manages session-scoped venvs (`VenvSessionManager`); fans out `ValidateRequest` to all validators in parallel; merges, deduplicates, and returns violations |
 | **Native** | apme-native | 50055 | Python rules operating on deserialized scandata (the full in-memory model). Rules L026–L060, M005/M010, P001–P004, R101–R501 |
-| **OPA** | apme-opa | 50054 | OPA binary (REST on 8181 internally) + Python gRPC wrapper. Rego rules L003–L025, M006/M008/M009/M011, R118 on the hierarchy JSON |
+| **OPA** | apme-opa | 50054 | OPA binary (invoked via subprocess) + Python gRPC wrapper. Rego rules L003–L025, M006/M008/M009/M011, R118 on the hierarchy JSON |
 | **Ansible** | apme-ansible | 50053 | Ansible-runtime checks using session-scoped venvs (shared read-only via `/sessions` volume). Rules L057–L059, M001–M004 |
 | **Gitleaks** | apme-gitleaks | 50056 | Gitleaks binary + Python gRPC wrapper. Scans raw files for hardcoded secrets, API keys, private keys. Filters vault-encrypted content and Jinja2 expressions. Rules SEC:* (800+ patterns) |
 | **Galaxy Proxy** | apme-galaxy-proxy | 8765 | PEP 503 simple repository API that converts Galaxy collection tarballs to pip-installable Python wheels. Caching is the proxy's concern — the engine has zero cache management code |
+| **Gateway** | apme-gateway | 50060 (gRPC), 8080 (HTTP) | REST API + gRPC Reporting service + SQLAlchemy/SQLite persistence. Receives engine events via `GrpcReportingSink`; serves scan history, project management, and rule catalog to UI and external consumers (ADR-029, ADR-038) |
+| **UI** | apme-ui | 8081 | nginx-served React/PatternFly SPA. Consumes Gateway REST API. No direct engine communication (ADR-030, ADR-037) |
 | **CLI** | apme-cli | — | Ephemeral. Reads project files, chunks uploads, drives **`FixSession`** for user **check** and **remediate** (ADR-039). Unary `Primary.Scan`/`ScanRequest`/`ScanResponse` remain for engine-aligned clients. Run with `--pod apme-pod` and CWD mounted |
 
 ---
@@ -140,7 +146,7 @@ All gRPC servers use **grpc.aio** (fully async). This means multiple scan reques
 |---------|---------------------|---------------------------|
 | Primary | `asyncio.gather()` fan-out; engine scan via `run_in_executor()` | 16 |
 | Native | CPU-bound rules via `run_in_executor()` | 32 |
-| OPA | True async HTTP via `httpx.AsyncClient` | 32 |
+| OPA | Blocking subprocess via `run_in_executor()` | 32 |
 | Ansible | Blocking venv build + subprocess via `run_in_executor()` | 8 |
 | Gitleaks | Blocking subprocess via `run_in_executor()` | 16 |
 
@@ -188,13 +194,12 @@ All validator logs are prefixed with `[req=xxx]` for end-to-end correlation acro
 
 ## OPA Container Internals
 
-The OPA container runs a multi-process architecture:
+The OPA container invokes the OPA binary directly via subprocess — no OPA REST server is required:
 
-1. **OPA binary** starts as a REST server on `localhost:8181` with the Rego bundle mounted
-2. **entrypoint.sh** waits for OPA to become healthy
-3. **apme-opa-validator** (Python gRPC wrapper) starts on port 50054, receives `ValidateRequest`, extracts `hierarchy_payload`, POSTs it to the local OPA REST API, and converts the response to `ValidateResponse`
+1. **OPA binary** is installed in the container image with the Rego bundle mounted
+2. **apme-opa-validator** (Python gRPC wrapper) starts on port 50054, receives `ValidateRequest`, extracts `hierarchy_payload`, invokes `opa eval` as a subprocess with the hierarchy JSON as input, parses the JSON output, and converts it to `ValidateResponse`
 
-This keeps OPA's native REST interface intact while presenting a uniform gRPC contract to Primary.
+This avoids the overhead of running a persistent OPA server while presenting a uniform gRPC contract to Primary.
 
 ---
 
@@ -227,7 +232,7 @@ The wrapper adds **Ansible-aware filtering**:
 |------|---------|----------|
 | 50051 | Primary | gRPC |
 | 50053 | Ansible | gRPC |
-| 50054 | OPA | gRPC (wrapper; OPA REST on 8181 internal) |
+| 50054 | OPA | gRPC (wrapper; OPA binary invoked via subprocess) |
 | 50055 | Native | gRPC |
 | 50056 | Gitleaks | gRPC (wrapper; gitleaks binary for detection) |
 | 8765 | Galaxy Proxy | HTTP (PEP 503 simple repository API) |

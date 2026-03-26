@@ -87,7 +87,56 @@ M. Need more information
 - Add to DR as open question
 - Keep in `open/`
 
-### 4. Record Decision
+### 4. Architectural Impact Check
+
+**Before recording the decision**, evaluate the chosen option against the
+project's architectural invariants (defined in `AGENTS.md`).
+
+Read the **Architectural Invariants** section of `AGENTS.md` and check the
+chosen option against all invariants:
+
+```
+Checking architectural impact of chosen option...
+
+| Invariant | Status |
+|-----------|--------|
+| Validators read-only (ADR-009) | OK / ⚠ CONFLICT |
+| gRPC between backend services (ADR-001) | OK / ⚠ CONFLICT |
+| Async + executor discipline (ADR-007) | OK / ⚠ CONFLICT |
+| Unified Validator contract | OK / ⚠ CONFLICT |
+| Stateless engine / edge persistence (ADR-020) | OK / ⚠ CONFLICT |
+| Scale pods, not services (ADR-012) | OK / ⚠ CONFLICT |
+| Session venvs Primary-owned (ADR-022) | OK / ⚠ CONFLICT |
+| Rule ID conventions (ADR-008) | OK / ⚠ CONFLICT |
+| OPA subprocess, not REST | OK / ⚠ CONFLICT |
+| FixSession unified path (ADR-039) | OK / ⚠ CONFLICT |
+| Engine never queries out (ADR-020) | OK / ⚠ CONFLICT |
+| Built-in bundles closed (ADR-042) | OK / ⚠ CONFLICT |
+
+Dependency direction: engine → gateway → UI preserved? [Y/N]
+Engine remains caller-agnostic? [Y/N]
+```
+
+**If conflict detected:**
+```
+⚠ This decision conflicts with invariant(s): [list]
+
+Options:
+1. Redesign — modify the decision to respect the architecture
+2. ADR Override — accept the conflict but require a new ADR that
+   explicitly supersedes the violated invariant(s) with rationale
+3. Reject — choose a different option
+
+Architecture cannot be violated silently. Which approach?
+```
+
+**If the user chooses "ADR Override":** The DR is decided, but the decision is
+**blocked from implementation** until the corresponding ADR is accepted.
+Add this to the DR's Action Items.
+
+**If no conflict:** Proceed to recording.
+
+### 5. Record Decision
 
 Update the DR file:
 - `Status:` → Decided / Deferred
@@ -98,7 +147,7 @@ Update the DR file:
 
 Preserve existing file format — only update relevant sections.
 
-### 5. Move to Closed
+### 6. Move to Closed
 
 ```
 .sdlc/decisions/
@@ -109,13 +158,13 @@ Preserve existing file format — only update relevant sections.
     └── superseded/ # Replaced by another DR
 ```
 
-### 6. Update README Index
+### 7. Update README Index
 
 Edit `.sdlc/decisions/README.md`:
 - Remove from "Open" table
 - Add to appropriate "Closed" table with decision summary
 
-### 7. Offer ADR (If Architectural)
+### 8. Offer ADR (If Architectural)
 
 If decision affects architecture, patterns, or technology choices:
 ```
@@ -126,7 +175,7 @@ If yes: Copy template to `.sdlc/adrs/ADR-NNN-title.md`, pre-fill from DR, set st
 
 Use next available ADR number (scan existing ADRs).
 
-### 8. Summary & Continue
+### 9. Summary & Continue
 
 ```
 Done! DR-001 decided: [brief summary]

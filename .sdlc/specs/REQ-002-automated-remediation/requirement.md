@@ -2,7 +2,7 @@
 
 ## Metadata
 
-- **Phase**: PHASE-004 - AI Remediation
+- **Phase**: PHASE-002 - Rewrite Engine
 - **Status**: Draft
 - **Created**: 2026-03-12
 

@@ -1,4 +1,4 @@
-# ADR-032: Third-Party Plugin Services
+# ADR-042: Third-Party Plugin Services
 
 ## Status
 

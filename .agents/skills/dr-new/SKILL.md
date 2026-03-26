@@ -99,7 +99,27 @@ Parse the response into structured options with:
 Recommendation? (or "none" to leave open)
 ```
 
-### 5. Find Related Artifacts
+### 5. Architectural Impact Pre-Screen
+
+Read the **Architectural Invariants** section of `AGENTS.md`. For each option
+in the DR, note whether it would conflict with any invariant:
+
+```
+Architectural pre-screen:
+- Option A: [clean / conflicts with invariant N — note in cons]
+- Option B: [clean / conflicts with invariant N — note in cons]
+```
+
+**If an option conflicts with an invariant**, add to that option's **Cons**:
+```
+- ⚠ Conflicts with architectural invariant [N]: [invariant name].
+  Would require ADR to justify exception.
+```
+
+This does not block DR creation — it ensures the architectural cost is visible
+when the DR is reviewed via `/dr-review`.
+
+### 6. Find Related Artifacts
 
 Search for related REQs, ADRs, and DRs. Show top 3-5:
 ```
@@ -109,7 +129,7 @@ Related artifacts:
 - REQ-003: Dashboard
 ```
 
-### 6. Create DR File
+### 7. Create DR File
 
 Create `.sdlc/decisions/open/DR-NNN-short-slug.md` using template from `.sdlc/templates/decision-request.md`.
 
@@ -125,13 +145,13 @@ Fill all sections:
 - Related artifacts
 - Empty Discussion Log and Decision sections
 
-### 7. Update README Index
+### 8. Update README Index
 
 Edit `.sdlc/decisions/README.md`:
 - Add row to "Open" table
 - Insert in priority order (Blocking > High > Medium > Low)
 
-### 8. Summary
+### 9. Summary
 
 ```
 Done!

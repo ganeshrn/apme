@@ -10,7 +10,7 @@ Proposed
 
 ## Context
 
-APME has 100+ rules spread across four built-in validators (Native, OPA, Ansible, Gitleaks) and an extensible set of third-party plugin containers ([ADR-032](ADR-032-third-party-plugin-services.md)). Today, rules are **opaque** — nobody outside the engine knows what rules exist until violations appear in scan output. There is no catalog, no ability to enable/disable rules, and no mechanism for severity overrides.
+APME has 100+ rules spread across four built-in validators (Native, OPA, Ansible, Gitleaks) and an extensible set of third-party plugin containers ([ADR-042](ADR-042-third-party-plugin-services.md)). Today, rules are **opaque** — nobody outside the engine knows what rules exist until violations appear in scan output. There is no catalog, no ability to enable/disable rules, and no mechanism for severity overrides.
 
 Two proposed features — rule severity ratings (REQ-005 / PR #88) and rule enable/disable with acknowledgment (REQ-007 / PR #90) — both require the same underlying infrastructure: a rule catalog that the Gateway knows about, and a mechanism to deliver overrides to the engine at scan time. Without this architecture, both specs jump straight to UI concerns without answering where the catalog lives, how overrides reach the engine, or what happens in multi-pod deployments.
 
@@ -19,7 +19,7 @@ Two proposed features — rule severity ratings (REQ-005 / PR #88) and rule enab
 The rule set is not static or uniform:
 
 - **Built-in rules** are baked into the engine image. Different engine versions have different rules (e.g., v2.1 adds L073).
-- **Plugin rules** are dynamic. [ADR-032 (Third-Party Plugin Services)](ADR-032-third-party-plugin-services.md) plugins register `EXT-` prefixed rules via their `Describe` RPC. A pod with the `secteam` plugin has rules that a pod without it does not.
+- **Plugin rules** are dynamic. [ADR-042 (Third-Party Plugin Services)](ADR-042-third-party-plugin-services.md) plugins register `EXT-` prefixed rules via their `Describe` RPC. A pod with the `secteam` plugin has rules that a pod without it does not.
 - **Multi-pod deployments** (ADR-012, ADR-034) mean multiple Primaries, potentially with different engine versions or plugin sets. A management UI that shows rules from one pod may not reflect the reality of another.
 
 ### Override delivery
@@ -39,7 +39,7 @@ In a multi-pod deployment, which pod's rule set is canonical? If Pod A has `EXT-
 
 ### 1. Primary registers rules with the Gateway on startup
 
-When a Primary starts, it discovers its validators and plugins (per ADR-005 and [ADR-032](ADR-032-third-party-plugin-services.md)), collects the full rule set from each, and registers the catalog with the Gateway.
+When a Primary starts, it discovers its validators and plugins (per ADR-005 and [ADR-042](ADR-042-third-party-plugin-services.md)), collects the full rule set from each, and registers the catalog with the Gateway.
 
 Each rule registration includes:
 
@@ -211,7 +211,7 @@ Deploying a plugin to one pod means deploying it to all pods. Removing a plugin 
 
 - Inline acknowledgment (`# apme:ignore`) is unaffected — it's scan-time annotation parsing in the engine, independent of the catalog.
 - Existing scan behavior is unchanged when no overrides are present (all rules enabled at default severity).
-- Plugin `Describe` RPC ([ADR-032](ADR-032-third-party-plugin-services.md)) provides the rule metadata that Primaries forward during registration.
+- Plugin `Describe` RPC ([ADR-042](ADR-042-third-party-plugin-services.md)) provides the rule metadata that Primaries forward during registration.
 
 ## Implementation Notes
 
@@ -245,11 +245,11 @@ Deploying a plugin to one pod means deploying it to all pods. Removing a plugin 
 ## Related Decisions
 
 - ADR-005: No service discovery — still correct; registration uses existing push channel
-- ADR-008: Rule ID conventions (L/M/R/P/SEC) — extended by ADR-032 with EXT- prefix
+- ADR-008: Rule ID conventions (L/M/R/P/SEC) — extended by ADR-042 with EXT- prefix
 - ADR-012: Scale pods, not services — multi-pod authority model
 - ADR-020: Reporting service and event delivery — reused for rule registration push
 - ADR-026: Rule scope metadata — rule scope included in catalog registration
-- ADR-032: Third-party plugin services — plugin `Describe` RPC provides registration data
+- ADR-042: Third-party plugin services — plugin `Describe` RPC provides registration data
 - ADR-034: Multi-pod health registration — similar registration pattern for health heartbeats
 
 ## References

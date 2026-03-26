@@ -25,7 +25,7 @@ This directory contains the Architecture Decision Records (ADRs) for APME.
 | [ADR-017](ADR-017-trust-and-verify-agent-sdlc.md) | Trust-and-verify Agent SDLC Invocation | Accepted | 2026-03 |
 | [ADR-018](ADR-018-mypy-strict-type-checking.md) | mypy Strict Mode Type Checking | Accepted | 2026-03 |
 | [ADR-019](ADR-019-dependency-governance.md) | Dependency Governance Policy | Accepted | 2026-03 |
-| [ADR-020](ADR-020-reporting-service.md) | Reporting Service and Event Delivery Model | Proposed | 2026-03 |
+| [ADR-020](ADR-020-reporting-service.md) | Reporting Service and Event Delivery Model | Accepted | 2026-03 |
 | [ADR-021](ADR-021-proactive-pr-feedback.md) | Proactive PR Feedback via GitHub Actions | Accepted | 2026-03 |
 | [ADR-022](ADR-022-session-scoped-venvs.md) | Session-Scoped Venvs with Lifecycle Management | Accepted | 2026-03 |
 | [ADR-023](ADR-023-per-finding-classification.md) | Per-Finding Remediation Classification and Resolution | Accepted | 2026-03 |
@@ -38,13 +38,16 @@ This directory contains the Architecture Decision Records (ADRs) for APME.
 | [ADR-030](ADR-030-frontend-deployment-model.md) | Frontend Deployment Model | Proposed | 2026-03 |
 | [ADR-031](ADR-031-unified-collection-cache.md) | Unified Collection Cache as Single Authoritative Source | Accepted | 2026-03 |
 | [ADR-032](ADR-032-fqcn-collection-auto-discovery.md) | FQCN-Based Collection Auto-Discovery | Accepted | 2026-03 |
-| [ADR-033](ADR-033-centralized-log-bridge.md) | Centralized Log Bridge | Accepted | 2026-03 |
+| [ADR-033](ADR-033-centralized-log-bridge.md) | Centralized Log Bridge | Proposed | 2026-03 |
 | [ADR-034](ADR-034-multi-pod-health-registration.md) | Multi-Pod Health Registration | Proposed | 2026-03 |
 | [ADR-035](ADR-035-secret-externalization.md) | Secret Externalization for Ansible Content | Proposed (impl. superseded by ADR-036) | 2026-03 |
 | [ADR-036](ADR-036-two-pass-remediation-engine.md) | Two-Pass Remediation Engine with Project-Level Transforms | Proposed | 2026-03 |
 | [ADR-037](ADR-037-project-centric-ui-model.md) | Project-Centric UI Model with Session Abstraction | Proposed | 2026-03 |
+| [ADR-038](ADR-038-public-data-api.md) | Public Data API for Platform Consumers | Proposed | 2026-03 |
 | [ADR-039](ADR-039-unified-operation-stream.md) | Unified Operation Stream — Check and Remediate | Accepted | 2026-03 |
+| [ADR-040](ADR-040-scan-metadata-enrichment.md) | Scan Metadata Enrichment | Proposed | 2026-03 |
 | [ADR-041](ADR-041-rule-catalog-override-architecture.md) | Rule Catalog & Override Architecture | Proposed | 2026-03 |
+| [ADR-042](ADR-042-third-party-plugin-services.md) | Third-Party Plugin Services | Proposed | 2026-03 |
 
 ## Categories
 
@@ -53,21 +56,25 @@ This directory contains the Architecture Decision Records (ADRs) for APME.
 - ADR-004: Podman pod deployment
 - ADR-005: No service discovery
 - ADR-012: Scaling strategy
-- ADR-020: Reporting service and event delivery model (proposed)
+- ADR-020: Reporting service and event delivery model
 - ADR-024: Thin CLI with local daemon mode
 - ADR-028: Session-based fix workflow with bidirectional streaming
 - ADR-029: Web gateway architecture (proposed)
+- ADR-033: Centralized log bridge (proposed)
 - ADR-034: Multi-pod health registration (proposed)
-- ADR-039: Unified operation stream — check and remediate (accepted)
+- ADR-038: Public data API for platform consumers (proposed)
+- ADR-039: Unified operation stream — check and remediate
 
 ### Engine & Rules
 - ADR-002: OPA/Rego hybrid rules
 - ADR-003: Vendored ARI engine
 - ADR-008: Rule ID conventions
-- ADR-026: Rule scope metadata (accepted)
-- ADR-031: Unified collection cache (accepted)
+- ADR-026: Rule scope metadata
+- ADR-031: Unified collection cache
 - ADR-032: FQCN-based collection auto-discovery
+- ADR-040: Scan metadata enrichment (proposed)
 - ADR-041: Rule catalog & override architecture (proposed)
+- ADR-042: Third-party plugin services (proposed)
 
 ### Validators
 - ADR-006: Ansible validator venvs
@@ -116,8 +123,8 @@ Original planning ADRs that were superseded by implementation decisions:
 
 ## Creating New ADRs
 
-1. Copy the template from `../.sdlc/templates/adr.md`
-2. Use the next available number (currently ADR-042)
+1. Copy the template from `../templates/adr.md`
+2. Use the next available number (currently ADR-043)
 3. Include:
    - Status (Proposed → Accepted)
    - Date
@@ -152,13 +159,13 @@ Original planning ADRs that were superseded by implementation decisions:
 | 017 | 2026-03 | Trust-and-verify agent SDLC invocation |
 | 018 | 2026-03 | mypy strict mode type checking |
 | 019 | 2026-03 | Dependency governance policy |
-| 020 | 2026-03 | Reporting service and event delivery model (proposed) |
+| 020 | 2026-03 | Reporting service and event delivery model |
 | 021 | 2026-03 | Proactive PR feedback via GitHub Actions |
 | 022 | 2026-03 | Session-scoped venvs with lifecycle management |
 | 023 | 2026-03 | Per-finding remediation classification and resolution |
 | 024 | 2026-03 | Thin CLI with local daemon mode |
 | 025 | 2026-03 | AIProvider protocol abstraction |
-| 026 | 2026-03 | Rule scope as first-class metadata (proposed) |
+| 026 | 2026-03 | Rule scope as first-class metadata |
 | 027 | 2026-03 | Agentic project-level AI remediation (proposed) |
 | 028 | 2026-03 | Session-based fix workflow with bidirectional streaming |
 | 029 | 2026-03 | Web gateway architecture (proposed) |
@@ -174,3 +181,4 @@ Original planning ADRs that were superseded by implementation decisions:
 | 039 | 2026-03 | Unified operation stream — check and remediate (accepted) |
 | 040 | 2026-03 | Scan metadata enrichment (proposed) |
 | 041 | 2026-03 | Rule catalog & override architecture (proposed) |
+| 042 | 2026-03 | Third-party plugin services — renumbered from duplicate ADR-032 (proposed) |
