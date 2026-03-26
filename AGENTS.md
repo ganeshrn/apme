@@ -56,7 +56,15 @@ one needs to change, write an ADR first.
     exists for backward-compatible engine-aligned clients only. New features
     target `FixSession`.
 
-11. **Built-in validator bundles are closed** (ADR-042). No volume-mounted rules,
+11. **The engine never calls out** (ADR-020, ADR-029). The engine does not fetch
+    data from external sources, third-party APIs, or any system outside its pod.
+    It processes what it receives in the request and returns results. Context
+    enrichment — metadata, external lookups, additional data sources — is the
+    **Gateway's responsibility**. The Gateway assembles the full request context
+    before calling the engine. The engine is a pure function: data in, violations
+    out.
+
+12. **Built-in validator bundles are closed** (ADR-042). No volume-mounted rules,
     no configurable rule directories, no external Rego files injected into the
     OPA bundle, no custom Python rule classes loaded into Native. The built-in
     rule set ships with the image and is the only rule set the built-in
