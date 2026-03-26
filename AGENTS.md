@@ -56,13 +56,16 @@ one needs to change, write an ADR first.
     exists for backward-compatible engine-aligned clients only. New features
     target `FixSession`.
 
-11. **The engine never calls out** (ADR-020, ADR-029). The engine does not fetch
-    data from external sources, third-party APIs, or any system outside its pod.
-    It processes what it receives in the request and returns results. Context
-    enrichment — metadata, external lookups, additional data sources — is the
-    **Gateway's responsibility**. The Gateway assembles the full request context
-    before calling the engine. The engine is a pure function: data in, violations
-    out.
+11. **The engine never queries out; it only emits** (ADR-020, ADR-029). The
+    engine does not fetch data from external sources, third-party APIs, or any
+    system outside its pod. Context enrichment — metadata, external lookups,
+    additional data sources — is the **Gateway's responsibility**. The Gateway
+    assembles the full request context before calling the engine. The one
+    outbound path is the **event sink abstraction** (`event_emitter`), which
+    pushes fire-and-forget events via gRPC to the Gateway's Reporting service.
+    Sinks are best-effort, health-gated, and never in the scan critical path.
+    New sinks must be gRPC and pod-local — protocol translation to external
+    systems (message buses, webhooks, third-party APIs) belongs in the Gateway.
 
 12. **Built-in validator bundles are closed** (ADR-042). No volume-mounted rules,
     no configurable rule directories, no external Rego files injected into the
