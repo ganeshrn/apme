@@ -93,7 +93,7 @@ M. Need more information
 project's architectural invariants (defined in `AGENTS.md`).
 
 Read the **Architectural Invariants** section of `AGENTS.md` and check the
-chosen option against all 10 invariants:
+chosen option against all invariants:
 
 ```
 Checking architectural impact of chosen option...
@@ -110,6 +110,8 @@ Checking architectural impact of chosen option...
 | Rule ID conventions (ADR-008) | OK / ⚠ CONFLICT |
 | OPA subprocess, not REST | OK / ⚠ CONFLICT |
 | FixSession unified path (ADR-039) | OK / ⚠ CONFLICT |
+| Engine never queries out (ADR-020) | OK / ⚠ CONFLICT |
+| Built-in bundles closed (ADR-042) | OK / ⚠ CONFLICT |
 
 Dependency direction: engine → gateway → UI preserved? [Y/N]
 Engine remains caller-agnostic? [Y/N]

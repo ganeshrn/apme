@@ -134,6 +134,8 @@ against every invariant. Present findings:
 | 8 | Rule ID conventions (ADR-008) | No impact / CONFLICT: [describe] |
 | 9 | OPA uses subprocess, not REST | No impact / CONFLICT: [describe] |
 | 10 | FixSession is the unified client path | No impact / CONFLICT: [describe] |
+| 11 | Engine never queries out; only emits | No impact / CONFLICT: [describe] |
+| 12 | Built-in validator bundles are closed | No impact / CONFLICT: [describe] |
 
 ### Dependency Direction
 - Does this require engine to know about the caller? [Y/N]

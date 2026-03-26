@@ -113,6 +113,8 @@ proposed requirement against the invariants and present:
 | Rule ID conventions | OK / CONFLICT: [describe] |
 | OPA subprocess | OK / CONFLICT: [describe] |
 | FixSession unified path | OK / CONFLICT: [describe] |
+| Engine never queries out | OK / CONFLICT: [describe] |
+| Built-in bundles closed | OK / CONFLICT: [describe] |
 
 Dependency direction preserved: [Y/N]
 Engine remains caller-agnostic: [Y/N]

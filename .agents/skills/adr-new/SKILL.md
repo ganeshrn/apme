@@ -116,7 +116,7 @@ If provided, link ADR to DR and update DR with ADR reference.
 architecture.
 
 **Step A — Read `AGENTS.md` Architectural Invariants.** Check if this ADR
-would modify, supersede, or conflict with any of the 10 invariants:
+would modify, supersede, or conflict with any of the invariants:
 
 ```
 Invariant consistency check:

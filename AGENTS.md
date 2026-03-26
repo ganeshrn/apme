@@ -20,7 +20,8 @@ one needs to change, write an ADR first.
 
 2. **gRPC everywhere between backend services** (ADR-001). No REST, no message
    queues, no direct function calls between services. The only HTTP endpoints
-   are Galaxy Proxy (PEP 503) and Gateway REST (for the UI/external consumers).
+   are Galaxy Proxy (PEP 503), Gateway REST (:8080 for external consumers),
+   and the UI (:8081, nginx-served SPA).
 
 3. **Async servers with executor discipline** (ADR-007). All gRPC servers use
    `grpc.aio`. Blocking work (engine scan, subprocess calls, venv builds) goes
@@ -236,7 +237,7 @@ one needs to change, write an ADR first.
 - Must be copy-paste ready
 - Must include clear documentation
 - Must handle common edge cases
-- Galaxy Proxy is the only service with HTTP endpoints inside the pod
+- HTTP endpoints are limited to Galaxy Proxy (PEP 503), Gateway REST, and UI (nginx)
 
 ---
 

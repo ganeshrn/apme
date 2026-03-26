@@ -2,7 +2,7 @@
 
 ## Overview
 
-APME is a six-container gRPC microservice deployed as a single Podman pod. The Primary service runs the engine (parse → annotate → hierarchy), then fans validation out in parallel to four independent validator backends over a unified gRPC contract. The CLI is ephemeral — run on-the-fly with the project directory mounted.
+APME is a multi-container gRPC microservice deployed as a single Podman pod. The Primary service runs the engine (parse → annotate → hierarchy), then fans validation out in parallel to four independent validator backends over a unified gRPC contract. The CLI is ephemeral — run on-the-fly with the project directory mounted.
 
 **Key principles:**
 - All inter-service communication is **gRPC** — no REST, no message queue, no service discovery
@@ -50,6 +50,8 @@ APME is a six-container gRPC microservice deployed as a single Podman pod. The P
 | **Ansible** | apme-ansible | 50053 | Ansible-runtime checks using session-scoped venvs (shared read-only via `/sessions` volume). Rules L057–L059, M001–M004 |
 | **Gitleaks** | apme-gitleaks | 50056 | Gitleaks binary + Python gRPC wrapper. Scans raw files for hardcoded secrets, API keys, private keys. Filters vault-encrypted content and Jinja2 expressions. Rules SEC:* (800+ patterns) |
 | **Galaxy Proxy** | apme-galaxy-proxy | 8765 | PEP 503 simple repository API that converts Galaxy collection tarballs to pip-installable Python wheels. Caching is the proxy's concern — the engine has zero cache management code |
+| **Gateway** | apme-gateway | 50060 (gRPC), 8080 (HTTP) | REST API + gRPC Reporting service + SQLAlchemy/SQLite persistence. Receives engine events via `GrpcReportingSink`; serves scan history, project management, and rule catalog to UI and external consumers (ADR-029, ADR-038) |
+| **UI** | apme-ui | 8081 | nginx-served React/PatternFly SPA. Consumes Gateway REST API. No direct engine communication (ADR-030, ADR-037) |
 | **CLI** | apme-cli | — | Ephemeral. Reads project files, chunks uploads, drives **`FixSession`** for user **check** and **remediate** (ADR-039). Unary `Primary.Scan`/`ScanRequest`/`ScanResponse` remain for engine-aligned clients. Run with `--pod apme-pod` and CWD mounted |
 
 ---
