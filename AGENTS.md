@@ -36,9 +36,12 @@ one needs to change, write an ADR first.
    SQLite). The `GrpcReportingSink` is best-effort and health-gated — the scan
    path never blocks on reporting.
 
-6. **Scale pods, not individual services** (ADR-012). One pod = full stack
-   (Primary + validators + Galaxy Proxy). Horizontal scaling replicates the
-   entire pod. Do not extract individual validators into separate deployments.
+6. **Scale pods, not individual services** (ADR-012). The engine runtime is a
+   unit: Primary + all validators + Galaxy Proxy. In the reference Podman pod,
+   Gateway, UI, and Abbenay share the same pod for convenience, but the scaling
+   invariant applies to the engine/validator stack: horizontal scaling replicates
+   that stack as a unit. Do not extract individual validators into separate
+   deployments.
 
 7. **Session venvs are Primary-owned** (ADR-022). Primary is the single writer
    to `/sessions`. Ansible validator mounts it read-only. No other service

@@ -81,7 +81,7 @@ See [SECURITY.md](/SECURITY.md) for comprehensive guidelines.
 
 ## Container Rebuild Rules
 
-Rebuild required after modifying: `src/**/*.py`, `proto/**/*.proto`, `pyproject.toml`, `containers/*/Dockerfile`
+Rebuild required after modifying: `src/**/*.py`, `proto/**/*.proto`, `pyproject.toml`, `containers/**`
 
 **Workflow:** `stop` → `build` → `start`
 

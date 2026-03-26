@@ -26,11 +26,15 @@ APME is a multi-container gRPC microservice deployed as a single Podman pod. The
 │  │  venvs   │  │          │  │          │  │ (ro)     │  │          │ │
 │  └────┬─────┘  └──────────┘  └──────────┘  └──────────┘  └──────────┘ │
 │       │                                                                │
-│  ┌────┴─────────────────────────────────────┐                         │
-│  │      Galaxy Proxy :8765 (PEP 503)       │                         │
-│  │  Ansible Galaxy → Python wheels on      │                         │
-│  │  demand; caching handled by proxy + uv  │                         │
+│  ┌────┴─────────────────────────────────────┐  ┌──────────┐          │
+│  │      Galaxy Proxy :8765 (PEP 503)       │  │ Abbenay  │          │
+│  │  Ansible Galaxy → Python wheels on      │  │  :50057  │          │
+│  │  demand; caching handled by proxy + uv  │  └──────────┘          │
 │  └──────────────────────────────────────────┘                         │
+│  ┌──────────────────────┐  ┌──────────┐                              │
+│  │ Gateway :50060/:8080 │  │ UI :8081 │                              │
+│  │ REST + gRPC + DB     │  │ (nginx)  │                              │
+│  └──────────────────────┘  └──────────┘                              │
 └────────────────────────────────────────────────────────────────────────┘
 
      ┌──────────┐
