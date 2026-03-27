@@ -210,6 +210,9 @@ class AnsibleValidatorServicer(validate_pb2_grpc.ValidatorServicer):
                     },
                 )
 
+                for v in result.run_result.violations:
+                    v.setdefault("source", "ansible")
+
                 return validate_pb2.ValidateResponse(
                     violations=[violation_dict_to_proto(cast(ViolationDict, v)) for v in result.run_result.violations],
                     request_id=req_id,

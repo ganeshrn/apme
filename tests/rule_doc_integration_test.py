@@ -49,8 +49,7 @@ def _violation_ids_for_rule(violations: list[dict[str, object]], rule_id: str, v
     Returns:
         List of matching rule_id strings.
     """
-    expected = f"native:{rule_id}" if validator == "native" else rule_id
-    return [str(v["rule_id"]) for v in violations if v.get("rule_id") == expected]
+    return [str(v["rule_id"]) for v in violations if v.get("rule_id") == rule_id]
 
 
 def _ensure_playbook(yaml_content: str) -> str:

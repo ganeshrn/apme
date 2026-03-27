@@ -24,6 +24,7 @@ import { OperationProgressPanel } from '../components/OperationProgressPanel';
 import { ProposalReviewPanel } from '../components/ProposalReviewPanel';
 import { OperationResultCard } from '../components/OperationResultCard';
 import { timeAgo } from '../services/format';
+import { useFeedbackEnabled } from '../hooks/useFeedbackEnabled';
 import { useProjectOperation, type ProjectOperationOptions } from '../hooks/useProjectOperation';
 import { AI_MODEL_STORAGE_KEY } from './SettingsPage';
 import { useNavigate } from 'react-router-dom';
@@ -47,9 +48,11 @@ export function ProjectDetailPage() {
   const [collections, setCollections] = useState('');
   const [enableAi, setEnableAi] = useState(true);
 
+  const feedbackEnabled = useFeedbackEnabled();
   const {
     status: rawStatus,
     progress: rawProgress,
+    scanId: opScanId,
     proposals: rawProposals,
     result: rawResult,
     error: opError,
@@ -65,6 +68,7 @@ export function ProjectDetailPage() {
     message: p.message,
     timestamp: p.timestamp,
     progress: p.progress,
+    level: p.level,
   }));
   const opProposals: OperationProposal[] = rawProposals.map((p) => ({
     id: p.id,
@@ -215,7 +219,7 @@ export function ProjectDetailPage() {
                   )}
 
                   {opStatus === 'awaiting_approval' && opProposals.length > 0 && (
-                    <ProposalReviewPanel proposals={opProposals} onApprove={opApprove} />
+                    <ProposalReviewPanel proposals={opProposals} onApprove={opApprove} feedbackEnabled={feedbackEnabled} scanId={opScanId ?? undefined} />
                   )}
 
                   {opStatus === 'complete' && opResult && (

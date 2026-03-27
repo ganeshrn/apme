@@ -22,6 +22,7 @@ enum RemediationResolution {
   REMEDIATION_RESOLUTION_USER_REJECTED = 7;
   REMEDIATION_RESOLUTION_NEEDS_CROSS_FILE = 8;
   REMEDIATION_RESOLUTION_MANUAL = 9;
+  REMEDIATION_RESOLUTION_INFORMATIONAL = 10;
 }
 
 // RuleScope indicates the structural scope at which a rule operates.
@@ -53,6 +54,8 @@ message Violation {
   // Preserves fields that transforms need but don't fit the common schema.
   map<string, string> metadata = 10;
   RuleScope scope = 11;
+  string source = 12;  // Validator that produced this violation (e.g. "native", "opa", "ansible", "gitleaks")
+  string snippet = 13; // Source lines around the violation (numbered, ~10 lines context)
 }
 
 message LineRange {

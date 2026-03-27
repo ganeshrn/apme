@@ -19,6 +19,7 @@ import { OperationProgressPanel } from '../components/OperationProgressPanel';
 import { ProposalReviewPanel } from '../components/ProposalReviewPanel';
 import { Tier1ResultsPanel } from '../components/Tier1ResultsPanel';
 import { OperationResultCard } from '../components/OperationResultCard';
+import { useFeedbackEnabled } from '../hooks/useFeedbackEnabled';
 import type { OperationStatus, OperationProgress, OperationProposal, OperationResult } from '../types/operation';
 
 function mapSessionStatus(s: string): OperationStatus {
@@ -27,6 +28,7 @@ function mapSessionStatus(s: string): OperationStatus {
 }
 
 export function PlaygroundPage() {
+  const feedbackEnabled = useFeedbackEnabled();
   const [files, setFiles] = useState<File[]>([]);
   const [ansibleVersion, setAnsibleVersion] = useState('');
   const [collections, setCollections] = useState('');
@@ -218,7 +220,7 @@ export function PlaygroundPage() {
         {rawStatus === 'awaiting_approval' && opProposals.length > 0 && (
           <>
             {tier1 && <Tier1ResultsPanel tier1={tier1} />}
-            <ProposalReviewPanel proposals={opProposals} onApprove={approve} />
+            <ProposalReviewPanel proposals={opProposals} onApprove={approve} feedbackEnabled={feedbackEnabled} scanId={scanId ?? undefined} />
           </>
         )}
 

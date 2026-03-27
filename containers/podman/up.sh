@@ -33,6 +33,9 @@ if [[ -f "$ABBENAY_ENV" ]]; then
 fi
 OPENROUTER_API_KEY="${OPENROUTER_API_KEY:-}"
 APME_AI_MODEL="${APME_AI_MODEL:-}"
+APME_FEEDBACK_ENABLED="${APME_FEEDBACK_ENABLED:-true}"
+APME_FEEDBACK_GITHUB_REPO="${APME_FEEDBACK_GITHUB_REPO:-}"
+APME_FEEDBACK_GITHUB_TOKEN="${APME_FEEDBACK_GITHUB_TOKEN:-}"
 
 # Tear down any existing pod so we get a clean start.
 if podman pod exists apme-pod 2>/dev/null; then
@@ -46,8 +49,15 @@ fi
 # everything else goes through envsubst so secrets stay out of argv.
 ESCAPED_PATH=$(printf '%s\n' "$CACHE_PATH" | sed -e 's/\\/\\\\/g' -e 's/[&|]/\\&/g')
 export OPENROUTER_API_KEY APME_AI_MODEL APME_ROOT="$ROOT"
+export APME_FEEDBACK_ENABLED APME_FEEDBACK_GITHUB_REPO APME_FEEDBACK_GITHUB_TOKEN
 sed "s|path: __APME_CACHE_PATH__|path: ${ESCAPED_PATH}|" containers/podman/pod.yaml \
-  | envsubst '$OPENROUTER_API_KEY $APME_AI_MODEL $APME_ROOT' \
+  | envsubst '$OPENROUTER_API_KEY $APME_AI_MODEL $APME_ROOT $APME_FEEDBACK_ENABLED $APME_FEEDBACK_GITHUB_REPO $APME_FEEDBACK_GITHUB_TOKEN' \
   | podman play kube -
 
 echo "Pod apme-pod started (cache: $CACHE_PATH). Run a scan: containers/podman/run-cli.sh"
+
+if [[ -n "$APME_FEEDBACK_GITHUB_REPO" && -n "$APME_FEEDBACK_GITHUB_TOKEN" ]]; then
+  echo "Issue reporting enabled (repo: $APME_FEEDBACK_GITHUB_REPO)"
+else
+  echo "Issue reporting disabled. To enable, export APME_FEEDBACK_GITHUB_REPO and APME_FEEDBACK_GITHUB_TOKEN."
+fi

@@ -1,14 +1,36 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
+  Button,
   Modal,
-  ModalHeader,
   ModalBody,
+  ModalFooter,
+  ModalHeader,
   Tab,
   Tabs,
   TabTitleText,
 } from '@patternfly/react-core';
 import { PageDetails, PageDetail } from '@ansible/ansible-ui-framework';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { DiffView } from './DiffView';
+import { FeedbackModal, type FeedbackPayload } from './FeedbackModal';
 import { severityClass, severityLabel, bareRuleId, ruleSource } from './severity';
+
+function parseSnippet(raw: string): { code: string; startLine: number } {
+  const lines = raw.split('\n');
+  let startLine = 1;
+  const cleaned: string[] = [];
+  for (const line of lines) {
+    const m = /^\s*(\d+): (.*)$/.exec(line);
+    if (m) {
+      if (cleaned.length === 0) startLine = parseInt(m[1]!, 10);
+      cleaned.push(m[2]!);
+    } else {
+      cleaned.push(line);
+    }
+  }
+  return { code: cleaned.join('\n'), startLine };
+}
 
 function tierLabel(rc: number): string {
   if (rc === 1) return 'Fixable';
@@ -26,6 +48,8 @@ export interface ViolationRecord {
   line: number | null;
   path: string;
   remediation_class: number;
+  validator_source?: string;
+  snippet?: string;
 }
 
 interface ViolationDetailModalProps {
@@ -35,14 +59,21 @@ interface ViolationDetailModalProps {
   diff?: string;
   getRuleDescription?: (ruleId: string) => string | undefined;
   mergedViolations?: ViolationRecord[];
+  scanId?: string;
+  feedbackEnabled?: boolean;
 }
 
-export function ViolationDetailModal({ isOpen, onClose, violation, diff, getRuleDescription, mergedViolations }: ViolationDetailModalProps) {
+export function ViolationDetailModal({ isOpen, onClose, violation, diff, getRuleDescription, mergedViolations, scanId, feedbackEnabled }: ViolationDetailModalProps) {
   const [activeTab, setActiveTab] = useState(0);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const ruleDesc = getRuleDescription?.(violation.rule_id);
   const cls = severityClass(violation.level, violation.rule_id);
   const source = ruleSource(violation.rule_id);
   const isCombinedFixed = !!mergedViolations;
+  const parsed = useMemo(
+    () => (violation.snippet ? parseSnippet(violation.snippet) : null),
+    [violation.snippet],
+  );
 
   return (
     <Modal
@@ -129,20 +160,65 @@ export function ViolationDetailModal({ isOpen, onClose, violation, diff, getRule
               </PageDetails>
             )}
           </Tab>
-          {diff ? (
-            <Tab eventKey={1} title={<TabTitleText>Diff</TabTitleText>} aria-label="Diff tab">
+          {parsed ? (
+            <Tab eventKey={1} title={<TabTitleText>Source</TabTitleText>} aria-label="Source tab">
               <div className="apme-modal-diff">
-                <pre>{diff}</pre>
+                <SyntaxHighlighter
+                  language="yaml"
+                  style={oneDark}
+                  showLineNumbers
+                  startingLineNumber={parsed.startLine}
+                  wrapLines
+                  lineProps={(lineNo: number) => {
+                    const style: React.CSSProperties = { display: 'block' };
+                    if (violation.line != null && lineNo === violation.line) {
+                      style.backgroundColor = 'rgba(255, 215, 0, 0.18)';
+                    }
+                    return { style };
+                  }}
+                  customStyle={{ margin: 0, fontSize: '0.85em', borderRadius: 4 }}
+                >
+                  {parsed.code}
+                </SyntaxHighlighter>
               </div>
             </Tab>
           ) : null}
-          <Tab eventKey={diff ? 2 : 1} title={<TabTitleText>Data</TabTitleText>} aria-label="Data tab">
+          {diff ? (
+            <Tab eventKey={parsed ? 2 : 1} title={<TabTitleText>Diff</TabTitleText>} aria-label="Diff tab">
+              <div className="apme-modal-diff">
+                <DiffView diff={diff} />
+              </div>
+            </Tab>
+          ) : null}
+          <Tab eventKey={(parsed ? 1 : 0) + (diff ? 1 : 0) + 1} title={<TabTitleText>Data</TabTitleText>} aria-label="Data tab">
             <div className="apme-modal-diff">
               <pre>{JSON.stringify(isCombinedFixed ? mergedViolations : violation, null, 2)}</pre>
             </div>
           </Tab>
         </Tabs>
       </ModalBody>
+      {feedbackEnabled && (
+        <ModalFooter>
+          <Button variant="link" onClick={() => setFeedbackOpen(true)}>Report Issue</Button>
+        </ModalFooter>
+      )}
+      <FeedbackModal
+        isOpen={feedbackOpen}
+        onClose={() => setFeedbackOpen(false)}
+        prefill={{
+          type: 'false_positive',
+          rule_id: violation.rule_id,
+          source: violation.validator_source || ruleSource(violation.rule_id) || '',
+          file: violation.file,
+          scan_id: scanId ?? '',
+          context: {
+            violation_message: violation.message,
+            ai_proposal_diff: diff ?? '',
+            ai_explanation: '',
+            source_snippet: violation.snippet ?? '',
+          },
+        } satisfies Partial<FeedbackPayload>}
+      />
     </Modal>
   );
 }

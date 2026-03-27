@@ -100,6 +100,7 @@ class RemediationResolution(str, Enum):
         USER_REJECTED: User rejected the proposed fix.
         NEEDS_CROSS_FILE: Requires cross-file context (deferred to MCP tool).
         MANUAL: Requires manual review (play-level or structural issue).
+        INFORMATIONAL: Report-only rule (severity=none), no fix needed.
     """
 
     UNRESOLVED = "unresolved"
@@ -111,6 +112,7 @@ class RemediationResolution(str, Enum):
     USER_REJECTED = "user-rejected"
     NEEDS_CROSS_FILE = "needs-cross-file"
     MANUAL = "manual"
+    INFORMATIONAL = "informational"
 
 
 from . import yaml as ariyaml  # noqa: E402

@@ -9,15 +9,21 @@ import {
   SplitItem,
 } from '@patternfly/react-core';
 import type { OperationProposal } from '../types/operation';
+import { DiffView } from './DiffView';
+import { FeedbackModal, type FeedbackPayload } from './FeedbackModal';
 
 export interface ProposalReviewPanelProps {
   proposals: OperationProposal[];
   onApprove: (ids: string[]) => void;
+  feedbackEnabled?: boolean;
+  scanId?: string;
 }
 
 export function ProposalReviewPanel({
   proposals,
   onApprove,
+  feedbackEnabled,
+  scanId,
 }: ProposalReviewPanelProps) {
   const proposed = useMemo(() => proposals.filter((p) => p.status !== 'declined'), [proposals]);
   const declined = useMemo(() => proposals.filter((p) => p.status === 'declined'), [proposals]);
@@ -25,6 +31,7 @@ export function ProposalReviewPanel({
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [showDeclined, setShowDeclined] = useState(false);
+  const [feedbackTarget, setFeedbackTarget] = useState<OperationProposal | null>(null);
 
   const toggleAll = useCallback(() => {
     setSelected((prev) =>
@@ -147,18 +154,18 @@ export function ProposalReviewPanel({
 
                 {isExpanded && p.diff_hunk && (
                   <div className="apme-proposal-diff">
-                    <pre style={{
-                      margin: 0,
-                      padding: '12px 16px',
-                      fontSize: 12,
-                      lineHeight: 1.5,
-                      whiteSpace: 'pre',
-                      fontFamily: 'var(--pf-t--global--font--family--mono)',
-                      background: 'var(--pf-t--global--background--color--secondary--default)',
-                      overflow: 'auto',
-                    }}>
-                      <code>{p.diff_hunk}</code>
-                    </pre>
+                    <DiffView diff={p.diff_hunk} />
+                  </div>
+                )}
+                {isExpanded && feedbackEnabled && (
+                  <div style={{ padding: '4px 12px 8px' }}>
+                    <Button
+                      variant="link"
+                      size="sm"
+                      onClick={(e) => { e.stopPropagation(); setFeedbackTarget(p); }}
+                    >
+                      Report Issue
+                    </Button>
                   </div>
                 )}
               </div>
@@ -229,6 +236,24 @@ export function ProposalReviewPanel({
           </div>
         )}
       </CardBody>
+      {feedbackTarget && (
+        <FeedbackModal
+          isOpen={!!feedbackTarget}
+          onClose={() => setFeedbackTarget(null)}
+          prefill={{
+            type: 'bad_ai_suggestion',
+            rule_id: feedbackTarget.rule_id,
+            file: feedbackTarget.file,
+            scan_id: scanId ?? '',
+            context: {
+              violation_message: '',
+              ai_proposal_diff: feedbackTarget.diff_hunk ?? '',
+              ai_explanation: feedbackTarget.explanation ?? '',
+              source_snippet: '',
+            },
+          } satisfies Partial<FeedbackPayload>}
+        />
+      )}
     </Card>
   );
 }

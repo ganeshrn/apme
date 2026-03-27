@@ -18,6 +18,8 @@ _COMMON_KEYS = frozenset(
         "remediation_class",
         "remediation_resolution",
         "scope",
+        "source",
+        "snippet",
     }
 )
 
@@ -59,6 +61,7 @@ _RESOLUTION_TO_PROTO: dict[str, int] = {
     RemediationResolution.USER_REJECTED.value: common_pb2.REMEDIATION_RESOLUTION_USER_REJECTED,  # type: ignore[attr-defined]
     RemediationResolution.NEEDS_CROSS_FILE.value: common_pb2.REMEDIATION_RESOLUTION_NEEDS_CROSS_FILE,  # type: ignore[attr-defined]
     RemediationResolution.MANUAL.value: common_pb2.REMEDIATION_RESOLUTION_MANUAL,  # type: ignore[attr-defined]
+    RemediationResolution.INFORMATIONAL.value: common_pb2.REMEDIATION_RESOLUTION_INFORMATIONAL,  # type: ignore[attr-defined]
 }
 
 # Map proto enum to string remediation resolution
@@ -73,6 +76,7 @@ _PROTO_TO_RESOLUTION: dict[int, str] = {
     common_pb2.REMEDIATION_RESOLUTION_USER_REJECTED: RemediationResolution.USER_REJECTED.value,  # type: ignore[attr-defined]
     common_pb2.REMEDIATION_RESOLUTION_NEEDS_CROSS_FILE: RemediationResolution.NEEDS_CROSS_FILE.value,  # type: ignore[attr-defined]
     common_pb2.REMEDIATION_RESOLUTION_MANUAL: RemediationResolution.MANUAL.value,  # type: ignore[attr-defined]
+    common_pb2.REMEDIATION_RESOLUTION_INFORMATIONAL: RemediationResolution.INFORMATIONAL.value,  # type: ignore[attr-defined]
 }
 
 _SCOPE_TO_PROTO: dict[str, int] = {
@@ -136,6 +140,8 @@ def violation_dict_to_proto(v: ViolationDict | Mapping[str, str | int | list[int
         remediation_class=remediation_class_proto,
         remediation_resolution=resolution_proto,
         scope=scope_proto,
+        source=str(v.get("source") or ""),
+        snippet=str(v.get("snippet") or ""),
     )
     line = v.get("line")
     if isinstance(line, list | tuple) and len(line) >= 2:
@@ -199,6 +205,8 @@ def violation_proto_to_dict(v: Violation) -> ViolationDict:
         "remediation_class": remediation_class,
         "remediation_resolution": resolution,
         "scope": scope,
+        "source": v.source,
+        "snippet": v.snippet,
     }
 
     for key, val in v.metadata.items():

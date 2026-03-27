@@ -48,9 +48,11 @@ interface ViolationOutputProps {
   scanType?: string;
   getRuleDescription?: (ruleId: string) => string | undefined;
   onSectionToggle?: (open: boolean) => void;
+  scanId?: string;
+  feedbackEnabled?: boolean;
 }
 
-export function ViolationOutput({ violations, patchByFile, hasFilters, scanType, getRuleDescription, onSectionToggle }: ViolationOutputProps) {
+export function ViolationOutput({ violations, patchByFile, hasFilters, scanType, getRuleDescription, onSectionToggle, scanId, feedbackEnabled }: ViolationOutputProps) {
   const isRemediate = scanType === 'fix' || scanType === 'remediate';
   const [sectionOpen, setSectionOpen] = useState(true);
   const toggleSection = (open: boolean) => {
@@ -300,6 +302,8 @@ export function ViolationOutput({ violations, patchByFile, hasFilters, scanType,
           diff={selectedDiff}
           getRuleDescription={getRuleDescription}
           mergedViolations={selectedIsCombined ? (groups.get(selectedViolation.file || '(unknown)')?.filter(v => v.remediation_class === 1) ?? []) : undefined}
+          scanId={scanId}
+          feedbackEnabled={feedbackEnabled}
         />
       )}
     </>

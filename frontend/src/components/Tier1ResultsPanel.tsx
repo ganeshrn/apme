@@ -8,6 +8,7 @@ import {
   SplitItem,
 } from '@patternfly/react-core';
 import type { Tier1Result } from '../hooks/useSessionStream';
+import { DiffView } from './DiffView';
 
 export interface Tier1ResultsPanelProps {
   tier1: Tier1Result;
@@ -49,7 +50,7 @@ export function Tier1ResultsPanel({ tier1 }: Tier1ResultsPanelProps) {
                     <span className="apme-diff-rules">{p.applied_rules.join(', ')}</span>
                   )}
                 </div>
-                {p.diff && <pre className="apme-diff-content">{p.diff}</pre>}
+                {p.diff && <DiffView diff={p.diff} className="apme-diff-content" />}
               </div>
             ))}
           </div>

@@ -489,6 +489,8 @@ async def list_project_violations(
             path=v.path,
             remediation_class=v.remediation_class,
             scope=v.scope,
+            validator_source=v.validator_source,
+            snippet=v.snippet,
         )
         for v in violations
     ]
@@ -885,6 +887,8 @@ async def get_activity_detail(activity_id: str) -> ActivityDetail:
                 path=v.path,
                 remediation_class=v.remediation_class,
                 scope=v.scope,
+                validator_source=v.validator_source,
+                snippet=v.snippet,
             )
             for v in scan.violations
         ],
@@ -1116,6 +1120,7 @@ async def project_operate_ws(
                         "phase": prog.phase or "processing",
                         "message": prog.message or "",
                         "progress": prog.progress,
+                        "level": prog.level,
                     }
                 )
             elif kind == "proposals":

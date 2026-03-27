@@ -93,6 +93,12 @@ spec:
           value: "0.0.0.0"
         - name: APME_GATEWAY_HTTP_PORT
           value: "8080"
+        - name: APME_FEEDBACK_ENABLED
+          value: "${APME_FEEDBACK_ENABLED}"
+        - name: APME_FEEDBACK_GITHUB_REPO
+          value: "${APME_FEEDBACK_GITHUB_REPO}"
+        - name: APME_FEEDBACK_GITHUB_TOKEN
+          value: "${APME_FEEDBACK_GITHUB_TOKEN}"
       ports:
         - containerPort: 50060
           hostPort: 50060

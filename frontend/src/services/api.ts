@@ -165,3 +165,9 @@ export function getDashboardRankings(
 ): Promise<ProjectRanking[]> {
   return request(`/dashboard/rankings?sort_by=${sortBy}&order=${order}&limit=${limit}`);
 }
+
+// ── Feedback (POC) ─────────────────────────────────────────────────────
+
+export function getFeedbackEnabled(): Promise<{ enabled: boolean }> {
+  return request("/feedback/enabled");
+}

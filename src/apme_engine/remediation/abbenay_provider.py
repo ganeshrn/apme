@@ -87,6 +87,10 @@ Respond with ONLY this JSON (no markdown fences):
 }}
 
 Rules:
+- CRITICAL: Fix ONLY the violations listed above. Do NOT make any other changes,
+  improvements, or best-practice adjustments beyond what is required to resolve the
+  listed violations. Lines not related to a listed violation must be preserved
+  exactly as-is — same quoting, same structure, same values.
 - Preserve all YAML comments
 - Maintain exact indentation (2 spaces)
 - Use FQCN for all modules (e.g., ansible.builtin.copy, not copy)
@@ -151,6 +155,12 @@ Respond with ONLY this JSON (no markdown fences, no explanation outside JSON):
 }}
 
 Rules:
+- CRITICAL: Fix ONLY the violations listed above. Do NOT make any other changes,
+  improvements, or best-practice adjustments beyond what is required to resolve the
+  listed violations. If a line is not related to a listed violation, preserve it
+  exactly as-is — same quoting, same structure, same values.
+- If none of the listed violations can be fixed, return the original snippet unchanged
+  in fixed_snippet and put all violations in "skipped".
 - fixed_snippet must contain the COMPLETE corrected YAML, not a partial diff
 - Preserve YAML comments and exact indentation (2 spaces per level)
 - Use FQCN for all modules (e.g., ansible.builtin.copy, not copy)

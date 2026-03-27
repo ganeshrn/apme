@@ -21,6 +21,7 @@ export interface OperationProgress {
   message: string;
   timestamp: number;
   progress?: number;
+  level?: number;
 }
 
 export interface OperationProposal {

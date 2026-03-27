@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
+from apme_gateway.api.feedback import router as feedback_router
 from apme_gateway.api.router import router
 
 
@@ -19,4 +20,5 @@ def create_app() -> FastAPI:
         version="0.1.0",
     )
     app.include_router(router)
+    app.include_router(feedback_router)
     return app

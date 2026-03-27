@@ -167,6 +167,7 @@ def _convert_findings(
                 "line": line if line == end_line else [line, end_line],
                 "path": "",
                 "scope": "playbook",
+                "source": "gitleaks",
             }
         )
 

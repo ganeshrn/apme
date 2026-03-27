@@ -13,6 +13,7 @@ import {
   Label,
 } from '@patternfly/react-core';
 import { deleteActivity, getActivity } from '../services/api';
+import { useFeedbackEnabled } from '../hooks/useFeedbackEnabled';
 import type { ActivityDetail } from '../types/api';
 import { getRuleDescription } from '../data/ruleDescriptions';
 
@@ -25,6 +26,7 @@ function displayType(scanType: string): string {
 export function ActivityDetailPage() {
   const { activityId } = useParams<{ activityId: string }>();
   const navigate = useNavigate();
+  const feedbackEnabled = useFeedbackEnabled();
   const [detail, setDetail] = useState<ActivityDetail | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -158,6 +160,8 @@ export function ActivityDetailPage() {
           scanType={detail.scan_type}
           getRuleDescription={getRuleDescription}
           onSectionToggle={setResultsOpen}
+          scanId={activityId}
+          feedbackEnabled={feedbackEnabled}
         />
       </div>
 

@@ -98,13 +98,14 @@ def _extract_results(data_report: dict[str, object]) -> NativeRunResult:
                 scope = scope_raw.value if hasattr(scope_raw, "value") else str(scope_raw)
                 violations.append(
                     {
-                        "rule_id": f"native:{rule_id}" if rule_id else "native:unknown",
+                        "rule_id": rule_id or "unknown",
                         "level": severity,
                         "message": message,
                         "file": file_path,
                         "line": line,
                         "path": path,
                         "scope": scope,
+                        "source": "native",
                     }
                 )
 

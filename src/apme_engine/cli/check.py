@@ -22,6 +22,7 @@ from apme.v1.primary_pb2 import (
 from apme_engine.cli._convert import violation_proto_to_dict
 from apme_engine.cli._models import ViolationDict
 from apme_engine.cli._project_root import derive_session_id, discover_project_root
+from apme_engine.cli.ansi import dim, red, yellow
 from apme_engine.cli.discovery import resolve_primary
 from apme_engine.cli.output import (
     deduplicate_violations,
@@ -153,7 +154,9 @@ def run_check(args: argparse.Namespace) -> None:
                 p = event.progress
                 if p.level >= min_level:
                     phase = f"[{p.phase}] " if p.phase else ""
-                    sys.stderr.write(f"  {phase}{p.message}\n")
+                    _LEVEL_FMT = {1: dim, 3: yellow, 4: red}
+                    fmt = _LEVEL_FMT.get(p.level, str)
+                    sys.stderr.write(f"  {phase}{fmt(p.message)}\n")
                 continue
 
             if oneof == "tier1_complete":

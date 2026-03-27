@@ -16,6 +16,9 @@ class GatewayConfig:
         http_host: Host for the FastAPI HTTP server.
         http_port: Port for the FastAPI HTTP server.
         primary_address: gRPC address of the Primary orchestrator.
+        feedback_enabled: Enable the user feedback endpoint (POC feature).
+        feedback_github_repo: GitHub repo for issue creation (e.g. ``owner/repo``).
+        feedback_github_token: GitHub token with ``issues:write`` for feedback.
     """
 
     db_path: str = field(default_factory=lambda: os.environ.get("APME_DB_PATH", "/data/apme.db"))
@@ -23,6 +26,15 @@ class GatewayConfig:
     http_host: str = field(default_factory=lambda: os.environ.get("APME_GATEWAY_HTTP_HOST", "0.0.0.0"))
     http_port: int = field(default_factory=lambda: int(os.environ.get("APME_GATEWAY_HTTP_PORT", "8080")))
     primary_address: str = field(default_factory=lambda: os.environ.get("APME_PRIMARY_ADDRESS", "localhost:50051"))
+    feedback_enabled: bool = field(
+        default_factory=lambda: os.environ.get("APME_FEEDBACK_ENABLED", "false").lower() in ("1", "true", "yes"),
+    )
+    feedback_github_repo: str = field(
+        default_factory=lambda: os.environ.get("APME_FEEDBACK_GITHUB_REPO", ""),
+    )
+    feedback_github_token: str = field(
+        default_factory=lambda: os.environ.get("APME_FEEDBACK_GITHUB_TOKEN", ""),
+    )
 
 
 def load_config() -> GatewayConfig:

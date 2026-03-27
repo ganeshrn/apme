@@ -22,6 +22,7 @@ export interface ProgressEntry {
   message: string;
   timestamp: number;
   progress?: number;
+  level?: number;
 }
 
 export interface ProjectProposal {
@@ -136,6 +137,7 @@ export function useProjectOperation(projectId: string) {
                 message: (msg.message as string) || "",
                 timestamp: Date.now(),
                 progress: typeof msg.progress === "number" ? msg.progress : undefined,
+                level: typeof msg.level === "number" ? msg.level : undefined,
               },
             ]);
             break;

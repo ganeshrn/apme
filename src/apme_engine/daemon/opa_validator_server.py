@@ -107,6 +107,9 @@ class OpaValidatorServicer(validate_pb2_grpc.ValidatorServicer):
                 rule_timings=rule_timings,
             )
 
+            for v in violations:
+                v.setdefault("source", "opa")
+
             return ValidateResponse(
                 violations=[violation_dict_to_proto(v) for v in violations],
                 request_id=req_id,

@@ -3,11 +3,13 @@ import {
   Button,
   Card,
   CardBody,
+  Icon,
   Label,
   Progress,
   Split,
   SplitItem,
 } from '@patternfly/react-core';
+import { ExclamationTriangleIcon, ExclamationCircleIcon } from '@patternfly/react-icons';
 import type { OperationProgress, OperationStatus } from '../types/operation';
 
 export interface OperationProgressPanelProps {
@@ -104,12 +106,25 @@ export function OperationProgressPanel({
           style={{ marginTop: 16 }}
         />
         <div className="apme-timeline" style={{ marginTop: 16, maxHeight: 200, overflowY: 'auto' }}>
-          {progress.map((entry, i) => (
-            <div key={i} className="apme-timeline-entry">
-              <Label isCompact>{entry.phase}</Label>
-              <span style={{ marginLeft: 8 }}>{entry.message}</span>
-            </div>
-          ))}
+          {progress.map((entry, i) => {
+            const level = entry.level ?? 2;
+            const labelColor = level >= 4 ? 'red' : level >= 3 ? 'orange' : undefined;
+            const msgStyle: React.CSSProperties =
+              level >= 4 ? { color: 'var(--pf-t--global--color--status--danger--default)' }
+              : level >= 3 ? { color: 'var(--pf-t--global--color--status--warning--default)' }
+              : level <= 1 ? { opacity: 0.6 } : {};
+            const icon =
+              level >= 4 ? <Icon status="danger"><ExclamationCircleIcon /></Icon>
+              : level >= 3 ? <Icon status="warning"><ExclamationTriangleIcon /></Icon>
+              : null;
+            return (
+              <div key={i} className="apme-timeline-entry">
+                <Label isCompact color={labelColor}>{entry.phase}</Label>
+                {icon && <span style={{ marginLeft: 4 }}>{icon}</span>}
+                <span style={{ marginLeft: 8, ...msgStyle }}>{entry.message}</span>
+              </div>
+            );
+          })}
           <div ref={endRef} />
         </div>
       </CardBody>

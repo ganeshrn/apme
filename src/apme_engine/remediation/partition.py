@@ -37,6 +37,10 @@ def _get_scope(violation: ViolationDict) -> str:
 def normalize_rule_id(rule_id: str) -> str:
     """Strip validator-specific prefixes from a rule ID for registry lookup.
 
+    Historically native violations were prefixed with ``native:``.  That prefix
+    is no longer added at the source, but this function remains for backward
+    compatibility with any persisted data that still carries it.
+
     Args:
         rule_id: Raw rule ID, possibly prefixed (e.g. ``native:L021``).
 
@@ -85,6 +89,11 @@ def partition_violations(
 
     for v in violations:
         bare_id = normalize_rule_id(str(v.get("rule_id", "")))
+        level = str(v.get("level", "")).lower()
+        if level == "none":
+            v["remediation_resolution"] = RemediationResolution.INFORMATIONAL
+            tier3.append(v)
+            continue
         if is_finding_resolvable(v, registry):
             tier1.append(v)
         elif bare_id in CROSS_FILE_RULES:
@@ -113,6 +122,9 @@ def classify_violation(violation: ViolationDict, registry: TransformRegistry) ->
     Returns:
         One of RemediationClass.AUTO_FIXABLE, AI_CANDIDATE, or MANUAL_REVIEW.
     """
+    level = str(violation.get("level", "")).lower()
+    if level == "none":
+        return RemediationClass.MANUAL_REVIEW
     bare_id = normalize_rule_id(str(violation.get("rule_id", "")))
     if is_finding_resolvable(violation, registry):
         return RemediationClass.AUTO_FIXABLE
