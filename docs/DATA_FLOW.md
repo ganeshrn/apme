@@ -5,7 +5,7 @@ This document traces a **check** run from the CLI to violation output, covering 
 ## Request lifecycle
 
 ```
-User runs:  apme-scan check /path/to/project
+User runs:  apme check /path/to/project
             │
             ▼
 ┌───────────────────────────────────────────────────────┐
@@ -308,7 +308,7 @@ When running without the Podman pod, the CLI connects to a local daemon via `ens
 
 1. If `APME_PRIMARY_ADDRESS` is set, the CLI connects to that address directly
 2. If a daemon is already running (`~/.apme-data/daemon.json`), the CLI reuses it
-3. Otherwise, the CLI auto-starts a background daemon (`apme-scan daemon start`)
+3. Otherwise, the CLI auto-starts a background daemon (`apme daemon start`)
 
 The local daemon runs Primary, Native, OPA, and Ansible validators plus the Galaxy Proxy as localhost gRPC servers in a single background process. The CLI always communicates via gRPC — it never runs the engine in-process.
 

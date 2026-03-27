@@ -240,7 +240,7 @@ def generate() -> str:
 
     lines.append("## Fixer Summary")
     lines.append("")
-    lines.append("Deterministic fixers (Tier 1) are auto-applied by `apme-scan fix --apply`.")
+    lines.append("Deterministic fixers (Tier 1) are auto-applied by `apme fix --apply`.")
     lines.append("Rules without fixers fall to Tier 2 (AI-proposable) or Tier 3 (manual review).")
     lines.append("")
     lines.append("| Rule ID | Transform |")

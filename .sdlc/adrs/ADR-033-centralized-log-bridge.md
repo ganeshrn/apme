@@ -156,7 +156,7 @@ alongside the pod. CLI queries the log aggregator.
 - Latency between log emission and availability
 
 **Why not chosen**: APME is a developer tool, not a long-running service.
-The logging solution must work with `apme-scan check .` on a laptop.
+The logging solution must work with `apme check .` on a laptop.
 
 ### Alternative 4: Custom log functions (not standard logging)
 
@@ -303,7 +303,7 @@ message FormatResponse {
 
 ## Addendum
 
-> **Note (ADR-039):** The user-facing terminology was renamed: `scan` → `check`, `fix` → `remediate`, `Scans` UI → `Activity`. Engine-internal names (`ScanChunk`, `scan_id`, `_scan_pipeline`) and `ScanResponse` are unchanged. The `ScanStream` RPC was removed; `FixSession` serves both check and remediate modes. The `apme-scan` binary name is unchanged.
+> **Note (ADR-039):** The user-facing terminology was renamed: `scan` → `check`, `fix` → `remediate`, `Scans` UI → `Activity`. Engine-internal names (`ScanChunk`, `scan_id`, `_scan_pipeline`) and `ScanResponse` are unchanged. The `ScanStream` RPC was removed; `FixSession` serves both check and remediate modes. The `apme` binary name is unchanged.
 
 ## References
 

@@ -25,7 +25,7 @@ def resolve_primary(args: object = None) -> tuple[grpc.Channel, str]:
         addr = ensure_daemon()
     except RuntimeError as e:
         sys.stderr.write(f"Failed to connect to APME engine: {e}\n")
-        sys.stderr.write("Try: apme-scan daemon start\n")
+        sys.stderr.write("Try: apme daemon start\n")
         sys.exit(1)
     _max_msg = 50 * 1024 * 1024
     return grpc.insecure_channel(

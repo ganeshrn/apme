@@ -88,7 +88,7 @@ podman pod rm apme-pod
 ### Health check
 
 ```bash
-apme-scan health-check
+apme health-check
 ```
 
 The CLI discovers the Primary via `APME_PRIMARY_ADDRESS` env var, a running daemon, or auto-starts one locally.

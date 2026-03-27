@@ -7,7 +7,7 @@ This document traces a **check** request from CLI to violation output, covering 
 ## Request Lifecycle
 
 ```
-User runs:  apme-scan check /path/to/project
+User runs:  apme check /path/to/project
             │
             ▼
 ┌───────────────────────────────────────────────────────┐
@@ -282,7 +282,7 @@ Every violation, regardless of source validator, has the same structure:
 
 ## Local (In-Process) Mode
 
-When running without the daemon (`apme-scan check /path` without `--primary-addr`), the CLI runs everything in-process:
+When running without the daemon (`apme check /path` without `--primary-addr`), the CLI runs everything in-process:
 
 1. Engine runs directly (no temp dir, no gRPC)
 2. `NativeValidator` and `OpaValidator` run in the same process

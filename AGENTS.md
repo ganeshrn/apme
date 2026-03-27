@@ -4,7 +4,7 @@ This document defines the specialized agents used in APME development. It is the
 operational companion to `CLAUDE.md` (the project constitution). Read both before
 touching code.
 
-**User-facing CLI (binary remains `apme-scan`):** **`check`** for assessment, **`remediate`** for applying fixes. Both use the bidirectional `FixSession` RPC under the hood (ADR-039). The **Engine Agent** below owns the internal scan pipeline; that is not the same as the CLI subcommand name.
+**User-facing CLI (binary remains `apme`):** **`check`** for assessment, **`remediate`** for applying fixes. Both use the bidirectional `FixSession` RPC under the hood (ADR-039). The **Engine Agent** below owns the internal scan pipeline; that is not the same as the CLI subcommand name.
 
 ## Architectural Invariants
 
@@ -231,7 +231,7 @@ one needs to change, write an ADR first.
 
 **Capabilities**:
 - Create GitHub Actions workflows
-- Create AAP pre-flight checks (document `apme-scan check` / `apme-scan remediate`)
+- Create AAP pre-flight checks (document `apme check` / `apme remediate`)
 - Galaxy Proxy PEP 503 implementation (ADR-031)
 - Container definitions and pod configuration
 - Write integration documentation and example configurations
@@ -290,7 +290,7 @@ Understanding where code lives prevents accidental duplication or misplacement.
 src/
 ├── apme/v1/                     # Generated proto stubs — NEVER edit by hand
 ├── apme_engine/                  # Core product
-│   ├── cli/                      # apme-scan: check, remediate, format, health
+│   ├── cli/                      # apme: check, remediate, format, health
 │   ├── daemon/                   # gRPC servers: primary, native, opa, ansible, gitleaks
 │   │   └── sinks/                # Event sinks (grpc_reporting)
 │   ├── engine/                   # ARI-backed: parser, scanner, models, annotators

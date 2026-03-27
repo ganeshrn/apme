@@ -5,5 +5,5 @@ FROM localhost/apme-base:latest
 ENV APME_PRIMARY_ADDRESS=primary:50051
 WORKDIR /workspace
 
-ENTRYPOINT ["apme-scan"]
+ENTRYPOINT ["apme"]
 CMD ["scan", "."]

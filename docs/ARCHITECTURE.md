@@ -38,7 +38,7 @@ All gRPC servers use **`grpc.aio`** (fully async). Blocking work (engine scan, s
      ┌──────────┐
      │   CLI    │  podman run --rm --pod apme-pod
      │ (on-the  │  -v $(pwd):/workspace:ro,Z
-     │  -fly)   │  apme-cli:latest apme-scan check .
+     │  -fly)   │  apme-cli:latest apme check .
      └──────────┘
 ```
 
@@ -316,7 +316,7 @@ With `--json`, the `diagnostics` key is included when `-v` or `-vv` is set.
 The CLI `health-check` subcommand calls `Health` on all services and reports status:
 
 ```bash
-apme-scan health-check
+apme health-check
 ```
 
 The CLI discovers the Primary via `APME_PRIMARY_ADDRESS` env var, a running daemon, or auto-starts one locally.

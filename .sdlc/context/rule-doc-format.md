@@ -292,7 +292,7 @@ Replace short module names with their FQCN equivalent:
 | `file` | `ansible.builtin.file` |
 | `yum` | `ansible.builtin.yum` |
 
-Use `apme-scan remediate` to auto-remediate.
+Use `apme remediate` to auto-remediate.
 
 ## Examples
 

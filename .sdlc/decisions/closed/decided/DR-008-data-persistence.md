@@ -63,7 +63,7 @@ This may require:
 **Description**: Users save JSON output themselves. Dashboard reads files from a directory.
 
 ```bash
-apme-scan . --json > results/$(date +%Y%m%d).json
+apme . --json > results/$(date +%Y%m%d).json
 ```
 
 **Pros**:

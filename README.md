@@ -62,34 +62,34 @@ pip install -r requirements.txt
 pip install -e ".[dev]"
 
 # Run a check (user-facing); engine runs the internal scan pipeline
-apme-scan check /path/to/playbook-or-project
+apme check /path/to/playbook-or-project
 
 # JSON output
-apme-scan check --json .
+apme check --json .
 
 # Diagnostics: summary + top 10 slowest rules
-apme-scan check -v .
+apme check -v .
 
 # Diagnostics: full per-rule breakdown
-apme-scan check -vv .
+apme check -vv .
 
 # Format YAML files (show diff)
-apme-scan format /path/to/project
+apme format /path/to/project
 
 # Format and apply changes in place
-apme-scan format --apply /path/to/project
+apme format --apply /path/to/project
 
 # CI check mode (exit 1 if changes needed)
-apme-scan format --check /path/to/project
+apme format --check /path/to/project
 
 # Full remediate pipeline: format → idempotency check → re-scan → modernize
-apme-scan remediate /path/to/playbook-or-project
+apme remediate /path/to/playbook-or-project
 
 # AI-assisted remediation (requires Abbenay daemon)
-apme-scan remediate --ai /path/to/playbook-or-project
+apme remediate --ai /path/to/playbook-or-project
 
 # AI with auto-approve (no interactive review)
-apme-scan remediate --ai --auto-approve /path/to/playbook-or-project
+apme remediate --ai --auto-approve /path/to/playbook-or-project
 ```
 
 ### Container deployment (Podman)
@@ -112,7 +112,7 @@ containers/podman/run-cli.sh check --json .
 ### Health check
 
 ```bash
-apme-scan health-check
+apme health-check
 ```
 
 ## AI escalation
@@ -140,7 +140,7 @@ abbenay daemon start
 export APME_ABBENAY_TOKEN="your-token"
 
 # Remediate with AI
-apme-scan remediate --ai /path/to/playbook-or-project
+apme remediate --ai /path/to/playbook-or-project
 ```
 
 ### Container daemon
@@ -161,7 +161,7 @@ podman run -d --name abbenay \
   ghcr.io/redhat-developer/abbenay:latest
 
 # Point APME at the Abbenay container via gRPC TCP
-APME_ABBENAY_ADDR=localhost:50057 apme-scan remediate --ai .
+APME_ABBENAY_ADDR=localhost:50057 apme remediate --ai .
 ```
 
 ### CLI flags

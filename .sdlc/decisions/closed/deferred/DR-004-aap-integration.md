@@ -108,7 +108,7 @@ User adds to playbook: `- company.apme.apme_scan: path={{ playbook_dir }}`
 
 ### Option D: Execution Environment with APME CLI
 
-**Description**: Publish an EE image with `apme-scan` CLI baked in. Users run pre-scan as first playbook task.
+**Description**: Publish an EE image with `apme` CLI baked in. Users run pre-scan as first playbook task.
 
 **Pros**:
 - Simple conceptually

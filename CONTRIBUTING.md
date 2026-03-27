@@ -78,7 +78,7 @@ pre-commit install --hook-type commit-msg
 
 ### CLI commands (user-facing)
 
-The `apme-scan` entry point uses **`check`** to assess content and **`remediate`** to apply fixes. Engine and API layers may still use **scan** for internal pipeline concepts (for example `ScanOptions`, `scan_playbook`, `ScanResult`).
+The `apme` entry point uses **`check`** to assess content and **`remediate`** to apply fixes. Engine and API layers may still use **scan** for internal pipeline concepts (for example `ScanOptions`, `scan_playbook`, `ScanResult`).
 
 ### Verify Setup
 

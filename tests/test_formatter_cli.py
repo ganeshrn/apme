@@ -16,7 +16,7 @@ FIXTURE = REPO_ROOT / "tests" / "integration" / "test_format_playbook.yml"
 
 
 def _cli(*args: str, cwd: str | None = None) -> subprocess.CompletedProcess[str]:
-    """Run apme-scan CLI via ``python -m apme_engine.cli``.
+    """Run apme CLI via ``python -m apme_engine.cli``.
 
     Args:
         *args: CLI arguments (e.g. 'format', '--check', path).

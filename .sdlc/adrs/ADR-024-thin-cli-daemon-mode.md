@@ -57,7 +57,7 @@ path, and the local fallback accumulated until the CLI became a monolith
 
 ### Forces in tension
 
-- Developers need `apme-scan check .` to "just work" without starting a pod.
+- Developers need `apme check .` to "just work" without starting a pod.
 - The pod is the correct architecture for production and CI.
 - A web UI is on the roadmap and needs the same backend capabilities.
 - The CLI should not require Podman/Docker for local development.
@@ -108,7 +108,7 @@ for each invocation, tears them down on exit.
 **Cons**:
 - 2-5 second startup latency per invocation (spawn 4-6 processes + health
   check polling)
-- Unacceptable for iterative `apme-scan remediate .` workflows
+- Unacceptable for iterative `apme remediate .` workflows
 - Process cleanup on SIGKILL is unreliable
 
 **Why not chosen**: Startup cost makes it impractical for the primary use
@@ -303,7 +303,7 @@ no longer imported by the CLI.
 
 ## Addendum
 
-> **Note (ADR-039):** The user-facing terminology was renamed: `scan` → `check`, `fix` → `remediate`, `Scans` UI → `Activity`. Engine-internal names (`ScanChunk`, `scan_id`, `_scan_pipeline`) are unchanged. The `ScanStream` RPC was removed; `FixSession` serves both check and remediate modes. The `apme-scan` binary name is unchanged.
+> **Note (ADR-039):** The user-facing terminology was renamed: `scan` → `check`, `fix` → `remediate`, `Scans` UI → `Activity`. Engine-internal names (`ScanChunk`, `scan_id`, `_scan_pipeline`) are unchanged. The `ScanStream` RPC was removed; `FixSession` serves both check and remediate modes. The `apme` binary name is unchanged.
 
 ## References
 

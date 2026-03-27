@@ -40,11 +40,11 @@ Routing the formatter through the remediation engine would require:
 2. Inventing artificial "formatting violation" rules that don't exist today
 3. Creating a circular dependency: format needs scan, scan assumes formatted input
 
-The formatter is a **pre-condition** for the remediation engine. `apme-scan format` works without any scan infrastructure — fast, standalone, no containers needed.
+The formatter is a **pre-condition** for the remediation engine. `apme format` works without any scan infrastructure — fast, standalone, no containers needed.
 
 ## Fix Pipeline
 
-The `apme-scan remediate` command orchestrates the full pipeline:
+The `apme remediate` command orchestrates the full pipeline:
 
 ```
 Phase 1: Format
@@ -485,10 +485,10 @@ The remediation engine lives inside Primary. It reuses Primary's existing scan p
 
 ## CLI Integration
 
-### `apme-scan remediate`
+### `apme remediate`
 
 ```
-apme-scan remediate [target] [options]
+apme remediate [target] [options]
 
 Options:
   --apply              Write fixes in place (without this, show diffs only)

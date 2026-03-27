@@ -182,7 +182,7 @@ was applied. Only Tier 2+ proposals require client approval.
 
 ### --check short-circuit
 
-`remediate --check` (CLI: `apme-scan remediate --check`) short-circuits after Tier 1 summary — skips AI entirely. Exits
+`remediate --check` (CLI: `apme remediate --check`) short-circuits after Tier 1 summary — skips AI entirely. Exits
 with code 1 if changes are needed (CI gate). Runs the same session pipeline
 but sends `Close` immediately after `Tier1Summary`.
 
@@ -344,7 +344,7 @@ async for event in stub.FixSession(command_iter()):
 
 ## Addendum
 
-> **Note (ADR-039):** The user-facing terminology was renamed: `scan` → `check`, `fix` → `remediate`, `Scans` UI → `Activity`. Engine-internal names (`ScanChunk`, `scan_id`, `_scan_pipeline`) are unchanged. The `ScanStream` RPC was removed; `FixSession` serves both check and remediate modes. The `apme-scan` binary name is unchanged.
+> **Note (ADR-039):** The user-facing terminology was renamed: `scan` → `check`, `fix` → `remediate`, `Scans` UI → `Activity`. Engine-internal names (`ScanChunk`, `scan_id`, `_scan_pipeline`) are unchanged. The `ScanStream` RPC was removed; `FixSession` serves both check and remediate modes. The `apme` binary name is unchanged.
 
 ## References
 

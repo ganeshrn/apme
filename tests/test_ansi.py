@@ -645,7 +645,7 @@ class TestNoAnsiFlag:
         with (
             patch("apme_engine.cli.ansi.force_no_color") as mock_fnc,
             patch("apme_engine.cli.check.run_check"),
-            patch("sys.argv", ["apme-scan", "check", "--no-ansi", "."]),
+            patch("sys.argv", ["apme", "check", "--no-ansi", "."]),
         ):
             cli_module.main()
         mock_fnc.assert_called_once()

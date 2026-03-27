@@ -356,16 +356,16 @@ The `format` subcommand normalizes YAML files to a consistent style before seman
 
 ```bash
 # Show diffs without changing files
-apme-scan format /path/to/project
+apme format /path/to/project
 
 # Apply formatting in place
-apme-scan format --apply /path/to/project
+apme format --apply /path/to/project
 
 # CI mode: exit 1 if any file needs formatting
-apme-scan format --check /path/to/project
+apme format --check /path/to/project
 
 # Exclude patterns
-apme-scan format --apply --exclude "vendor/*" "tests/fixtures/*" .
+apme format --apply --exclude "vendor/*" "tests/fixtures/*" .
 ```
 
 ### Remediate pipeline
@@ -373,9 +373,9 @@ apme-scan format --apply --exclude "vendor/*" "tests/fixtures/*" .
 The `remediate` subcommand chains format → idempotency check → re-check → modernize:
 
 ```bash
-apme-scan remediate /path/to/project        # apply Tier 1 fixes
-apme-scan remediate --ai /path/to/project   # include AI proposals (Tier 2)
-apme-scan check --diff /path/to/project     # preview changes without applying
+apme remediate /path/to/project        # apply Tier 1 fixes
+apme remediate --ai /path/to/project   # include AI proposals (Tier 2)
+apme check --diff /path/to/project     # preview changes without applying
 ```
 
 This runs the formatter, verifies idempotency (a second format pass produces zero diffs), re-checks the project, then applies Tier 1 deterministic transforms from the transform registry in a convergence loop (check → remediate → re-check until stable). Uses the `FixSession` bidirectional streaming RPC (ADR-028, ADR-039).
@@ -405,13 +405,13 @@ Every validator collects per-rule timing data and returns it in `ValidateRespons
 
 ```bash
 # Summary: engine time, validator summaries, top 10 slowest rules
-apme-scan check -v .
+apme check -v .
 
 # Full breakdown: per-rule timing for every validator, metadata, engine phases
-apme-scan check -vv .
+apme check -vv .
 
 # JSON output includes diagnostics when -v or -vv is set
-apme-scan check -v --json .
+apme check -v --json .
 ```
 
 ### Color output
@@ -420,13 +420,13 @@ Check results use ANSI styling (summary box, severity badges, tree view). Color 
 
 ```bash
 # Disable color via environment variable (any value, including empty string)
-NO_COLOR=1 apme-scan check .
+NO_COLOR=1 apme check .
 
 # Force color in non-TTY contexts (CI pipelines)
-FORCE_COLOR=1 apme-scan check .
+FORCE_COLOR=1 apme check .
 
 # Disable color via CLI flag
-apme-scan check --no-ansi .
+apme check --no-ansi .
 ```
 
 ### Adding diagnostics to a new validator
@@ -496,7 +496,7 @@ Defined in `pyproject.toml`:
 
 | Command | Module | Purpose |
 |---------|--------|---------|
-| `apme-scan` | `apme_engine.cli:main` | CLI (check, format, remediate, health-check) |
+| `apme` | `apme_engine.cli:main` | CLI (check, format, remediate, health-check) |
 | `apme-primary` | `apme_engine.daemon.primary_main:main` | Primary daemon |
 | `apme-native-validator` | `apme_engine.daemon.native_validator_main:main` | Native validator daemon |
 | `apme-opa-validator` | `apme_engine.daemon.opa_validator_main:main` | OPA validator daemon |

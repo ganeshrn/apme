@@ -7,7 +7,7 @@ See `proto/apme/v1/validator.proto` for service definitions.
 ## CLI Interface
 
 ```bash
-apme-scan check <path> [--target-version VERSION] [--output FORMAT]
+apme check <path> [--target-version VERSION] [--output FORMAT]
 ```
 
 User-facing **check** maps to the engine’s internal scan pipeline (`ScanRequest`, `ScanResponse`, `scan_id`, etc.); names on the wire stay as in proto unless otherwise versioned.

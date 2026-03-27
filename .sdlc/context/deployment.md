@@ -66,7 +66,7 @@ The **`remediate`** command uses a **bidirectional streaming RPC** (`FixSession`
 ### Health Check
 
 ```bash
-apme-scan health-check --primary-addr 127.0.0.1:50051
+apme health-check --primary-addr 127.0.0.1:50051
 ```
 
 Reports status of all services (Primary, Native, OPA, Ansible, Gitleaks) with latency.

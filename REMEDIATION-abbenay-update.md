@@ -58,7 +58,7 @@ podman run -d --name abbenay \
   ghcr.io/redhat-developer/abbenay:latest
 
 # Point APME at the container via gRPC TCP
-apme-scan remediate --ai --abbenay-addr localhost:50051 --apply .
+apme remediate --ai --abbenay-addr localhost:50051 --apply .
 ```
 
 Also note: the pre-built image is multi-arch (amd64 + arm64), so it

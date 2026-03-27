@@ -3,7 +3,7 @@
 ## CLI Interface
 
 ```bash
-apme-scan remediate <path> [--auto] [--dry-run]
+apme remediate <path> [--auto] [--dry-run]
 ```
 
 ## Diff Format

@@ -22,7 +22,7 @@ Enterprise integration capabilities including CLI tooling, web dashboard, and AA
 
 ### CLI Tooling
 - [ ] GIVEN a local environment
-- [ ] WHEN `apme-scan check` runs
+- [ ] WHEN `apme check` runs
 - [ ] THEN results are displayed in terminal and/or saved to file
 
 ### Web Dashboard

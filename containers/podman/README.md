@@ -55,7 +55,7 @@ Run the health-check only after the pod is **Running** (not Degraded). Wait firs
 
 ```bash
 ./containers/podman/wait-for-pod.sh              # wait until pod is Running
-APME_PRIMARY_ADDRESS=127.0.0.1:50051 .venv/bin/apme-scan health-check
+APME_PRIMARY_ADDRESS=127.0.0.1:50051 .venv/bin/apme health-check
 ```
 
 Or wait and run the health-check in one step:

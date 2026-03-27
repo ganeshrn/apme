@@ -3,8 +3,8 @@
 ## CLI Interface
 
 ```bash
-apme-scan check <path>
-apme-scan remediate <path>
+apme check <path>
+apme remediate <path>
 apme dashboard [--port PORT]
 apme preflight <path> --aap-version VERSION
 ```

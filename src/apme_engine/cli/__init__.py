@@ -11,7 +11,7 @@ from apme_engine.cli.parser import build_parser
 
 
 def main() -> None:
-    """Entry point for ``apme-scan``."""
+    """Entry point for ``apme``."""
     parser = build_parser()
     args = parser.parse_args()
 

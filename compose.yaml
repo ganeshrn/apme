@@ -2,7 +2,7 @@
 # All validators implement the unified Validator gRPC service (validate.proto).
 # CLI is run on-the-fly with CWD mounted (see containers/podman/run-cli.sh for Podman).
 # Docker: docker compose build && docker compose up -d
-# Scan:    docker compose run --rm -v "$(pwd)":/workspace -w /workspace cli apme-scan scan .
+# Scan:    docker compose run --rm -v "$(pwd)":/workspace -w /workspace cli apme scan .
 
 services:
   primary:
@@ -63,7 +63,7 @@ services:
       APME_PRIMARY_ADDRESS: primary:50051
     volumes:
       - workspace:/workspace
-    entrypoint: ["apme-scan", "scan"]
+    entrypoint: ["apme", "scan"]
     command: ["."]
     profiles:
       - cli

@@ -200,7 +200,7 @@ ValidatorDiagnostics(
 )
 ```
 
-Primary aggregates all `ValidatorDiagnostics` plus engine phase timing into `ScanDiagnostics` on the `ScanResponse`. `apme-scan check` (and related clients) show diagnostics with `-v` (summary + top 10 slowest rules) or `-vv` (full per-rule breakdown).
+Primary aggregates all `ValidatorDiagnostics` plus engine phase timing into `ScanDiagnostics` on the `ScanResponse`. `apme check` (and related clients) show diagnostics with `-v` (summary + top 10 slowest rules) or `-vv` (full per-rule breakdown).
 
 ---
 

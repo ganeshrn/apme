@@ -425,10 +425,10 @@ The `preflight()` method calls the Abbenay client's `health_check()` RPC -- the 
 
 ### Health Check Extension
 
-The existing `apme-scan health-check` subcommand is extended with `--include-ai`:
+The existing `apme health-check` subcommand is extended with `--include-ai`:
 
 ```
-$ apme-scan health-check --include-ai
+$ apme health-check --include-ai
 
   primary  (localhost:50051)  ok   12ms
   native   (localhost:50055)  ok    8ms
@@ -445,7 +445,7 @@ $ apme-scan health-check --include-ai
 ### Flags
 
 ```
-apme-scan remediate [target] [options]
+apme remediate [target] [options]
 
 AI Escalation:
   --ai                 Enable AI escalation for Tier 2 violations (opt-in)

@@ -24,11 +24,11 @@ secrets are by design. **Do not run these playbooks** with
 ## Usage
 
 ```bash
-# Check all examples (binary: apme-scan)
-apme-scan check examples/
+# Check all examples (binary: apme)
+apme check examples/
 
 # Remediate what can be fixed (on a copy!)
 cp -r examples/ /tmp/examples-copy
-# Dry-run with diffs (no writes): apme-scan check --diff /tmp/examples-copy/
-apme-scan remediate /tmp/examples-copy/
+# Dry-run with diffs (no writes): apme check --diff /tmp/examples-copy/
+apme remediate /tmp/examples-copy/
 ```

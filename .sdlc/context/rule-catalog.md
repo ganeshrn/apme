@@ -223,7 +223,7 @@ This comprehensive rule catalogue outlines ninety-three individual guidelines de
 
 ## Fixer Summary
 
-Deterministic fixers (Tier 1) are auto-applied by `apme-scan remediate`. Use `apme-scan check --diff` to preview changes without applying. Rules without fixers fall to Tier 2 (AI-proposable) or Tier 3 (manual review).
+Deterministic fixers (Tier 1) are auto-applied by `apme remediate`. Use `apme check --diff` to preview changes without applying. Rules without fixers fall to Tier 2 (AI-proposable) or Tier 3 (manual review).
 
 | Rule ID | Transform |
 |---------|-----------|

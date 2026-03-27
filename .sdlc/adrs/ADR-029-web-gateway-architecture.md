@@ -376,7 +376,7 @@ engine pod. It needs:
 
 ## Addendum
 
-> **Note (ADR-039):** The user-facing terminology was renamed: `scan` → `check`, `fix` → `remediate`, `Scans` UI → `Activity`. Engine-internal names (`ScanChunk`, `scan_id`, `_scan_pipeline`) are unchanged. The `ScanStream` RPC was removed; `FixSession` serves both check and remediate modes. The `apme-scan` binary name is unchanged. REST paths such as `/api/v1/scans` may be exposed under **Activity** naming in the product (e.g. `/api/v1/activity`); the historical paths in this ADR describe the original gateway sketch.
+> **Note (ADR-039):** The user-facing terminology was renamed: `scan` → `check`, `fix` → `remediate`, `Scans` UI → `Activity`. Engine-internal names (`ScanChunk`, `scan_id`, `_scan_pipeline`) are unchanged. The `ScanStream` RPC was removed; `FixSession` serves both check and remediate modes. The `apme` binary name is unchanged. REST paths such as `/api/v1/scans` may be exposed under **Activity** naming in the product (e.g. `/api/v1/activity`); the historical paths in this ADR describe the original gateway sketch.
 
 ## References
 
