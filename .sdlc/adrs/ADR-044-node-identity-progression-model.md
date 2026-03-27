@@ -29,6 +29,8 @@ This creates a two-dimensional problem that the current architecture models in o
 
 5. **Feedback quality**: When a user reports a false positive, we cannot include "this node was formatted on pass 0, violation V detected on pass 1, transform T attempted on pass 2, violation persisted on pass 3" because that history doesn't exist.
 
+6. **Inherited property attribution**: ARI accumulates inherited properties (e.g. `become`, `variable_use`) from parent scopes (play, block) onto child tasks. Rules like R108 (privilege escalation) and L050 (variable naming) detect these inherited properties but attribute violations to the child task's start line — not to the scope where the property was defined. The result: a task with no `become:` keyword is highlighted for privilege escalation because it inherits `become` from its play; a task with no variables is flagged for variable naming because play-level vars like `MyAppVersion` are in scope. The user sees a highlighted line with no visible connection to the violation message. Without node identity and parent-child relationships, there is no way to attribute a violation to the defining scope ("inherited from play at line 3") rather than every inheriting task.
+
 ### The puzzle piece analogy
 
 Consider 100 uniquely shaped puzzle pieces handed to 100 people who each make a change and document the color. At any point the puzzle can be reassembled. When everyone is done, every piece has a history of progression. The puzzle's integrity is preserved because identity is intrinsic to each piece, not derived from its position.
@@ -41,6 +43,7 @@ APME's current model is: disassemble the puzzle, throw away all the pieces, rebu
 - User-facing features (snippets, feedback, audit trails) need temporal context
 - The formatter, scan engine, and remediation engine should share one model, not three
 - ARI's parsing and hierarchy logic is valuable; its stateless snapshot model is not
+- Inherited properties (become, vars) must be attributable to their defining scope, not every inheriting child
 
 ## Decision
 
@@ -56,7 +59,9 @@ Each meaningful unit of Ansible content (task, play, block, role reference, vari
 
 **Progression**: An ordered sequence of `NodeState` entries for a single `NodeIdentity`, representing how that node evolved through the pipeline.
 
-**ContentGraph**: The top-level container — a graph of identified nodes with their progressions. Replaces the current pattern of disconnected ARI tree + StructuredFile + file bytes.
+**ContentGraph**: The top-level container — a graph of identified nodes with their progressions and parent-child relationships. Replaces the current pattern of disconnected ARI tree + StructuredFile + file bytes.
+
+**PropertyOrigin**: When a node carries an inherited property (e.g. `become`, variables), the graph tracks the `NodeIdentity` of the defining scope. Violations on inherited properties reference both the affected task and the origin node, enabling messages like "Privilege escalation inherited from play at site.yml:3" rather than attributing to the task's own line.
 
 ### Pipeline with progression
 
@@ -155,6 +160,7 @@ This preserves ARI's valuable parsing logic while decoupling APME from ARI's sta
 - Feedback issues include full node progression (original → formatted → scanned → transformed)
 - Single model serves parsing, validation, remediation, and reporting
 - Formatter changes become trackable events, not invisible preprocessing
+- Inherited property violations reference their defining scope, not every inheriting child
 
 ### Negative
 
