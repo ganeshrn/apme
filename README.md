@@ -18,7 +18,7 @@ Ansible Policy & Modernization Engine — a multi-validator static analysis plat
 
 ## What APME is
 
-APME is a **static and semi-static analysis tool** for Ansible content. It reads your YAML, reasons about structure and module usage, and reports what it finds — without ever executing a playbook or connecting to a target host.
+APME is a **static and semi-static analysis tool** for Ansible content. It reads your YAML, reasons about structure and module usage, and reports what it finds — without running tasks or executing against target hosts.
 
 It answers questions like:
 
