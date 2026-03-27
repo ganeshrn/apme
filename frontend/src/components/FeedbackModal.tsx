@@ -23,6 +23,7 @@ export interface FeedbackPayload {
     violation_message: string;
     ai_proposal_diff: string;
     ai_explanation: string;
+    source_snippet: string;
   };
   user_comment: string;
 }
@@ -57,7 +58,7 @@ export function FeedbackModal({ isOpen, onClose, prefill, gatewayUrl = '' }: Fee
         source: prefill?.source ?? '',
         file: prefill?.file ?? '',
         scan_id: prefill?.scan_id ?? '',
-        context: prefill?.context ?? { violation_message: '', ai_proposal_diff: '', ai_explanation: '' },
+        context: prefill?.context ?? { violation_message: '', ai_proposal_diff: '', ai_explanation: '', source_snippet: '' },
         user_comment: comment,
       };
       const resp = await fetch(`${gatewayUrl}/api/v1/feedback`, {

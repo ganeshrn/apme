@@ -51,3 +51,4 @@ apme-cache/
 # OS
 .DS_Store
 Thumbs.db
+dependencies-output.json

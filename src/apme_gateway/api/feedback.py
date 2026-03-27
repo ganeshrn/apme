@@ -26,11 +26,13 @@ class FeedbackContext(BaseModel):  # type: ignore[misc]
         violation_message: Message from the violation.
         ai_proposal_diff: Diff from the AI proposal.
         ai_explanation: Explanation from the AI proposal.
+        source_snippet: Source lines around the violation.
     """
 
     violation_message: str = ""
     ai_proposal_diff: str = ""
     ai_explanation: str = ""
+    source_snippet: str = ""
 
 
 class FeedbackRequest(BaseModel):  # type: ignore[misc]
@@ -105,6 +107,8 @@ def _build_issue_body(req: FeedbackRequest) -> str:
         body += f"\n\n## Violation Message\n\n{ctx.violation_message}"
     if ctx.ai_explanation:
         body += f"\n\n## AI Explanation\n\n{ctx.ai_explanation}"
+    if ctx.source_snippet:
+        body += f"\n\n## Source Context\n\n```yaml\n{ctx.source_snippet}\n```"
     if ctx.ai_proposal_diff:
         body += f"\n\n## AI Proposed Diff\n\n```diff\n{ctx.ai_proposal_diff}\n```"
 

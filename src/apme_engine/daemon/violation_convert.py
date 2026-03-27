@@ -19,6 +19,7 @@ _COMMON_KEYS = frozenset(
         "remediation_resolution",
         "scope",
         "source",
+        "snippet",
     }
 )
 
@@ -140,6 +141,7 @@ def violation_dict_to_proto(v: ViolationDict | Mapping[str, str | int | list[int
         remediation_resolution=resolution_proto,
         scope=scope_proto,
         source=str(v.get("source") or ""),
+        snippet=str(v.get("snippet") or ""),
     )
     line = v.get("line")
     if isinstance(line, list | tuple) and len(line) >= 2:
@@ -204,6 +206,7 @@ def violation_proto_to_dict(v: Violation) -> ViolationDict:
         "remediation_resolution": resolution,
         "scope": scope,
         "source": v.source,
+        "snippet": v.snippet,
     }
 
     for key, val in v.metadata.items():

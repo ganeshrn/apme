@@ -71,6 +71,7 @@ class ViolationDetail(BaseModel):  # type: ignore[misc]
         remediation_class: Numeric remediation tier.
         scope: Numeric rule scope.
         validator_source: Validator that produced this (native, opa, ansible, gitleaks).
+        snippet: Source lines around the violation with line numbers.
     """
 
     id: int
@@ -83,6 +84,7 @@ class ViolationDetail(BaseModel):  # type: ignore[misc]
     remediation_class: int
     scope: int
     validator_source: str = ""
+    snippet: str = ""
 
 
 class ProposalDetail(BaseModel):  # type: ignore[misc]

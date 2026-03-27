@@ -31,6 +31,7 @@ export interface ViolationRecord {
   path: string;
   remediation_class: number;
   validator_source?: string;
+  snippet?: string;
 }
 
 interface ViolationDetailModalProps {
@@ -137,14 +138,21 @@ export function ViolationDetailModal({ isOpen, onClose, violation, diff, getRule
               </PageDetails>
             )}
           </Tab>
+          {violation.snippet ? (
+            <Tab eventKey={1} title={<TabTitleText>Source</TabTitleText>} aria-label="Source tab">
+              <div className="apme-modal-diff">
+                <pre style={{ margin: 0, fontSize: '0.85em', lineHeight: 1.5 }}>{violation.snippet}</pre>
+              </div>
+            </Tab>
+          ) : null}
           {diff ? (
-            <Tab eventKey={1} title={<TabTitleText>Diff</TabTitleText>} aria-label="Diff tab">
+            <Tab eventKey={violation.snippet ? 2 : 1} title={<TabTitleText>Diff</TabTitleText>} aria-label="Diff tab">
               <div className="apme-modal-diff">
                 <DiffView diff={diff} />
               </div>
             </Tab>
           ) : null}
-          <Tab eventKey={diff ? 2 : 1} title={<TabTitleText>Data</TabTitleText>} aria-label="Data tab">
+          <Tab eventKey={(violation.snippet ? 1 : 0) + (diff ? 1 : 0) + 1} title={<TabTitleText>Data</TabTitleText>} aria-label="Data tab">
             <div className="apme-modal-diff">
               <pre>{JSON.stringify(isCombinedFixed ? mergedViolations : violation, null, 2)}</pre>
             </div>
@@ -169,6 +177,7 @@ export function ViolationDetailModal({ isOpen, onClose, violation, diff, getRule
             violation_message: violation.message,
             ai_proposal_diff: diff ?? '',
             ai_explanation: '',
+            source_snippet: violation.snippet ?? '',
           },
         } satisfies Partial<FeedbackPayload>}
       />

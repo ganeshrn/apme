@@ -249,6 +249,7 @@ export function ProposalReviewPanel({
               violation_message: '',
               ai_proposal_diff: feedbackTarget.diff_hunk ?? '',
               ai_explanation: feedbackTarget.explanation ?? '',
+              source_snippet: '',
             },
           } satisfies Partial<FeedbackPayload>}
         />

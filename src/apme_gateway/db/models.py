@@ -143,6 +143,7 @@ class Violation(Base):
         remediation_class: Numeric remediation tier.
         scope: Numeric rule scope.
         validator_source: Validator that produced this violation (native, opa, ansible, gitleaks).
+        snippet: Source lines around the violation with line numbers.
         scan: Back-reference to owning Scan.
     """
 
@@ -159,6 +160,7 @@ class Violation(Base):
     remediation_class: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     scope: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     validator_source: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    snippet: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
     scan: Mapped[Scan] = relationship(back_populates="violations")
 

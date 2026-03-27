@@ -144,6 +144,46 @@ def _deduplicate_violations(violations: list[ViolationDict]) -> list[ViolationDi
     return out
 
 
+_SNIPPET_CONTEXT_LINES = 10
+
+
+def _attach_snippets(violations: list[ViolationDict], files: list[File]) -> None:
+    """Attach source snippet to each violation from the scanned file content.
+
+    Extracts lines around the violation's line number (10 before, 10 after)
+    and stores them as a ``snippet`` key on the violation dict.
+
+    Args:
+        violations: Violation dicts to enrich (mutated in place).
+        files: File protos with path and content from the scan.
+    """
+    file_lines: dict[str, list[str]] = {}
+    for f in files:
+        try:
+            file_lines[f.path] = f.content.decode("utf-8", errors="replace").splitlines()
+        except Exception:  # noqa: BLE001
+            continue
+
+    for v in violations:
+        fpath = str(v.get("file", ""))
+        lines = file_lines.get(fpath)
+        if not lines:
+            continue
+        raw_line = v.get("line")
+        if isinstance(raw_line, list | tuple):
+            line_no = int(raw_line[0]) if raw_line else 0
+        elif isinstance(raw_line, int):
+            line_no = raw_line
+        else:
+            continue
+        if line_no < 1:
+            continue
+        start = max(0, line_no - 1 - _SNIPPET_CONTEXT_LINES)
+        end = min(len(lines), line_no + _SNIPPET_CONTEXT_LINES)
+        numbered = [f"{i + 1:>4}: {lines[i]}" for i in range(start, end)]
+        v["snippet"] = "\n".join(numbered)
+
+
 def _normalize_scandata_contexts(scandata: object) -> None:
     """Ensure scandata.contexts is a list of AnsibleRunContext (mutates in place).
 
@@ -620,6 +660,7 @@ class PrimaryServicer(primary_pb2_grpc.PrimaryServicer):
             logger.info("Fan-out: done (%.0fms) %s Total=%d (req=%s)", fan_out_ms, parts, len(violations), scan_id)
 
         violations = _deduplicate_violations(_sort_violations(violations))
+        _attach_snippets(violations, files)
 
         total_ms = (time.monotonic() - scan_t0) * 1000
         ediag = context_obj.engine_diagnostics

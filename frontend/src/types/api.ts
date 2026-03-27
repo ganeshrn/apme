@@ -8,6 +8,8 @@ export interface ViolationDetail {
   path: string;
   remediation_class: number;
   scope: number;
+  validator_source?: string;
+  snippet?: string;
 }
 
 export interface LogEntry {

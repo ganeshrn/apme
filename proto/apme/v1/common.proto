@@ -55,6 +55,7 @@ message Violation {
   map<string, string> metadata = 10;
   RuleScope scope = 11;
   string source = 12;  // Validator that produced this violation (e.g. "native", "opa", "ansible", "gitleaks")
+  string snippet = 13; // Source lines around the violation (numbered, ~10 lines context)
 }
 
 message LineRange {
