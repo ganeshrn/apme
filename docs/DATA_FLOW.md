@@ -310,6 +310,6 @@ When running without the Podman pod, the CLI connects to a local daemon via `ens
 2. If a daemon is already running (`~/.apme-data/daemon.json`), the CLI reuses it
 3. Otherwise, the CLI auto-starts a background daemon (`apme daemon start`)
 
-The local daemon runs Primary, Native, OPA, and Ansible validators plus the Galaxy Proxy as localhost gRPC servers in a single background process. The CLI always communicates via gRPC — it never runs the engine in-process.
+The local daemon runs the Primary, Native, OPA, and Ansible validators as localhost gRPC servers, and the Galaxy Proxy as a localhost HTTP (uvicorn) server, all within a single background process. These five services are all required — Galaxy Proxy is the sole collection installation path for session venvs. The CLI always talks to the Primary service over gRPC; it never runs the engine in-process or communicates with Galaxy Proxy directly.
 
-Ansible and Gitleaks validators are optional and not started by default (they require external binaries or pre-built venvs). Pass `include_optional=True` to `start_daemon()` to enable them.
+Gitleaks is the only optional service (requires the `gitleaks` binary). Pass `include_optional=True` to `start_daemon()` to enable it.

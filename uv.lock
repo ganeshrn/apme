@@ -70,6 +70,7 @@ name = "apme-engine"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "fastapi" },
     { name = "filelock" },
     { name = "grpcio" },
     { name = "grpcio-health-checking" },
@@ -80,6 +81,7 @@ dependencies = [
     { name = "pyyaml" },
     { name = "rapidfuzz" },
     { name = "ruamel-yaml" },
+    { name = "uvicorn", extra = ["standard"] },
 ]
 
 [package.optional-dependencies]
@@ -102,22 +104,15 @@ dev = [
 ]
 gateway = [
     { name = "aiosqlite" },
-    { name = "fastapi" },
     { name = "python-multipart" },
     { name = "sqlalchemy" },
-    { name = "uvicorn", extra = ["standard"] },
-]
-proxy = [
-    { name = "fastapi" },
-    { name = "uvicorn", extra = ["standard"] },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "abbenay-client", marker = "extra == 'ai'", url = "https://github.com/redhat-developer/abbenay/releases/download/v2026.3.8-alpha/abbenay_client-2026.3.8a0-py3-none-any.whl" },
     { name = "aiosqlite", marker = "extra == 'gateway'", specifier = ">=0.20" },
-    { name = "fastapi", marker = "extra == 'gateway'", specifier = ">=0.100" },
-    { name = "fastapi", marker = "extra == 'proxy'", specifier = ">=0.100" },
+    { name = "fastapi", specifier = ">=0.100" },
     { name = "filelock" },
     { name = "grpc-stubs", marker = "extra == 'dev'" },
     { name = "grpcio", specifier = ">=1.78.0" },
@@ -142,8 +137,7 @@ requires-dist = [
     { name = "sqlalchemy", marker = "extra == 'gateway'", specifier = ">=2.0" },
     { name = "types-protobuf", marker = "extra == 'dev'" },
     { name = "types-pyyaml", marker = "extra == 'dev'" },
-    { name = "uvicorn", extras = ["standard"], marker = "extra == 'gateway'", specifier = ">=0.20" },
-    { name = "uvicorn", extras = ["standard"], marker = "extra == 'proxy'", specifier = ">=0.20" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.20" },
 ]
 provides-extras = ["ai", "proxy", "gateway", "dev"]
 

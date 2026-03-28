@@ -71,7 +71,17 @@ one needs to change, write an ADR first.
     New sinks must be gRPC and pod-local — protocol translation to external
     systems (message buses, webhooks, third-party APIs) belongs in the Gateway.
 
-12. **Built-in validator bundles are closed** (ADR-042). No volume-mounted rules,
+12. **Engine-core services are required, not optional.** The engine runtime
+    comprises Primary, Native, OPA, Ansible, and Galaxy Proxy. All five are
+    required for both the CLI daemon and the Podman pod — their dependencies
+    belong in core `dependencies` (not optional extras), and they live in
+    `_DEFAULT_PORTS`. Galaxy Proxy is the sole collection installation path
+    for session venvs; the daemon cannot scan without it. Only Gitleaks is
+    truly optional (`_OPTIONAL_SERVICES`) because it requires an external
+    binary. Gateway, UI, and Abbenay are pod-level / enterprise services
+    that the CLI daemon does not start.
+
+13. **Built-in validator bundles are closed** (ADR-042). No volume-mounted rules,
     no configurable rule directories, no external Rego files injected into the
     OPA bundle, no custom Python rule classes loaded into Native. The built-in
     rule set ships with the image and is the only rule set the built-in

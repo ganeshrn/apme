@@ -20,19 +20,16 @@ dependencies = [
     "grpcio-health-checking>=1.78.0",
     "protobuf>=6.31.1,<7",
     "httpx",
+    "fastapi>=0.100",
+    "uvicorn[standard]>=0.20",
 ]
 
 [project.optional-dependencies]
 ai = [
     "abbenay-client @ https://github.com/redhat-developer/abbenay/releases/download/v2026.3.8-alpha/abbenay_client-2026.3.8a0-py3-none-any.whl#sha256=b4badd60cac70a12624febe02b791110f1bb1f7da872f10ff3992304496ae306",
 ]
-proxy = [
-    "fastapi>=0.100",
-    "uvicorn[standard]>=0.20",
-]
+proxy = []  # Deprecated: fastapi/uvicorn are now core deps. Kept for backwards compat.
 gateway = [
-    "fastapi>=0.100",
-    "uvicorn[standard]>=0.20",
     "sqlalchemy>=2.0",
     "aiosqlite>=0.20",
     "python-multipart>=0.0.6",
