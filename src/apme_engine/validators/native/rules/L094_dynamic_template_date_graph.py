@@ -55,21 +55,24 @@ class DynamicTemplateDateGraphRule(GraphRule):
     def match(self, graph: ContentGraph, node_id: str) -> bool:
         """Match task or handler nodes using a template module.
 
+        Checks ``resolved_module_name`` first, falling back to the declared
+        ``module`` name when resolution is unavailable.
+
         Args:
             graph: The full ContentGraph.
             node_id: ID of the node to check.
 
         Returns:
-            True when the node is a task or handler and ``resolved_module_name`` is a
-            known template module.
+            True when the node is a task or handler whose resolved or declared
+            module name is a known template module.
         """
         node = graph.get_node(node_id)
         if node is None:
             return False
         if node.node_type not in _TASK_TYPES:
             return False
-        resolved = getattr(node, "resolved_module_name", "") or ""
-        return resolved in TEMPLATE_MODULES
+        mod = (getattr(node, "resolved_module_name", "") or "") or (getattr(node, "module", "") or "")
+        return mod in TEMPLATE_MODULES
 
     def process(self, graph: ContentGraph, node_id: str) -> GraphRuleResult | None:
         """Check for dynamic date expressions in template tasks.
@@ -85,8 +88,8 @@ class DynamicTemplateDateGraphRule(GraphRule):
         node = graph.get_node(node_id)
         if node is None:
             return None
-        resolved = getattr(node, "resolved_module_name", "") or ""
-        if resolved not in TEMPLATE_MODULES:
+        mod = (getattr(node, "resolved_module_name", "") or "") or (getattr(node, "module", "") or "")
+        if mod not in TEMPLATE_MODULES:
             return GraphRuleResult(
                 verdict=False,
                 node_id=node_id,

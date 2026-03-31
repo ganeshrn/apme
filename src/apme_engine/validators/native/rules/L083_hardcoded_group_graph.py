@@ -68,7 +68,7 @@ class HardcodedGroupGraphRule(GraphRule):
         if node is None:
             return None
         filepath = node.file_path or ""
-        if "/roles/" not in filepath:
+        if "/roles/" not in filepath and not filepath.startswith("roles/"):
             return GraphRuleResult(
                 verdict=False,
                 node_id=node_id,

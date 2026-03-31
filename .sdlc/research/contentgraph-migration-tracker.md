@@ -13,7 +13,7 @@
 | Remaining | 32 |
 | Migration % | 66.7% |
 
-## Ported Rules (47)
+## Ported Rules (64)
 
 ### Phase 2A — Scanner bootstrap + R108 (PR #138)
 

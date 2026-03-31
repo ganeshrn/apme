@@ -13,22 +13,33 @@ _TASK_TYPES = frozenset({NodeType.TASK, NodeType.HANDLER})
 
 
 def _top_level_keys_from_yaml(yaml_lines: str) -> list[str]:
-    """Return top-level task keys in source order.
+    """Return top-level task mapping keys in source order.
+
+    Only keys at the task mapping indent level are returned; nested
+    module-argument keys (deeper indentation) are skipped.
 
     Args:
         yaml_lines: Raw YAML lines of the task.
 
     Returns:
-        List of top-level keys in source order.
+        List of top-level task keys in source order.
     """
     keys: list[str] = []
+    key_indent: int | None = None
     for line in yaml_lines.splitlines():
         stripped = line.lstrip()
         if not stripped or stripped.startswith("#"):
             continue
-        if stripped.startswith("- "):
-            stripped = stripped[2:].lstrip()
-        match = re.match(r"^(\w+)\s*:", stripped)
+        indent = len(line) - len(stripped)
+        content = stripped
+        if content.startswith("- ") and key_indent is None:
+            content = content[2:].lstrip()
+            key_indent = indent + 2
+        elif key_indent is None:
+            key_indent = indent
+        elif indent != key_indent:
+            continue
+        match = re.match(r"^([\w.]+)\s*:", content)
         if match:
             keys.append(match.group(1))
     return keys
