@@ -45,6 +45,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from google.protobuf.json_format import MessageToDict
 
 from apme.v1 import primary_pb2_grpc
+from apme.v1.common_pb2 import GalaxyServerDef
 from apme.v1.primary_pb2 import (
     ApprovalRequest,
     CloseRequest,
@@ -442,12 +443,16 @@ async def handle_session(
         resume_scan_id: Original scan_id for the session being resumed,
             so event forwarding preserves scan-based links.
     """
+    from apme_gateway._galaxy_inject import load_galaxy_server_defs  # noqa: PLC0415
+
     temp_dir: Path | None = None
+    galaxy_servers: list[GalaxyServerDef] = []
     try:
         if resume_session_id:
             scan_id = resume_scan_id or resume_session_id
             logger.info("Resuming session %s (scan_id=%s)", resume_session_id, scan_id)
         else:
+            galaxy_servers = await load_galaxy_server_defs()
             temp_dir = Path(tempfile.mkdtemp(prefix="apme-gw-session-"))
             options = await _collect_uploads(ws, temp_dir)
 
@@ -481,6 +486,7 @@ async def handle_session(
                         project_root_name="upload",
                         ansible_core_version=ansible_version or None,
                         collection_specs=collections or None,
+                        galaxy_servers=galaxy_servers or None,
                     )
                     first_chunk = next(chunk_iter, None)
                     if first_chunk is None:
@@ -490,6 +496,7 @@ async def handle_session(
                         collection_specs=collections or [],
                         enable_ai=enable_ai,
                         ai_model=ai_model,
+                        galaxy_servers=galaxy_servers or [],
                     )
                     first_chunk.fix_options.CopyFrom(fix_opts)  # type: ignore[union-attr]
                     yield first_chunk
