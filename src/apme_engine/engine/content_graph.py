@@ -350,6 +350,7 @@ class ContentGraph:
             "version": 1,
             "nodes": nodes,
             "edges": edges,
+            "execution_edges": self.execution_edges(),
         }
 
     @classmethod
@@ -667,6 +668,74 @@ class ContentGraph:
         """
         return bool(nx.is_directed_acyclic_graph(self.g))
 
+    # -- Execution-order view -----------------------------------------------
+
+    def execution_edges(self) -> list[dict[str, str]]:
+        """Compute the execution-order edge list for the graph.
+
+        All positional edges (CONTAINS, INCLUDE, IMPORT) are treated
+        uniformly as parent-to-child relationships for execution flow.
+        This ensures ``import_playbook`` entries are threaded inline at
+        their declared position alongside regular plays, and
+        ``include_tasks``/``import_tasks`` targets appear as children of
+        the including task node.
+
+        Returns:
+            List of ``{"source": src_id, "target": tgt_id}`` dicts
+            representing execution flow transitions.  The list order
+            is deterministic (parents sorted lexicographically) but is
+            not itself a global topological ordering — each edge
+            encodes a local flow dependency.
+        """
+        children_by_parent: dict[str, list[tuple[str, int]]] = {}
+
+        # Rescue/always children are wired with both a CONTAINS edge and
+        # a RESCUE/ALWAYS edge.  Collect those pairs so we can exclude
+        # the CONTAINS edge from the mainline execution chain.
+        rescue_always_pairs: set[tuple[str, str]] = set()
+        for src, tgt, data in self.g.edges(data=True):
+            if data.get("edge_type") in (EdgeType.RESCUE.value, EdgeType.ALWAYS.value):
+                rescue_always_pairs.add((src, tgt))
+
+        for src, tgt, data in self.g.edges(data=True):
+            etype = data.get("edge_type", "")
+            if etype in (
+                EdgeType.CONTAINS.value,
+                EdgeType.INCLUDE.value,
+                EdgeType.IMPORT.value,
+            ):
+                if etype == EdgeType.CONTAINS.value and (src, tgt) in rescue_always_pairs:
+                    continue
+                pos = data.get("position", 0)
+                children_by_parent.setdefault(src, []).append((tgt, pos))
+
+        for children in children_by_parent.values():
+            children.sort(key=lambda t: t[1])
+
+        def last_exit(node_id: str, visited: set[str] | None = None) -> str:
+            if visited is None:
+                visited = set()
+            if node_id in visited:
+                return node_id
+            visited.add(node_id)
+            ch = children_by_parent.get(node_id)
+            if not ch:
+                return node_id
+            return last_exit(ch[-1][0], visited)
+
+        edges: list[dict[str, str]] = []
+
+        for parent_id in sorted(children_by_parent):
+            children = children_by_parent[parent_id]
+            if not children:
+                continue
+            edges.append({"source": parent_id, "target": children[0][0]})
+            for i in range(len(children) - 1):
+                exit_node = last_exit(children[i][0])
+                edges.append({"source": exit_node, "target": children[i + 1][0]})
+
+        return edges
+
 
 # ---------------------------------------------------------------------------
 # Node serialization helpers (ADR-044 Phase 2)
@@ -720,13 +789,16 @@ def _node_to_dict(node: ContentNode) -> dict[str, object]:
         node: ContentNode to serialize.
 
     Returns:
-        Dict with identity, scope, and all content fields.
+        Dict with identity, scope, and all content fields.  ``node_type``
+        is promoted to a top-level convenience field alongside the full
+        ``identity`` dict.
     """
     d: dict[str, object] = {
         "identity": {
             "path": node.identity.path,
             "node_type": node.identity.node_type.value,
         },
+        "node_type": node.identity.node_type.value,
         "scope": node.scope.value,
     }
     for fname in _CONTENT_NODE_SIMPLE_FIELDS:

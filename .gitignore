@@ -51,6 +51,9 @@ apme-cache/
 # Planning (local-only, not committed)
 .planning/
 
+# Generated artifacts
+graph.html
+
 # OS
 .DS_Store
 Thumbs.db

@@ -65,6 +65,13 @@ directly. Every task maps to a `tox -e <env>` command.
 |-------------|-------------|-------------|
 | `tox -e grpc` | `scripts/gen_grpc.sh` | After modifying any `.proto` file. |
 
+### Developer tools
+
+| Environment | What it runs | When to use |
+|-------------|-------------|-------------|
+| `tox -e graph` | `tools/visualize_graph.py` | Visualize a project's ContentGraph as interactive HTML. |
+| `tox -e graph -- path/to/project` | Visualize a specific project | Inspect execution flow of any Ansible content. |
+
 ### Pod lifecycle
 
 | Environment | What it runs | When to use |

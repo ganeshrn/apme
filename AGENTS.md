@@ -335,6 +335,8 @@ src/
 │   └── venv_manager/             # Session-scoped venvs
 ├── apme_gateway/                 # FastAPI REST + SQLAlchemy DB + Reporting gRPC server
 └── galaxy_proxy/                 # PEP 503 proxy (Galaxy → wheels)
+tools/
+└── visualize_graph.py            # ContentGraph HTML visualizer (tox -e graph)
 ```
 
 ## Project Skills

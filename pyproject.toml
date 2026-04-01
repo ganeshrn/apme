@@ -101,6 +101,7 @@ ignore-var-parameters = true
 
 [tool.ruff.lint.per-file-ignores]
 "src/apme_engine/engine/annotators/ansible.builtin/*.py" = ["E501"]
+"tools/*.py" = ["E501"]
 
 [tool.mypy]
 strict = true
