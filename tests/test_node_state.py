@@ -7,6 +7,7 @@ import json
 import pytest
 
 from apme_engine.engine.content_graph import (
+    ContentGraph,
     ContentNode,
     NodeIdentity,
     NodeState,
@@ -428,3 +429,177 @@ class TestNodeStateSerialization:
         }
         ns = _node_state_from_dict(d)
         assert ns.violations == ("L007", "R108")
+
+
+# ---------------------------------------------------------------------------
+# ContentGraph.apply_transform
+# ---------------------------------------------------------------------------
+
+_TASK_YAML_SHORT = """\
+- name: Install nginx
+  apt:
+    name: nginx
+    state: present
+"""
+
+
+class TestApplyTransform:
+    """Tests for ``ContentGraph.apply_transform``."""
+
+    def _build_graph(self) -> tuple[ContentGraph, str]:
+        graph = ContentGraph()
+        node = _make_task(yaml_lines=_TASK_YAML_SHORT)
+        node.module = "apt"
+        graph.add_node(node)
+        return graph, node.node_id
+
+    def test_transform_applied(self) -> None:
+        """A transform that modifies the CommentedMap updates yaml_lines and typed fields."""
+
+        def rename_to_fqcn(task, violation):  # type: ignore[no-untyped-def]
+            from apme_engine.remediation.transforms._helpers import get_module_key, rename_key
+
+            mk = get_module_key(task)
+            if mk == "apt":
+                rename_key(task, mk, "ansible.builtin.apt")
+                return True
+            return False
+
+        graph, nid = self._build_graph()
+        applied = graph.apply_transform(nid, rename_to_fqcn, {})
+        assert applied is True
+
+        node = graph.get_node(nid)
+        assert node is not None
+        assert node.module == "ansible.builtin.apt"
+        assert "ansible.builtin.apt" in node.yaml_lines
+        assert "apt:" not in node.yaml_lines or "ansible.builtin.apt" in node.yaml_lines
+
+    def test_noop_transform(self) -> None:
+        """A transform returning False leaves the node unchanged."""
+
+        def noop(task, violation):  # type: ignore[no-untyped-def]
+            return False
+
+        graph, nid = self._build_graph()
+        original_yaml = graph.get_node(nid).yaml_lines  # type: ignore[union-attr]
+        applied = graph.apply_transform(nid, noop, {})
+        assert applied is False
+        assert graph.get_node(nid).yaml_lines == original_yaml  # type: ignore[union-attr]
+
+    def test_dirty_tracking(self) -> None:
+        """Applying a transform marks the node as dirty."""
+
+        def always_change(task, violation):  # type: ignore[no-untyped-def]
+            task["tags"] = ["changed"]
+            return True
+
+        graph, nid = self._build_graph()
+        assert graph.dirty_nodes == frozenset()
+        graph.apply_transform(nid, always_change, {})
+        assert nid in graph.dirty_nodes
+
+    def test_clear_dirty(self) -> None:
+        """clear_dirty resets the dirty set."""
+
+        def always_change(task, violation):  # type: ignore[no-untyped-def]
+            task["tags"] = ["changed"]
+            return True
+
+        graph, nid = self._build_graph()
+        graph.apply_transform(nid, always_change, {})
+        assert len(graph.dirty_nodes) == 1
+        graph.clear_dirty()
+        assert graph.dirty_nodes == frozenset()
+
+    def test_no_document_marker(self) -> None:
+        """Serialized yaml_lines must not contain a '---' document marker."""
+
+        def add_tag(task, violation):  # type: ignore[no-untyped-def]
+            task["tags"] = ["test"]
+            return True
+
+        graph, nid = self._build_graph()
+        graph.apply_transform(nid, add_tag, {})
+        node = graph.get_node(nid)
+        assert node is not None
+        assert not node.yaml_lines.startswith("---")
+
+    def test_nonexistent_node(self) -> None:
+        """Applying to a missing node returns False."""
+        graph = ContentGraph()
+        applied = graph.apply_transform("nonexistent", lambda t, v: True, {})
+        assert applied is False
+
+    def test_progression_integration(self) -> None:
+        """apply_transform + record_state produces correct progression."""
+
+        def add_tag(task, violation):  # type: ignore[no-untyped-def]
+            task["tags"] = ["added"]
+            return True
+
+        graph, nid = self._build_graph()
+        node = graph.get_node(nid)
+        assert node is not None
+        node.record_state(0, "scanned", ("L026",))
+        graph.apply_transform(nid, add_tag, {})
+        node.record_state(0, "transformed")
+
+        assert len(node.progression) == 2
+        assert node.progression[0].phase == "scanned"
+        assert node.progression[0].violations == ("L026",)
+        assert node.progression[1].phase == "transformed"
+        assert "added" in node.progression[1].yaml_lines
+
+
+# ---------------------------------------------------------------------------
+# TransformRegistry NodeTransformFn
+# ---------------------------------------------------------------------------
+
+
+class TestRegistryNodeTransform:
+    """Tests for NodeTransformFn support in TransformRegistry."""
+
+    def test_register_node_transform(self) -> None:
+        """Node transforms are registered and discoverable."""
+        from apme_engine.remediation.registry import TransformRegistry
+
+        reg = TransformRegistry()
+        reg.register("TEST001", node=lambda t, v: True)
+        assert "TEST001" in reg
+        assert reg.get_node_transform("TEST001") is not None
+
+    def test_apply_node(self) -> None:
+        """apply_node calls the node transform directly."""
+        from ruamel.yaml.comments import CommentedMap
+
+        from apme_engine.remediation.registry import TransformRegistry
+
+        reg = TransformRegistry()
+        reg.register("TEST001", node=lambda t, v: True)
+
+        task = CommentedMap({"name": "test", "ansible.builtin.debug": {"msg": "hi"}})
+        assert reg.apply_node("TEST001", task, {}) is True
+
+    def test_apply_node_missing(self) -> None:
+        """apply_node returns False for unregistered rule."""
+        from ruamel.yaml.comments import CommentedMap
+
+        from apme_engine.remediation.registry import TransformRegistry
+
+        reg = TransformRegistry()
+        task = CommentedMap({"name": "test"})
+        assert reg.apply_node("NOPE", task, {}) is False
+
+    def test_rule_ids_includes_node(self) -> None:
+        """rule_ids includes node-registered rules."""
+        from apme_engine.remediation.registry import TransformRegistry
+
+        reg = TransformRegistry()
+        reg.register("A001", node=lambda t, v: True)
+        from apme_engine.remediation.registry import TransformResult
+
+        reg.register("B001", fn=lambda c, v: TransformResult("", False))
+        assert "A001" in reg.rule_ids
+        assert "B001" in reg.rule_ids
+        assert len(reg) == 2

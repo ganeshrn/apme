@@ -195,21 +195,33 @@ for nodes above it in the same file.
 
 ## Implementation Plan
 
-### PR 1: NodeState data model + update_from_yaml
+### PR 1: NodeState data model + update_from_yaml — MERGED (#194)
 
-- `NodeState` dataclass
+- `NodeState` frozen dataclass with pass_number, phase, yaml_lines,
+  content_hash, violations, timestamp
 - `state` and `progression` fields on `ContentNode`
 - `ContentNode.record_state()` and `ContentNode.update_from_yaml()`
+- `_apply_parsed_fields()` rebuilds node.options and normalizes
+  non-dict module_options to `{"_raw": value}`
+- `_node_from_dict()` reconciles state/progression (progression is
+  source of truth, state == progression[-1])
 - Serialization in `to_dict()` / `from_dict()`
-- Unit tests
+- 35 unit tests (29 original + 6 from Copilot review)
 
-### PR 2: Node-level transform contract + migration
+### PR 2: Node-level transform contract + migration — IN REVIEW (#195)
 
 - `NodeTransformFn = Callable[[CommentedMap, ViolationDict], bool]`
-- `ContentGraph.apply_transform()` with CommentedMap tagging
-- Migrate all 20 transforms to new signature
-- Backward-compat wrappers for transition
-- Transform unit tests updated
+- `TransformRegistry` gains `_node` dict, `register(node=...)`,
+  `apply_node()`, `get_node_transform()`
+- `ContentGraph.apply_transform()` — ephemeral CommentedMap lifecycle:
+  parse yaml_lines → transform → serialize (explicit_start=False) →
+  update_from_yaml()
+- `ContentGraph.dirty_nodes` / `clear_dirty()` for convergence tracking
+- All 17 structured transforms migrated to `(task: CommentedMap, ...)`
+  signature (L020 retains legacy string path)
+- `apply_structured()` wraps node transforms with `find_task` for
+  backward compat (existing RemediationEngine unchanged)
+- 46 unit tests in test_node_state.py; 161 remediation tests pass
 
 ### PR 3: Graph-aware convergence loop + primary server integration
 
@@ -236,3 +248,5 @@ for nodes above it in the same file.
 | Date | Author | Change |
 |------|--------|--------|
 | 2026-03-30 | Bradley A. Thornton | Initial design from architecture discussion |
+| 2026-04-01 | Bradley A. Thornton | PR 1 merged (#194): NodeState data model |
+| 2026-04-02 | Bradley A. Thornton | PR 2 submitted (#195): Node-level transform contract |

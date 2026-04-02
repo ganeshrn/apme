@@ -17,7 +17,7 @@ from __future__ import annotations
 import hashlib
 import os
 import re
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -25,9 +25,11 @@ from typing import TYPE_CHECKING, cast
 
 import networkx as nx  # type: ignore[import-untyped]
 
-from .models import YAMLDict, YAMLValue
+from .models import ViolationDict, YAMLDict, YAMLValue
 
 if TYPE_CHECKING:
+    from ruamel.yaml.comments import CommentedMap as _CommentedMap
+
     from .models import (
         Collection,
         Module,
@@ -418,6 +420,7 @@ class ContentGraph:
         """Initialize an empty content graph."""
         self.g: nx.MultiDiGraph = nx.MultiDiGraph()
         self._nodes_by_ari_key: dict[str, str] = {}
+        self._dirty_nodes: set[str] = set()
 
     # -- Serialization (ADR-044 Phase 2 switchover) -------------------------
 
@@ -563,6 +566,86 @@ class ContentGraph:
             Vertex count of the backing ``MultiDiGraph``.
         """
         return int(self.g.number_of_nodes())
+
+    # -- Dirty-node tracking (ADR-044 Phase 3) ------------------------------
+
+    @property
+    def dirty_nodes(self) -> frozenset[str]:
+        """Return the set of node IDs modified since the last clear.
+
+        Returns:
+            Frozen set of node-ID strings.
+        """
+        return frozenset(self._dirty_nodes)
+
+    def clear_dirty(self) -> None:
+        """Reset the dirty-node set (called after a convergence pass)."""
+        self._dirty_nodes.clear()
+
+    def apply_transform(
+        self,
+        node_id: str,
+        transform_fn: Callable[[_CommentedMap, ViolationDict], bool],
+        violation: ViolationDict,
+    ) -> bool:
+        """Apply a node-level transform via an ephemeral CommentedMap.
+
+        Parses ``node.yaml_lines`` into a ruamel ``CommentedMap``,
+        invokes the transform, serializes the result back into
+        ``node.yaml_lines``, and calls ``node.update_from_yaml()``
+        to rebuild typed fields.  The node is marked dirty on success.
+
+        Args:
+            node_id: Graph node identifier.
+            transform_fn: Callable ``(CommentedMap, ViolationDict) -> bool``.
+            violation: Violation dict passed to the transform.
+
+        Returns:
+            True if the transform modified the node.
+        """
+        from ruamel.yaml.comments import CommentedMap, CommentedSeq  # noqa: PLC0415
+
+        from apme_engine.engine.yaml_utils import FormattedYAML  # noqa: PLC0415
+
+        node = self.get_node(node_id)
+        if node is None or not node.yaml_lines:
+            return False
+
+        # Disable explicit_start so serialized fragments don't get a '---'
+        # marker prepended — yaml_lines are spliced back into parent files.
+        frag_config = dict(FormattedYAML.default_config)
+        frag_config["explicit_start"] = False
+        yaml = FormattedYAML(
+            typ="rt",
+            pure=True,
+            version=(1, 1),
+            config=frag_config,  # type: ignore[arg-type]
+        )
+        try:
+            data = yaml.load(node.yaml_lines)
+        except Exception:  # noqa: BLE001
+            return False
+
+        # Extract the task CommentedMap from the parsed structure.
+        task: CommentedMap | None = None
+        wrapper_seq: CommentedSeq | None = None
+        if isinstance(data, CommentedSeq) and len(data) == 1 and isinstance(data[0], CommentedMap):
+            task = data[0]
+            wrapper_seq = data
+        elif isinstance(data, CommentedMap):
+            task = data
+        if task is None:
+            return False
+
+        applied = transform_fn(task, violation)
+        if not applied:
+            return False
+
+        new_text = yaml.dumps(wrapper_seq) if wrapper_seq is not None else yaml.dumps(task)
+
+        node.update_from_yaml(new_text)
+        self._dirty_nodes.add(node_id)
+        return True
 
     # -- Edge operations ----------------------------------------------------
 
