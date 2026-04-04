@@ -2,7 +2,7 @@
 
 Thank you for your interest in contributing to APME! This document provides guidelines and best practices for contributing.
 
-For full local development setup, tooling reference, and tox environments, see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+For full local development setup, tooling reference, and tox environments, see [docs/guides/DEVELOPMENT.md](docs/guides/DEVELOPMENT.md).
 
 ## Table of Contents
 
@@ -160,7 +160,7 @@ tox -e lint
 tox -e unit
 ```
 
-See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the full tox environment reference and pod lifecycle commands.
+See [docs/guides/DEVELOPMENT.md](docs/guides/DEVELOPMENT.md) for the full tox environment reference and pod lifecycle commands.
 
 ### Container Environment
 

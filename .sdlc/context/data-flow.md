@@ -326,7 +326,7 @@ When running without the daemon (`apme check /path` without `--primary-addr`), t
 
 ## Related Documents
 
-- [ARCHITECTURE.md](/ARCHITECTURE.md) — Container topology and service contracts
+- [Architecture series](/docs/architecture/) — Container topology and service contracts
 - [ADR-001](/adrs/ADR-001-grpc-communication.md) — gRPC communication
 - [ADR-003](/adrs/ADR-003-vendor-ari-engine.md) — Vendored ARI engine
 - [ADR-013](/adrs/ADR-013-structured-diagnostics.md) — Diagnostics instrumentation

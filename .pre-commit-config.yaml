@@ -34,3 +34,10 @@ repos:
         entry: python scripts/generate_adr_index.py
         files: ^\.sdlc/adrs/ADR-.*\.md$
         pass_filenames: false
+      - id: rule-catalog
+        name: rule-catalog
+        language: python
+        language_version: python3.10
+        entry: python tools/generate_rule_catalog.py
+        files: ^src/apme_engine/validators/.+\.(py|rego|md)$|^src/apme_engine/remediation/transforms/
+        pass_filenames: false

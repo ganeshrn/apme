@@ -178,7 +178,7 @@ The complete per-rule default severity is maintained as a **static mapping** tha
 
 - **Versioned** with the engine image — severity assignments can change between releases
 - **Auditable** — a single file shows every rule's default severity
-- **Machine-readable** — the catalog generation script (`scripts/generate_rule_catalog.py`) includes severity in the output
+- **Machine-readable** — the catalog generation script (`tools/generate_rule_catalog.py`) includes severity in the output
 - **The single source** — individual rule classes and Rego policies no longer carry their own severity; they reference the table
 
 During ADR-041 registration, Primary reads this table and includes `default_severity` for each rule in the `RegisterRulesRequest`.
@@ -354,8 +354,8 @@ Third-party plugins ([ADR-042](ADR-042-third-party-plugin-services.md)) provide 
 
 ### Phase 4: Catalog and docs
 
-1. Update `scripts/generate_rule_catalog.py` to include a Severity column
-2. Update `docs/RULE_CATALOG.md` to show default severity per rule
+1. Update `tools/generate_rule_catalog.py` to include a Severity column
+2. Update `docs/rules/RULE_CATALOG.md` to show default severity per rule
 3. Document the criteria decision tree in contributor docs
 
 ### Phase 5: Service-affecting action rules
@@ -388,7 +388,7 @@ Third-party plugins ([ADR-042](ADR-042-third-party-plugin-services.md)) provide 
 - `proto/apme/v1/common.proto` — `Violation.level` field (currently string)
 - `src/apme_engine/engine/models.py` — `Severity` class, `_severity_level_mapping` (to be retired)
 - `src/apme_engine/validators/native/__init__.py` — severity → level mapping in violation construction
-- `docs/RULE_CATALOG.md` — auto-generated catalog (to gain severity column)
+- `docs/rules/RULE_CATALOG.md` — auto-generated catalog (to gain severity column)
 
 ---
 

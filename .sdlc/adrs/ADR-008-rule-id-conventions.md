@@ -70,7 +70,7 @@ P001-P099: Policy rules (require ansible runtime)
 
 ### Mapping Document
 
-`docs/LINT_RULE_MAPPING.md` maps:
+`docs/rules/LINT_RULE_MAPPING.md` maps:
 ```
 L002 (fqcn) ← ansible-lint: fqcn
 L003 (no-changed-when) ← ansible-lint: no-changed-when

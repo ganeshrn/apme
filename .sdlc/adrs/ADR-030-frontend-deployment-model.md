@@ -32,7 +32,7 @@ Both options consume the identical gateway API from ADR-029.
 
 - [design-dashboard.md](/.sdlc/context/design-dashboard.md) specifies
   PatternFly 5/6 components, React + TypeScript, and Vite as the build tool.
-- [docs/mockups/](/docs/mockups/) contains HTML mockups (PatternFly 6, dark
+- [docs/archive/mockups/](/docs/archive/mockups/) contains HTML mockups (PatternFly 6, dark
   mode) with a Figma file for four key views: dashboard home, check results,
   activity detail, and ROI metrics.
 - The mockups use `@ansible/ansible-ui-framework` component patterns matching
@@ -269,7 +269,7 @@ path, not a replacement.
 
 - [design-dashboard.md](/.sdlc/context/design-dashboard.md) — PatternFly
   components, views, SQLite schema
-- [docs/mockups/](/docs/mockups/) — HTML mockups and Figma
+- [docs/archive/mockups/](/docs/archive/mockups/) — HTML mockups and Figma
 - [Red Hat self-service automation portal](https://www.redhat.com/en/technologies/management/ansible/self-service-automation)
   — AAP's Backstage-based portal
 - [Backstage.io](https://backstage.io/) — Open source developer portal

@@ -108,7 +108,7 @@ The `AIProvider` protocol has been updated to graph-native:
 - `AIProvider` protocol and `AINodeFix` dataclass: `src/apme_engine/remediation/ai_provider.py`
 - `AINodeContext` builder: `src/apme_engine/remediation/ai_context.py`
 - `AbbenayProvider`: `src/apme_engine/remediation/abbenay_provider.py`
-- Full design: `docs/DESIGN_AI_ESCALATION.md`
+- Full design: `docs/design/DESIGN_AI_ESCALATION.md`
 
 ## Related Decisions
 

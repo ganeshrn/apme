@@ -16,7 +16,7 @@ export function getRuleDescription(ruleId: string): string {
 
 /**
  * Rule ID → human-readable description mapping.
- * Source: docs/RULE_CATALOG.md (auto-generated from validator frontmatter).
+ * Source: docs/rules/RULE_CATALOG.md (auto-generated from validator frontmatter).
  */
 export const RULE_DESCRIPTIONS: Record<string, string> = {
   L002: "Use fully qualified collection name for modules.",

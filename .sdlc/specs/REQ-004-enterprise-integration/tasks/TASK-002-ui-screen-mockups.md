@@ -56,8 +56,8 @@ Create Figma mockups for the enterprise web dashboard UI. Design the key screens
 | Deliverable | Location | Purpose |
 |-------------|----------|---------|
 | Figma file | (add link when created) | Source design file |
-| Exported PNGs | `docs/mockups/dashboard-*.png` | Static references |
-| Design notes | `docs/mockups/README.md` | Design decisions, component notes |
+| Exported PNGs | `docs/archive/mockups/dashboard-*.png` | Static references |
+| Design notes | `docs/archive/mockups/README.md` | Design decisions, component notes |
 
 ## Verification
 
@@ -65,7 +65,7 @@ Before marking complete:
 
 - [ ] All 4 screens designed in Figma
 - [ ] Figma link added to this task
-- [ ] Screens exported as PNGs to `docs/mockups/`
+- [ ] Screens exported as PNGs to `docs/archive/mockups/`
 - [ ] Design reviewed with stakeholders
 - [ ] Feedback incorporated
 
@@ -212,6 +212,6 @@ From REQ-004 (Web Dashboard):
 - [x] Scan Results List screen
 - [x] Scan Detail screen
 - [x] ROI Metrics screen
-- [x] HTML mockups created (docs/mockups/*.html)
-- [x] README written (docs/mockups/README.md)
+- [x] HTML mockups created (docs/archive/mockups/*.html)
+- [x] README written (docs/archive/mockups/README.md)
 - [x] Status updated to Complete

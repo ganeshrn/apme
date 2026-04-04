@@ -11,7 +11,7 @@ Document the consumption and integration patterns for APME across different depl
 
 ## What APME Does
 
-APME (Ansible Policy & Modernization Engine) is a static and semi-static analysis platform for Ansible content. It parses playbooks, roles, and collections into a structured hierarchy and validates against 153 rules via four independent backends (see `docs/RULE_CATALOG.md` for the authoritative list):
+APME (Ansible Policy & Modernization Engine) is a static and semi-static analysis platform for Ansible content. It parses playbooks, roles, and collections into a structured hierarchy and validates against 153 rules via four independent backends (see `docs/rules/RULE_CATALOG.md` for the authoritative list):
 
 | Backend | Rules | Purpose |
 |---------|-------|---------|

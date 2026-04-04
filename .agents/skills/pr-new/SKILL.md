@@ -49,18 +49,18 @@ Check whether your changes affect areas covered by existing docs. Update any tha
 
 | Doc | When to update |
 |-----|----------------|
-| `docs/DEVELOPMENT.md` | New dev workflows, setup changes, new rule patterns |
-| `docs/ARCHITECTURE.md` | Container topology, gRPC contract changes, new services |
-| `docs/DATA_FLOW.md` | Request lifecycle, serialization, payload shape changes |
-| `docs/DEPLOYMENT.md` | Podman pod spec, container config, env vars |
-| `docs/LINT_RULE_MAPPING.md` | New or renamed rule IDs |
-| `docs/DESIGN_VALIDATORS.md` | Validator abstraction changes |
-| `docs/DESIGN_REMEDIATION.md` | Remediation engine changes |
+| `docs/guides/DEVELOPMENT.md` | New dev workflows, setup changes, new rule patterns |
+| `docs/architecture/` | Container topology, gRPC contract changes, new services |
+| `docs/architecture/` | Request lifecycle, serialization, payload shape changes |
+| `docs/guides/DEPLOYMENT.md` | Podman pod spec, container config, env vars |
+| `docs/rules/LINT_RULE_MAPPING.md` | New or renamed rule IDs |
+| `docs/design/DESIGN_VALIDATORS.md` | Validator abstraction changes |
+| `docs/design/DESIGN_REMEDIATION.md` | Remediation engine changes |
 
 If a new rule was added, regenerate the catalog:
 
 ```bash
-python scripts/generate_rule_catalog.py
+python tools/generate_rule_catalog.py
 ```
 
 ### Step 4: Update SDLC artifacts (if applicable)

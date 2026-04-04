@@ -172,7 +172,7 @@ Classification happens server-side in `primary_server.py` before proto serializa
 ### Neutral
 
 - The `TransformRegistry` remains the initial authority for `auto-fixable` — this decision does not change how transforms are registered, only how their outcomes are tracked
-- AI resolution states (`ai-proposed`, `ai-failed`, `ai-low-confidence`, `user-rejected`) are populated by the `AIProvider` integration — see ADR-025 and `docs/DESIGN_AI_ESCALATION.md`
+- AI resolution states (`ai-proposed`, `ai-failed`, `ai-low-confidence`, `user-rejected`) are populated by the `AIProvider` integration — see ADR-025 and `docs/design/DESIGN_AI_ESCALATION.md`
 
 ## Implementation Notes
 

@@ -6,7 +6,7 @@ Backend services run in a single **pod** so they share a network (localhost). Po
 
 - Podman
 - Run all commands from the **repo root** (or use absolute paths)
-- **Recommended**: use tox (`uv tool install tox --with tox-uv`) — see `docs/DEVELOPMENT.md`
+- **Recommended**: use tox (`uv tool install tox --with tox-uv`) — see `docs/guides/DEVELOPMENT.md`
 
 ## Build and start
 

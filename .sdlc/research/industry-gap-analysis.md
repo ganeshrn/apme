@@ -161,7 +161,7 @@ updates:
 
 ### Inconsistent Tooling Documentation
 
-**Gap:** `CONTRIBUTING.md` references `pre-commit install` while `docs/DEVELOPMENT.md` and `AGENTS.md` reference `prek install`. Both exist but the canonical tool is `prek`.
+**Gap:** `CONTRIBUTING.md` references `pre-commit install` while `docs/guides/DEVELOPMENT.md` and `AGENTS.md` reference `prek install`. Both exist but the canonical tool is `prek`.
 
 **Recommendation:** Align `CONTRIBUTING.md` to reference `prek` as the canonical pre-commit tool, with `pre-commit` mentioned only as the underlying mechanism.
 

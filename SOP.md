@@ -74,7 +74,7 @@ apme daemon stop            # after testing
 
 ## 4. Pre-commit and CI Gates
 
-**Full details:** [tox skill](.agents/skills/tox/SKILL.md) | ADR-047 | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)
+**Full details:** [tox skill](.agents/skills/tox/SKILL.md) | ADR-047 | [docs/guides/DEVELOPMENT.md](docs/guides/DEVELOPMENT.md)
 
 **tox is the only way to run things** (ADR-047). Key environments:
 
@@ -119,7 +119,7 @@ See [AGENTS.md — Architectural Invariants](AGENTS.md#architectural-invariants)
 
 ## 7. Rule Development
 
-**Full details:** [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | [docs/LINT_RULE_MAPPING.md](docs/LINT_RULE_MAPPING.md) | [docs/RULE_DOC_FORMAT.md](docs/RULE_DOC_FORMAT.md) | ADR-008
+**Full details:** [docs/guides/DEVELOPMENT.md](docs/guides/DEVELOPMENT.md) | [docs/rules/LINT_RULE_MAPPING.md](docs/rules/LINT_RULE_MAPPING.md) | [docs/rules/RULE_DOC_FORMAT.md](docs/rules/RULE_DOC_FORMAT.md) | ADR-008
 
 Rule ID prefixes: L = Lint, M = Modernize, R = Risk, P = Policy, SEC = Secrets, EXT- = Plugin. IDs are independent of the implementing validator. Choose between Native (complex Python logic), OPA (declarative structural checks), or Ansible (runtime version checks) based on what the rule needs.
 

@@ -224,8 +224,8 @@ tox -e wipe                             # stop + wipe DB/sessions
 
 ## Related Documents
 
-- [ARCHITECTURE.md](/ARCHITECTURE.md) — Container topology and service contracts
-- [DATA_FLOW.md](/DATA_FLOW.md) — Request lifecycle and serialization
+- [Architecture series](/docs/architecture/) — Container topology and service contracts
+- [Architecture series](/docs/architecture/) — Request lifecycle and serialization
 - [ADR-004](/.sdlc/adrs/ADR-004-podman-pod-deployment.md) — Podman pod decision
 - [ADR-006](/.sdlc/adrs/ADR-006-ephemeral-venvs.md) — Ephemeral venvs for Ansible (superseded by ADR-022/ADR-031)
 - [ADR-024](/.sdlc/adrs/ADR-024-thin-cli-daemon-mode.md) — Thin CLI with local daemon mode

@@ -36,7 +36,7 @@ Context documents answer "How does our system work?" They provide:
 ### Rules & Validation
 | File | Description |
 |------|-------------|
-| `rule-catalog.md` | Validation rules with fixer status (see `docs/RULE_CATALOG.md` for authoritative count) |
+| `rule-catalog.md` | Validation rules with fixer status (see `docs/rules/RULE_CATALOG.md` for authoritative count) |
 | `rule-doc-format.md` | Standard format for rule documentation |
 | `lint-rule-mapping.md` | Rule ID cross-mapping and migration guide |
 | `ansiblelint-coverage.md` | Coverage comparison with ansible-lint rules |

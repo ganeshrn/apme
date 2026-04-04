@@ -196,7 +196,7 @@ See [context/README.md](context/README.md) for the full index. Key documents:
 | `conventions.md` | Coding standards |
 | `workflow.md` | Process documentation |
 | `getting-started.md` | Onboarding guide |
-| `rule-catalog.md` | Snapshot of core validation rules (see [`docs/RULE_CATALOG.md`](../docs/RULE_CATALOG.md) for generated catalog) |
+| `rule-catalog.md` | Snapshot of core validation rules (see [`docs/rules/RULE_CATALOG.md`](../docs/rules/RULE_CATALOG.md) for generated catalog) |
 
 ---
 

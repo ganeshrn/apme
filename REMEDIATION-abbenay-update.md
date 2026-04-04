@@ -68,7 +68,7 @@ works on both x86_64 and Apple Silicon / Graviton hosts.
 
 ## 3. Update `DESIGN_AI_ESCALATION.md`
 
-**File:** `docs/DESIGN_AI_ESCALATION.md`
+**File:** `docs/design/DESIGN_AI_ESCALATION.md`
 
 Several items are out of date:
 

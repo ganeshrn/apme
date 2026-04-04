@@ -82,7 +82,7 @@ APME and these tools are complementary. APME runs in seconds without infrastruct
                             └─────────┘
 ```
 
-Six app containers, one pod. All inter-service communication is gRPC. The Galaxy Proxy serves Ansible collections as Python wheels (PEP 503). The CLI is run on-the-fly with the project directory mounted. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design.
+Six app containers, one pod. All inter-service communication is gRPC. The Galaxy Proxy serves Ansible collections as Python wheels (PEP 503). The CLI is run on-the-fly with the project directory mounted. See [docs/architecture/](docs/architecture/) for the full design.
 
 ## Key features
 
@@ -371,7 +371,7 @@ APME_ABBENAY_ADDR=localhost:50057 apme remediate --ai .
 
 ## Scaling
 
-Scale pods, not services within a pod. Each pod is a self-contained stack that can process check and remediate workloads end-to-end. For more throughput, run multiple pods behind a load balancer. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#scaling).
+Scale pods, not services within a pod. Each pod is a self-contained stack that can process check and remediate workloads end-to-end. For more throughput, run multiple pods behind a load balancer. See [docs/architecture/17-scaling-and-deployment.md](docs/architecture/17-scaling-and-deployment.md).
 
 ## Tests
 
@@ -389,7 +389,7 @@ tox -e integration
 tox
 ```
 
-See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the full tox environment reference.
+See [docs/guides/DEVELOPMENT.md](docs/guides/DEVELOPMENT.md) for the full tox environment reference.
 
 ## Project layout
 
@@ -423,20 +423,10 @@ tests/                  unit, integration, rule doc coverage
 
 | Document | Description |
 |----------|-------------|
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Container topology, gRPC contracts, data flow, scaling model |
-| [DATA_FLOW.md](docs/DATA_FLOW.md) | Request lifecycle, engine pipeline, serialization formats |
-| [DEPLOYMENT.md](docs/DEPLOYMENT.md) | Podman pod setup, configuration, troubleshooting |
-| [DEVELOPMENT.md](docs/DEVELOPMENT.md) | Adding rules, proto generation, testing, code organization |
-| [DESIGN_VALIDATORS.md](docs/DESIGN_VALIDATORS.md) | Validator abstraction rationale and design decisions |
-| [LINT_RULE_MAPPING.md](docs/LINT_RULE_MAPPING.md) | Complete rule ID cross-reference (L/M/R/P) |
-| [ANSIBLELINT_COVERAGE.md](docs/ANSIBLELINT_COVERAGE.md) | Coverage vs ansible-lint, gap analysis |
-| [RULE_DOC_FORMAT.md](docs/RULE_DOC_FORMAT.md) | Rule `.md` format for docs + integration tests |
-| [ANSIBLE_CORE_MIGRATION.md](docs/ANSIBLE_CORE_MIGRATION.md) | ansible-core 2.19/2.20 breaking changes and rule mapping |
-| [PODMAN_OPA_ISSUES.md](docs/PODMAN_OPA_ISSUES.md) | Podman rootless troubleshooting |
-| [DESIGN_REMEDIATION.md](docs/DESIGN_REMEDIATION.md) | Remediation engine: transform registry, AI escalation, convergence loop |
-| [DESIGN_AI_ESCALATION.md](docs/DESIGN_AI_ESCALATION.md) | AI integration: Abbenay provider, hybrid validation loop, prompt engineering |
-| [RESEARCH_REVIEW.md](docs/RESEARCH_REVIEW.md) | Analysis of early research concepts and roadmap pull-ins |
-| [DESIGN_DASHBOARD.md](docs/DESIGN_DASHBOARD.md) | Dashboard & presentation layer: API gateway, REST/WebSocket, persistence, auth, frontend |
+| [Architecture series](docs/architecture/) | Pipeline walkthrough, container topology, gRPC contracts, data flow, scaling model |
+| [Design docs](docs/design/) | Remediation engine, AI escalation, validator abstraction — design rationale |
+| [Guides](docs/guides/) | Development setup, deployment, troubleshooting |
+| [Rule reference](docs/rules/) | Rule catalog, ID mapping, doc format, ansible-lint coverage |
 | [ADRs](.sdlc/adrs/) | Architecture Decision Records — key design decisions with context, alternatives, and rationale |
 
 ## Roadmap
@@ -466,11 +456,11 @@ tests/                  unit, integration, rule doc coverage
 - **Interactive review** (`--ai` flag): per-fix diff review (y/n/skip) like `git add -p`, or `--auto-approve` for automatic application.
 - **Structured best practices**: curated Ansible guidelines injected into prompts for higher-quality fixes.
 - **Preflight checks**: auto-discover Abbenay daemon socket, health check before AI calls.
-- See [DESIGN_AI_ESCALATION.md](docs/DESIGN_AI_ESCALATION.md) for the full design.
+- See [DESIGN_AI_ESCALATION.md](docs/design/DESIGN_AI_ESCALATION.md) for the full design.
 
 ### Phase 4 — Web UI (in progress)
 
-Operator UI for **check** and **remediate** sessions, **Activity** (history), health monitoring, and findings management. API gateway (FastAPI), REST/WebSocket API (`/api/v1/activity`, etc.), persistence (SQLite), and React frontend. Operation streaming uses `FixSession` gRPC (ADR-039). See [DESIGN_DASHBOARD.md](docs/DESIGN_DASHBOARD.md) for the full design.
+Operator UI for **check** and **remediate** sessions, **Activity** (history), health monitoring, and findings management. API gateway (FastAPI), REST/WebSocket API (`/api/v1/activity`, etc.), persistence (SQLite), and React frontend. Operation streaming uses `FixSession` gRPC (ADR-039). See [docs/architecture/13-gateway-and-persistence.md](docs/architecture/13-gateway-and-persistence.md) and [14-ui-integration.md](docs/architecture/14-ui-integration.md).
 
 ## License
 

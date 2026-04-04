@@ -4,7 +4,7 @@
 
 | Document | Scope |
 |----------|-------|
-| **This file** (`docs/DEVELOPMENT.md`) | Canonical reference for local setup, tox environments, tooling, and pod lifecycle |
+| **This file** (`docs/guides/DEVELOPMENT.md`) | Canonical reference for local setup, tox environments, tooling, and pod lifecycle |
 | [`CONTRIBUTING.md`](/CONTRIBUTING.md) | PR process, commit conventions, contributor onboarding |
 | [`SECURITY.md`](/SECURITY.md) | Security policy and practices |
 | [`containers/podman/README.md`](/containers/podman/README.md) | Pod troubleshooting |
@@ -286,7 +286,7 @@ class RuleNameGraphRule(GraphRule):
 
 4. Add the rule ID to `rule_versions.json`.
 
-5. Update `docs/LINT_RULE_MAPPING.md` with the new entry.
+5. Update `docs/rules/LINT_RULE_MAPPING.md` with the new entry.
 
 ### OPA (Rego) rule
 
