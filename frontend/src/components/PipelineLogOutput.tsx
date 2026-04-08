@@ -51,7 +51,6 @@ function groupByPhase(entries: PipelineLogEntry[]): Map<string, PipelineLogEntry
 
 interface PipelineLogOutputProps {
   logs: PipelineLogEntry[];
-  expanded?: boolean;
 }
 
 function LogDetailModal({ isOpen, onClose, entry }: { isOpen: boolean; onClose: () => void; entry: PipelineLogEntry }) {
@@ -87,7 +86,7 @@ function LogDetailModal({ isOpen, onClose, entry }: { isOpen: boolean; onClose: 
   );
 }
 
-export function PipelineLogOutput({ logs, expanded }: PipelineLogOutputProps) {
+export function PipelineLogOutput({ logs }: PipelineLogOutputProps) {
   const [sectionOpen, setSectionOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [allCollapsed, setAllCollapsed] = useState(false);
@@ -123,7 +122,7 @@ export function PipelineLogOutput({ logs, expanded }: PipelineLogOutputProps) {
   if (logs.length === 0) return null;
 
   return (
-    <div className={`apme-pipeline-log-section${sectionOpen ? '' : ' apme-pipeline-log-collapsed'}${sectionOpen && expanded ? ' apme-pipeline-log-expanded' : ''}`}>
+    <div className={`apme-output-panel ${sectionOpen ? 'apme-panel-open' : 'apme-panel-closed'}`}>
       <div className="apme-output-controls">
         <div className="apme-output-controls-left">
           <Button

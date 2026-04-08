@@ -18,6 +18,8 @@ sequenceDiagram
     participant OPA as OPA :50054
     participant Ansible as Ansible :50053
     participant Gitleaks as Gitleaks :50056
+    participant CollHealth as Collection Health :50058
+    participant DepAudit as Dep Audit :50059
 
     Primary->>Primary: Serialize ContentGraph (slim JSON)
     Primary->>Primary: Build ValidateRequest
@@ -27,12 +29,16 @@ sequenceDiagram
         Primary->>OPA: Validate(hierarchy)
         Primary->>Ansible: Validate(hierarchy, venv_path)
         Primary->>Gitleaks: Validate(graph)
+        Primary->>CollHealth: Validate(venv_path)
+        Primary->>DepAudit: Validate(venv_path)
     end
 
     Native-->>Primary: ValidatorResult (violations, diagnostics)
     OPA-->>Primary: ValidatorResult
     Ansible-->>Primary: ValidatorResult
     Gitleaks-->>Primary: ValidatorResult
+    CollHealth-->>Primary: ValidatorResult (collection findings)
+    DepAudit-->>Primary: ValidatorResult (Python CVEs)
 
     Primary->>Primary: Merge + deduplicate violations
     Primary->>Primary: Apply rule_configs (ADR-041)
@@ -78,6 +84,8 @@ Validators are discovered via environment variables:
 | `OPA_GRPC_ADDRESS` | OPA (Rego policy rules) |
 | `ANSIBLE_GRPC_ADDRESS` | Ansible (runtime checks) |
 | `GITLEAKS_GRPC_ADDRESS` | Gitleaks (secrets detection) |
+| `COLLECTION_HEALTH_GRPC_ADDRESS` | Collection Health (installed collection checks) |
+| `DEP_AUDIT_GRPC_ADDRESS` | Dep Audit (Python CVE scanning) |
 
 Only validators with configured addresses are called. Missing validators
 are silently skipped — the fan-out adapts to the available services.
@@ -114,6 +122,26 @@ Detects hardcoded secrets, tokens, and credentials.
 
 Rule ID prefix: **SEC** (secrets). Optional — requires the external `gitleaks`
 binary.
+
+### Collection Health Validator (:50058)
+
+Scans installed Ansible collections in the session venv for lint and
+modernization issues. Runs the APME engine against each collection's
+content inside `site-packages/ansible_collections/`. Produces findings
+tagged with the collection FQCN so violations are attributed to
+dependencies rather than the user's project.
+
+Optional — skipped if `COLLECTION_HEALTH_GRPC_ADDRESS` is unset or
+`--skip-dep-scan` / `--skip-collection-scan` is passed.
+
+### Dep Audit Validator (:50059)
+
+Scans the session venv's installed Python packages for known CVEs using
+`pip-audit`. Returns one violation per CVE with the affected package
+name, installed version, fixed version (if available), and advisory ID.
+
+Optional — skipped if `DEP_AUDIT_GRPC_ADDRESS` is unset or
+`--skip-dep-scan` / `--skip-python-audit` is passed.
 
 ## Fan-out Mechanics
 
@@ -163,6 +191,8 @@ Displayed with `apme check -v` (summary) or `-vv` (per-rule breakdown).
 | `src/apme_engine/validators/opa/` | OPA subprocess integration |
 | `src/apme_engine/validators/ansible/` | Ansible runtime validator |
 | `src/apme_engine/validators/gitleaks/` | Gitleaks binary integration |
+| `src/apme_engine/validators/collection_health/` | Collection health rule implementations |
+| `src/apme_engine/validators/dep_audit/` | Python CVE scanning via pip-audit |
 
 ## Related ADRs
 

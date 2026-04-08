@@ -20,9 +20,12 @@ ScanContext { hierarchy_payload (JSON), scandata (SingleScan) }
 ┌─────────────────────────────────────────────────┐
 │              Parallel fan-out                    │
 │                                                  │
-│  ┌─► OPA        (hierarchy_payload → Rego)      │
-│  ├─► Native     (scandata → Python rules)       │
-│  └─► Ansible    (files + hierarchy → runtime)    │
+│  ┌─► OPA              (hierarchy_payload → Rego)       │
+│  ├─► Native           (scandata → Python rules)        │
+│  ├─► Ansible          (files + hierarchy → runtime)    │
+│  ├─► Gitleaks         (files → secrets detection)      │
+│  ├─► Collection Health (venv → collection lint)        │
+│  └─► Dep Audit        (venv → pip-audit CVEs)          │
 │                                                  │
 └─────────────────────────────────────────────────┘
     ↓
@@ -99,6 +102,22 @@ Every validator returns the same violation shape:
 - **Container**: `apme-gitleaks` (gitleaks binary + Python gRPC wrapper)
 - **Why separate container**: Requires Go binary; wraps external tool output into the unified violation format. Adds Ansible-aware filtering: vault-encrypted files and Jinja2 expressions are automatically excluded.
 
+### Collection Health (installed collection scanning)
+
+- **Input**: `venv_path` (session-scoped virtualenv with installed collections)
+- **Execution**: Runs the APME engine against each collection under `site-packages/ansible_collections/`, producing findings attributed to the dependency rather than the project
+- **Rules**: Lint and modernization findings from collections — helps assess dependency health
+- **Container**: `apme-collection-health` (mounts `/sessions` read-only)
+- **Why separate container**: Collection scanning is heavyweight and optional; isolating it prevents slowdowns in the core scan pipeline. Skippable via `--skip-dep-scan` or `--skip-collection-scan`.
+
+### Dep Audit (Python CVE scanning)
+
+- **Input**: `venv_path` (session-scoped virtualenv with all installed Python packages)
+- **Execution**: Runs `pip-audit` against the venv to detect known CVEs in installed Python packages (including transitive dependencies from Ansible collections)
+- **Rules**: One violation per CVE with package name, installed version, fixed version, and advisory ID
+- **Container**: `apme-dep-audit` (mounts `/sessions` read-only)
+- **Why separate container**: CVE scanning is network-dependent and optional; isolation keeps the core pipeline fast. Skippable via `--skip-dep-scan` or `--skip-python-audit`.
+
 ---
 
 ## Engine ownership decision
@@ -127,11 +146,11 @@ Everything downstream (validators, daemon, CLI) calls `run_scan()` and works wit
 
 ## Parallel execution
 
-Primary calls all four validators concurrently using `asyncio.gather()` with async gRPC stubs (`grpc.aio`). Each validator is a gRPC call to an independent container. The `ValidateRequest` is immutable and shared across all calls.
+Primary calls all configured validators concurrently using `asyncio.gather()` with async gRPC stubs (`grpc.aio`). Each validator is a gRPC call to an independent container. The `ValidateRequest` is immutable and shared across all calls.
 
-Total latency = `max(native, opa, ansible, gitleaks)` instead of `sum`.
+Total latency = `max(all validators)` instead of `sum`.
 
-Each validator is discovered by environment variable (`NATIVE_GRPC_ADDRESS`, `OPA_GRPC_ADDRESS`, `ANSIBLE_GRPC_ADDRESS`, `GITLEAKS_GRPC_ADDRESS`). If a variable is unset, that validator is skipped — no error, just fewer results. This makes it possible to run a subset of validators during development or testing.
+Each validator is discovered by environment variable (`NATIVE_GRPC_ADDRESS`, `OPA_GRPC_ADDRESS`, `ANSIBLE_GRPC_ADDRESS`, `GITLEAKS_GRPC_ADDRESS`, `COLLECTION_HEALTH_GRPC_ADDRESS`, `DEP_AUDIT_GRPC_ADDRESS`). If a variable is unset, that validator is skipped — no error, just fewer results. This makes it possible to run a subset of validators during development or testing.
 
 ---
 
@@ -203,7 +222,6 @@ The `Validator` gRPC contract (`validate.proto`) is unchanged — validators do 
 
 ## Future considerations
 
-- **Additional validators**: A yamllint adapter, a custom Go plugin validator, or an AI-assisted reviewer could be added as new containers implementing the same `Validator` service.
 - **Streaming results**: The current contract is unary (one request, one response). For very large projects, server-side streaming (`stream ValidateResponse`) could reduce memory pressure.
 - **Third-party plugins (ADR-042)**: Organization-specific rules run as separate plugin containers with their own `Describe` RPC for catalog integration.
 

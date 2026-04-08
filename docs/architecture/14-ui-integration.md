@@ -62,7 +62,9 @@ Key API groups:
 Health          → getHealth()
 Projects        → createProject(), listProjects(), getProject(), updateProject(), deleteProject()
 Project scoped  → listProjectActivity(), listProjectViolations(), getProjectTrend(),
-                  getProjectDependencies(), getProjectGraph(), getProjectSbom()
+                  getProjectDependencies(), getProjectGraph(), getProjectSbom(),
+                  getProjectDepHealth()
+Dep Health      → getDepHealth(), getProjectDepHealth()
 Sessions        → listSessions(), getSession(), getSessionTrend()
 Activity        → listActivity(), getActivity(), deleteActivity()
 Dashboard       → getDashboardSummary(), getDashboardRankings()

@@ -16,6 +16,7 @@ export interface ViolationStatusBarDetail {
 
 interface ViolationStatusBarProps {
   detail: ViolationStatusBarDetail;
+  depHealthCount?: number;
 }
 
 function Count({ label, count }: { label: string; count?: number }) {
@@ -27,7 +28,7 @@ function Count({ label, count }: { label: string; count?: number }) {
   );
 }
 
-export function ViolationStatusBar({ detail }: ViolationStatusBarProps) {
+export function ViolationStatusBar({ detail, depHealthCount }: ViolationStatusBarProps) {
   const isRemediate = detail.scan_type === 'fix' || detail.scan_type === 'remediate';
   return (
     <Split hasGutter className="apme-status-bar">
@@ -50,6 +51,13 @@ export function ViolationStatusBar({ detail }: ViolationStatusBarProps) {
               {detail.total_violations > 0 ? `${detail.total_violations} Violations` : 'Clean'}
             </Label>
           </FlexItem>
+          {depHealthCount != null && depHealthCount > 0 && (
+            <FlexItem>
+              <Label color="orange" variant="outline">
+                {depHealthCount} Dep Findings
+              </Label>
+            </FlexItem>
+          )}
         </Flex>
       </SplitItem>
       <SplitItem>
@@ -60,6 +68,11 @@ export function ViolationStatusBar({ detail }: ViolationStatusBarProps) {
           <Count label="Manual" count={detail.manual_review} />
           {isRemediate && <Count label="Remediated" count={detail.remediated_count} />}
           <Count label="Files" count={new Set(detail.violations.map(v => v.file)).size || undefined} />
+          {depHealthCount != null && depHealthCount > 0 && (
+            <FlexItem>
+              Dep <Badge isRead>{depHealthCount}</Badge>
+            </FlexItem>
+          )}
         </Flex>
       </SplitItem>
     </Split>

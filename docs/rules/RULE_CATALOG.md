@@ -7,7 +7,7 @@
 | Metric | Count |
 |--------|-------|
 | Implemented | 144/153 |
-| Tested | 104/153 |
+| Tested | 105/153 |
 | Documented | 152/153 |
 | Deterministic fixer | 24/153 |
 
@@ -99,7 +99,7 @@
 | L086 | Native | low | Avoid playbook/play vars for routine config; use inventory vars. | Yes | — | Yes | — |
 | L087 | Native | low | Collection root should have a LICENSE or COPYING file. | Yes | Yes | Yes | — |
 | L088 | Native | low | Collection README should document supported ansible-core versions. | Yes | Yes | Yes | — |
-| L089 | Native | low | Plugin Python files should include type hints. | Yes | — | Yes | — |
+| L089 | Native | low | Plugin Python files should include type hints. | Yes | Yes | Yes | — |
 | L090 | Native | low | Plugin entry files should be small; move helpers to module_utils. | Yes | — | Yes | — |
 | L091 | Native | low | Use | bool for bare variables in when conditions. | Yes | — | Yes | — |
 | L092 | Native | low | Avoid loop variable references in task names. | Yes | — | Yes | — |
@@ -225,7 +225,7 @@
 | M028 | high | first_found lookup auto-splitting paths on delimiters is deprecated (2.23) | Yes | Yes | Yes | — |
 | R118 | info | Task downloads from an external source (inbound transfer). | Yes | Yes | Yes | — |
 
-### Native (96 rules, 87 impl, 48 tested, 3 fixers)
+### Native (96 rules, 87 impl, 49 tested, 3 fixers)
 
 | Rule ID | Severity | Description | Impl | Tested | Doc | Fixer |
 |---------|----------|-------------|------|--------|-----|-------|
@@ -275,7 +275,7 @@
 | L086 | low | Avoid playbook/play vars for routine config; use inventory vars. | Yes | — | Yes | — |
 | L087 | low | Collection root should have a LICENSE or COPYING file. | Yes | Yes | Yes | — |
 | L088 | low | Collection README should document supported ansible-core versions. | Yes | Yes | Yes | — |
-| L089 | low | Plugin Python files should include type hints. | Yes | — | Yes | — |
+| L089 | low | Plugin Python files should include type hints. | Yes | Yes | Yes | — |
 | L090 | low | Plugin entry files should be small; move helpers to module_utils. | Yes | — | Yes | — |
 | L091 | low | Use | bool for bare variables in when conditions. | Yes | — | Yes | — |
 | L092 | low | Avoid loop variable references in task names. | Yes | — | Yes | — |
@@ -358,7 +358,7 @@
 - **R404** (Native): Expose variable_set for the task.
 - **R501** (Native): Suggest collection/role dependency.
 
-### Implemented but untested — 43
+### Implemented but untested — 42
 
 - **L032** (Native): Variable redefinition may cause confusion.
 - **L033** (Native): Overriding vars without conditions.
@@ -376,7 +376,6 @@
 - **L082** (Native): Template source files should use .j2 extension.
 - **L084** (Native): Task names in included sub-task files should use a prefix.
 - **L086** (Native): Avoid playbook/play vars for routine config; use inventory vars.
-- **L089** (Native): Plugin Python files should include type hints.
 - **L090** (Native): Plugin entry files should be small; move helpers to module_utils.
 - **L091** (Native): Use | bool for bare variables in when conditions.
 - **L092** (Native): Avoid loop variable references in task names.

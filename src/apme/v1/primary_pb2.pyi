@@ -28,6 +28,8 @@ class ScanOptions:
     galaxy_servers: list[GalaxyServerDef]
     rule_configs: list[RuleConfig]
     rule_configs_complete: bool
+    skip_collection_health: bool
+    skip_dep_audit: bool
     def __init__(
         self,
         *,
@@ -35,6 +37,8 @@ class ScanOptions:
         galaxy_servers: Iterable[GalaxyServerDef] | None = ...,
         rule_configs: Iterable[RuleConfig] | None = ...,
         rule_configs_complete: bool = ...,
+        skip_collection_health: bool = ...,
+        skip_dep_audit: bool = ...,
         **kwargs: object,
     ) -> None: ...
 

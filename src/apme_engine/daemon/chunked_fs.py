@@ -165,6 +165,8 @@ def build_scan_bundle(
     session_id: str = "",
     galaxy_servers: list[GalaxyServerDef] | None = None,
     rule_configs: Iterable[RuleConfig] | None = None,
+    skip_collection_health: bool = False,
+    skip_dep_audit: bool = False,
 ) -> _ScanBundle:
     """Walk target_path (file or directory) and collect files for scanning.
 
@@ -179,6 +181,8 @@ def build_scan_bundle(
         session_id: Session ID for venv reuse across scans.
         galaxy_servers: Optional Galaxy server definitions (ADR-045).
         rule_configs: Optional per-rule overrides (ADR-041), e.g. from ``.apme/rules.yml``.
+        skip_collection_health: Disable collection health validator (ADR-051).
+        skip_dep_audit: Disable Python CVE audit validator (ADR-051).
 
     Returns:
         _ScanBundle with files and options populated.
@@ -233,6 +237,10 @@ def build_scan_bundle(
         options.galaxy_servers.extend(galaxy_servers)
     if rule_configs:
         options.rule_configs.extend(rule_configs)
+    if skip_collection_health:
+        options.skip_collection_health = True
+    if skip_dep_audit:
+        options.skip_dep_audit = True
 
     resolved_scan_id = scan_id or str(uuid.uuid4())
 
@@ -255,6 +263,8 @@ def yield_scan_chunks(
     session_id: str = "",
     galaxy_servers: list[GalaxyServerDef] | None = None,
     rule_configs: Iterable[RuleConfig] | None = None,
+    skip_collection_health: bool = False,
+    skip_dep_audit: bool = False,
 ) -> Iterator[ScanChunk]:
     """Yield ScanChunk messages for ScanStream so the total request stays under gRPC message limits.
 
@@ -271,6 +281,8 @@ def yield_scan_chunks(
         session_id: Session ID for venv reuse across scans.
         galaxy_servers: Optional Galaxy server definitions (ADR-045).
         rule_configs: Optional per-rule overrides (ADR-041).
+        skip_collection_health: Disable collection health validator (ADR-051).
+        skip_dep_audit: Disable Python CVE audit validator (ADR-051).
 
     Yields:
         ScanChunk: ScanChunk messages for streaming.
@@ -284,6 +296,8 @@ def yield_scan_chunks(
         session_id=session_id,
         galaxy_servers=galaxy_servers,
         rule_configs=rule_configs,
+        skip_collection_health=skip_collection_health,
+        skip_dep_audit=skip_dep_audit,
     )
     files: list[File] = list(req.files)
     if not files:

@@ -24,6 +24,8 @@ podman build "${BUILD_ARGS[@]}" -t apme-native:latest -f containers/native/Docke
 podman build "${BUILD_ARGS[@]}" -t apme-opa:latest -f containers/opa/Dockerfile .
 podman build "${BUILD_ARGS[@]}" -t apme-ansible:latest -f containers/ansible/Dockerfile .
 podman build "${BUILD_ARGS[@]}" -t apme-gitleaks:latest -f containers/gitleaks/Dockerfile .
+podman build "${BUILD_ARGS[@]}" -t apme-collection-health:latest -f containers/collection-health/Dockerfile .
+podman build "${BUILD_ARGS[@]}" -t apme-dep-audit:latest -f containers/dep-audit/Dockerfile .
 podman build "${BUILD_ARGS[@]}" -t apme-galaxy-proxy:latest -f containers/galaxy-proxy/Dockerfile .
 podman build "${BUILD_ARGS[@]}" -t apme-gateway:latest -f containers/gateway/Dockerfile .
 podman build "${BUILD_ARGS[@]}" -t apme-cli:latest -f containers/cli/Dockerfile .

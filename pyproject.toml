@@ -21,8 +21,10 @@ dependencies = [
     "protobuf>=6.31.1,<7",
     "networkx>=3.1",
     "httpx",
+    "packaging>=23",
     "fastapi>=0.100",
     "uvicorn[standard]>=0.20",
+    "pip-audit>=2.7",
 ]
 
 [project.optional-dependencies]
@@ -84,6 +86,8 @@ apme-ansible-validator = "apme_engine.daemon.ansible_validator_main:main"
 apme-native-validator = "apme_engine.daemon.native_validator_main:main"
 apme-opa-validator = "apme_engine.daemon.opa_validator_main:main"
 apme-gitleaks-validator = "apme_engine.daemon.gitleaks_validator_main:main"
+apme-collection-health-validator = "apme_engine.daemon.collection_health_main:main"
+apme-dep-audit-validator = "apme_engine.daemon.dep_audit_main:main"
 galaxy-proxy = "galaxy_proxy.cli:main"
 apme-gateway = "apme_gateway.main:main"
 

@@ -22,6 +22,8 @@ sequenceDiagram
     participant OPA as OPA :50054
     participant Ansible as Ansible :50053
     participant Gitleaks as Gitleaks :50056
+    participant CollHealth as Collection Health :50058
+    participant DepAudit as Dep Audit :50059
     participant Remediation as GraphRemediationEngine
     participant AI as Abbenay :50057
     participant Gateway as Gateway :50060
@@ -46,11 +48,15 @@ sequenceDiagram
         Primary->>OPA: Validate(hierarchy)
         Primary->>Ansible: Validate(hierarchy, venv_path)
         Primary->>Gitleaks: Validate(graph)
+        Primary->>CollHealth: Validate(venv_path)
+        Primary->>DepAudit: Validate(venv_path)
     end
     Native-->>Primary: violations
     OPA-->>Primary: violations
     Ansible-->>Primary: violations
     Gitleaks-->>Primary: violations
+    CollHealth-->>Primary: collection findings
+    DepAudit-->>Primary: Python CVE findings
 
     Primary->>Remediation: remediate(violations, graph)
     loop Convergence loop
@@ -116,6 +122,8 @@ The pipeline spans multiple services within the APME pod:
 | OPA validator | 50054 | Rego policy rules (P series) |
 | Ansible validator | 50053 | Runtime checks using session venv |
 | Gitleaks validator | 50056 | Secrets detection (SEC series) |
+| Collection Health | 50058 | Installed collection lint/modernize checks |
+| Dep Audit | 50059 | Python CVE scanning via pip-audit |
 | Galaxy Proxy | 8765 | PEP 503 index for collection installs |
 | Abbenay | 50057 | AI fix proposals (optional) |
 | Gateway | 50060/8080 | Persistence + REST API (pod-level) |

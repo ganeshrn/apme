@@ -272,14 +272,15 @@ def _write_chunked_fs(files: list[File]) -> Path:
 async def _call_validator(
     address: str,
     request: ValidateRequest,
-    timeout: int = 60,
+    timeout: int = 300,
 ) -> _ValidatorResult:
     """Call a validator over async gRPC; return violations + diagnostics.
 
     Args:
         address: gRPC address of the validator (e.g. localhost:50055).
         request: ValidateRequest to send.
-        timeout: Request timeout in seconds.
+        timeout: Request timeout in seconds (default 300 to accommodate
+            collection health scanning of many large collections).
 
     Returns:
         _ValidatorResult with violations and optional diagnostics.
@@ -457,6 +458,8 @@ VALIDATOR_ENV_VARS = {
     "opa": "OPA_GRPC_ADDRESS",
     "ansible": "ANSIBLE_GRPC_ADDRESS",
     "gitleaks": "GITLEAKS_GRPC_ADDRESS",
+    "collection_health": "COLLECTION_HEALTH_GRPC_ADDRESS",
+    "dep_audit": "DEP_AUDIT_GRPC_ADDRESS",
 }
 
 
@@ -547,6 +550,7 @@ class PrimaryServicer(primary_pb2_grpc.PrimaryServicer):
         galaxy_cfg_path: Path | None = None,
         rule_configs: list[object] | None = None,
         rule_configs_complete: bool = False,
+        skip_validators: frozenset[str] = frozenset(),
     ) -> tuple[
         list[ViolationDict],
         ScanDiagnostics | None,
@@ -595,6 +599,9 @@ class PrimaryServicer(primary_pb2_grpc.PrimaryServicer):
                 performs bidirectional audit and hard-fails on unknown **or**
                 missing rule IDs.  When ``False`` (CLI path), unknown IDs
                 produce a warning only.
+            skip_validators: Validator names to exclude from fan-out
+                (e.g. ``{"collection_health", "dep_audit"}``).  Allows
+                request-scoped control over optional validators (ADR-051).
 
         Raises:
             ValueError: If ``rule_configs_complete`` is ``True`` and either
@@ -723,6 +730,9 @@ class PrimaryServicer(primary_pb2_grpc.PrimaryServicer):
         task_names: list[str] = []
         task_coros: list[Awaitable[_ValidatorResult]] = []
         for name, env_var in VALIDATOR_ENV_VARS.items():
+            if name in skip_validators:
+                logger.debug("Skipping validator %s (request skip flag, req=%s)", name, scan_id)
+                continue
             addr = os.environ.get(env_var)
             if not addr:
                 continue
@@ -1162,6 +1172,13 @@ class PrimaryServicer(primary_pb2_grpc.PrimaryServicer):
             scan_rule_configs = list(scan_opts.rule_configs)
             scan_rule_configs_complete = scan_opts.rule_configs_complete
 
+        skip_validators: set[str] = set()
+        if scan_opts:
+            if scan_opts.skip_collection_health:
+                skip_validators.add("collection_health")
+            if scan_opts.skip_dep_audit:
+                skip_validators.add("dep_audit")
+
         if galaxy_servers:
             session.galaxy_cfg_path = _write_session_galaxy_cfg(galaxy_servers)
             if session.galaxy_cfg_path:
@@ -1306,6 +1323,7 @@ class PrimaryServicer(primary_pb2_grpc.PrimaryServicer):
                 galaxy_cfg_path=session.galaxy_cfg_path,
                 rule_configs=scan_rule_configs or None,
                 rule_configs_complete=scan_rule_configs_complete,
+                skip_validators=frozenset(skip_validators),
             )
 
             if graph_obj is not None:
@@ -1408,6 +1426,11 @@ class PrimaryServicer(primary_pb2_grpc.PrimaryServicer):
 
         # 1. Initial full-pipeline scan to get violations + graph
         initial_violations = await scan_fn(yaml_paths)
+
+        dep_health_sources = {"collection_health", "dep_audit"}
+        dep_health_violations = [v for v in initial_violations if str(v.get("source", "")) in dep_health_sources]
+        project_violations = [v for v in initial_violations if str(v.get("source", "")) not in dep_health_sources]
+        initial_violations = project_violations
 
         graph = captured_graph[0]
         if not isinstance(graph, ContentGraph):
@@ -1627,6 +1650,7 @@ class PrimaryServicer(primary_pb2_grpc.PrimaryServicer):
         # Copy before enrichment so classification metadata does not mutate
         # the graph-owned NodeState snapshot objects.
         remaining = [dict(v) for v in graph_report.remaining_violations]
+        remaining.extend(dep_health_violations)
         add_classification_to_violations(remaining, registry)  # type: ignore[arg-type]
 
         from apme_engine.remediation.partition import count_by_remediation_class

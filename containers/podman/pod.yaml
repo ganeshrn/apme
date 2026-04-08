@@ -1,4 +1,5 @@
-# Podman pod: Primary, Native, OPA, Ansible, Gitleaks, Galaxy Proxy.
+# Podman pod: Primary, Native, OPA, Ansible, Gitleaks, Collection Health,
+# Dep Audit, Galaxy Proxy.
 # All validators implement the unified Validator gRPC service (validate.proto).
 # Galaxy Proxy serves collections as Python wheels via PEP 503 (ADR-031).
 # Session venvs are built by Primary (read-write) and shared with validators
@@ -28,6 +29,10 @@ spec:
           value: "127.0.0.1:50053"
         - name: GITLEAKS_GRPC_ADDRESS
           value: "127.0.0.1:50056"
+        - name: COLLECTION_HEALTH_GRPC_ADDRESS
+          value: "127.0.0.1:50058"
+        - name: DEP_AUDIT_GRPC_ADDRESS
+          value: "127.0.0.1:50059"
         - name: APME_GALAXY_PROXY_URL
           value: "http://127.0.0.1:8765"
         - name: APME_REPORTING_ENDPOINT
@@ -82,6 +87,30 @@ spec:
       ports:
         - containerPort: 50056
           hostPort: 50056
+    - name: collection-health
+      image: apme-collection-health:latest
+      env:
+        - name: APME_COLLECTION_HEALTH_VALIDATOR_LISTEN
+          value: "0.0.0.0:50058"
+      ports:
+        - containerPort: 50058
+          hostPort: 50058
+      volumeMounts:
+        - name: sessions
+          mountPath: /sessions
+          readOnly: true
+    - name: dep-audit
+      image: apme-dep-audit:latest
+      env:
+        - name: APME_DEP_AUDIT_VALIDATOR_LISTEN
+          value: "0.0.0.0:50059"
+      ports:
+        - containerPort: 50059
+          hostPort: 50059
+      volumeMounts:
+        - name: sessions
+          mountPath: /sessions
+          readOnly: true
     - name: gateway
       image: apme-gateway:latest
       env:
@@ -93,6 +122,10 @@ spec:
           value: "0.0.0.0"
         - name: APME_GATEWAY_HTTP_PORT
           value: "8080"
+        - name: COLLECTION_HEALTH_GRPC_ADDRESS
+          value: "127.0.0.1:50058"
+        - name: DEP_AUDIT_GRPC_ADDRESS
+          value: "127.0.0.1:50059"
         - name: APME_FEEDBACK_ENABLED
           value: "${APME_FEEDBACK_ENABLED}"
         - name: APME_FEEDBACK_GITHUB_REPO

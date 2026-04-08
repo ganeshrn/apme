@@ -54,13 +54,31 @@ def build_parser() -> argparse.ArgumentParser:
     check_p.add_argument(
         "--timeout",
         type=int,
-        default=120,
-        help="gRPC timeout in seconds (default: 120)",
+        default=300,
+        help="gRPC timeout in seconds (default: 300)",
     )
     check_p.add_argument(
         "--session",
         default=None,
         help="Session ID for venv reuse; [A-Za-z0-9_-] only (default: hash of project root)",
+    )
+    check_p.add_argument(
+        "--skip-dep-scan",
+        action="store_true",
+        default=False,
+        help="Disable both dependency validators (collection health + Python audit)",
+    )
+    check_p.add_argument(
+        "--skip-collection-scan",
+        action="store_true",
+        default=False,
+        help="Disable collection health scanning only",
+    )
+    check_p.add_argument(
+        "--skip-python-audit",
+        action="store_true",
+        default=False,
+        help="Disable Python CVE audit only",
     )
 
     # ── format ──
@@ -126,6 +144,24 @@ def build_parser() -> argparse.ArgumentParser:
         "--session",
         default=None,
         help="Session ID for venv reuse; [A-Za-z0-9_-] only (default: hash of project root)",
+    )
+    remediate_p.add_argument(
+        "--skip-dep-scan",
+        action="store_true",
+        default=False,
+        help="Disable both dependency validators (collection health + Python audit)",
+    )
+    remediate_p.add_argument(
+        "--skip-collection-scan",
+        action="store_true",
+        default=False,
+        help="Disable collection health scanning only",
+    )
+    remediate_p.add_argument(
+        "--skip-python-audit",
+        action="store_true",
+        default=False,
+        help="Disable Python CVE audit only",
     )
 
     # ── daemon ──

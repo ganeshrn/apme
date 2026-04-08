@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PageLayout, PageHeader } from '@ansible/ansible-ui-framework';
 import {
+  Badge,
   EmptyState,
   EmptyStateBody,
   Flex,
@@ -13,13 +14,14 @@ import {
   ToolbarItem,
 } from '@patternfly/react-core';
 import {
+  ExclamationCircleIcon,
   SortAmountDownIcon,
   SortAmountUpIcon,
 } from '@patternfly/react-icons';
-import { listCollections } from '../services/api';
-import type { CollectionSummary } from '../types/api';
+import { listCollections, getDepHealthSummary } from '../services/api';
+import type { CollectionSummary, CollectionHealthSummary } from '../types/api';
 
-type SortField = 'fqcn' | 'version' | 'project_count';
+type SortField = 'fqcn' | 'version' | 'project_count' | 'findings';
 
 export function CollectionsPage() {
   const navigate = useNavigate();
@@ -28,11 +30,22 @@ export function CollectionsPage() {
   const [searchText, setSearchText] = useState('');
   const [sortField, setSortField] = useState<SortField>('project_count');
   const [sortAsc, setSortAsc] = useState(false);
+  const [healthMap, setHealthMap] = useState<Map<string, CollectionHealthSummary>>(new Map());
 
   const fetchCollections = useCallback(() => {
     setLoading(true);
-    listCollections(500, 0)
-      .then((data) => setCollections(data))
+    Promise.all([
+      listCollections(500, 0),
+      getDepHealthSummary().catch(() => ({ collection_findings: [], python_cves: [] })),
+    ])
+      .then(([data, health]) => {
+        setCollections(data);
+        const map = new Map<string, CollectionHealthSummary>();
+        for (const f of health.collection_findings) {
+          map.set(f.fqcn, f);
+        }
+        setHealthMap(map);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
@@ -61,11 +74,14 @@ export function CollectionsPage() {
         case 'project_count':
           cmp = a.project_count - b.project_count;
           break;
+        case 'findings':
+          cmp = (healthMap.get(a.fqcn)?.finding_count ?? 0) - (healthMap.get(b.fqcn)?.finding_count ?? 0);
+          break;
       }
       return sortAsc ? cmp : -cmp;
     });
     return items;
-  }, [collections, searchText, sortField, sortAsc]);
+  }, [collections, searchText, sortField, sortAsc, healthMap]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -144,32 +160,47 @@ export function CollectionsPage() {
                 {sortableHeader('Version', 'version')}
                 <th role="columnheader">Source</th>
                 {sortableHeader('Projects', 'project_count')}
+                {sortableHeader('Findings', 'findings')}
               </tr>
             </thead>
             <tbody>
-              {filtered.map((coll) => (
-                <tr
-                  key={`${coll.fqcn}-${coll.version}`}
-                  role="row"
-                  tabIndex={0}
-                  style={{ cursor: 'pointer' }}
-                  onClick={() => navigate(`/collections/${encodeURIComponent(coll.fqcn)}`)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/collections/${encodeURIComponent(coll.fqcn)}`); }}
-                >
-                  <td role="cell">
-                    <span style={{ fontFamily: 'var(--pf-t--global--font--family--mono)', fontWeight: 600 }}>
-                      {coll.fqcn}
-                    </span>
-                  </td>
-                  <td role="cell">
-                    <Label isCompact>{coll.version}</Label>
-                  </td>
-                  <td role="cell" style={{ opacity: 0.7 }}>{coll.source}</td>
-                  <td role="cell">
-                    <Label color="blue" isCompact>{coll.project_count}</Label>
-                  </td>
-                </tr>
-              ))}
+              {filtered.map((coll) => {
+                const h = healthMap.get(coll.fqcn);
+                const hasCritical = h && (h.critical > 0 || h.error > 0);
+                return (
+                  <tr
+                    key={`${coll.fqcn}-${coll.version}`}
+                    role="row"
+                    tabIndex={0}
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => navigate(`/collections/${encodeURIComponent(coll.fqcn)}`)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/collections/${encodeURIComponent(coll.fqcn)}`); }}
+                  >
+                    <td role="cell">
+                      <span style={{ fontFamily: 'var(--pf-t--global--font--family--mono)', fontWeight: 600 }}>
+                        {coll.fqcn}
+                      </span>
+                    </td>
+                    <td role="cell">
+                      <Label isCompact>{coll.version}</Label>
+                    </td>
+                    <td role="cell" style={{ opacity: 0.7 }}>{coll.source}</td>
+                    <td role="cell">
+                      <Label color="blue" isCompact>{coll.project_count}</Label>
+                    </td>
+                    <td role="cell">
+                      {h ? (
+                        <Badge isRead={!hasCritical}>
+                          {hasCritical && <ExclamationCircleIcon style={{ color: 'var(--pf-t--global--color--status--danger--default)', marginRight: 4 }} />}
+                          {h.finding_count}
+                        </Badge>
+                      ) : (
+                        <span style={{ opacity: 0.4 }}>—</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}

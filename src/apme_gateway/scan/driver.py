@@ -15,6 +15,7 @@ import logging
 import shutil
 import subprocess
 import tempfile
+import time
 import uuid
 from collections.abc import AsyncIterator, Callable, Coroutine
 from typing import Any
@@ -44,6 +45,81 @@ def derive_session_id(project_id: str) -> str:
 
 
 _ALLOWED_SCHEMES = ("https://",)
+
+_REMOTE_HEAD_CACHE: dict[str, tuple[float, str | None]] = {}
+_REMOTE_HEAD_TTL = 60.0  # seconds
+_REMOTE_HEAD_CACHE_MAX = 256
+
+
+async def fetch_remote_head(repo_url: str, branch: str) -> str | None:
+    """Query the remote for the HEAD commit SHA of *branch* without cloning.
+
+    Uses ``git ls-remote`` which only contacts the server for ref advertisement.
+    Results are cached for 60 seconds per (repo_url, branch) to avoid repeated
+    outbound calls on frequent UI refreshes.
+
+    Args:
+        repo_url: HTTPS clone URL.
+        branch: Branch name to resolve.
+
+    Returns:
+        40-char hex SHA, or ``None`` if the lookup fails.
+    """
+    if not any(repo_url.startswith(scheme) for scheme in _ALLOWED_SCHEMES):
+        return None
+
+    cache_key = f"{repo_url}:{branch}"
+    now = time.monotonic()
+    cached = _REMOTE_HEAD_CACHE.get(cache_key)
+    if cached and (now - cached[0]) < _REMOTE_HEAD_TTL:
+        return cached[1]
+
+    cmd = ["git", "ls-remote", "--exit-code", repo_url, f"refs/heads/{branch}"]
+    loop = asyncio.get_running_loop()
+    sha: str | None = None
+    try:
+        result = await loop.run_in_executor(
+            None,
+            lambda: subprocess.run(cmd, capture_output=True, text=True, timeout=30),  # noqa: S603
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            sha = result.stdout.strip().split()[0]
+    except Exception:  # noqa: BLE001
+        logger.debug("ls-remote failed for %s branch %s", repo_url, branch, exc_info=True)
+
+    if len(_REMOTE_HEAD_CACHE) >= _REMOTE_HEAD_CACHE_MAX:
+        expired = [k for k, (ts, _) in _REMOTE_HEAD_CACHE.items() if (now - ts) >= _REMOTE_HEAD_TTL]
+        for k in expired:
+            del _REMOTE_HEAD_CACHE[k]
+        if len(_REMOTE_HEAD_CACHE) >= _REMOTE_HEAD_CACHE_MAX:
+            _REMOTE_HEAD_CACHE.clear()
+
+    _REMOTE_HEAD_CACHE[cache_key] = (now, sha)
+    return sha
+
+
+def get_clone_head(clone_dir: str) -> str | None:
+    """Read the HEAD commit SHA from a cloned repo.
+
+    Args:
+        clone_dir: Path to the cloned repository.
+
+    Returns:
+        40-char hex SHA, or ``None`` on failure.
+    """
+    try:
+        result = subprocess.run(  # noqa: S603
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            cwd=clone_dir,
+            timeout=10,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except Exception:  # noqa: BLE001
+        logger.debug("rev-parse HEAD failed in %s", clone_dir, exc_info=True)
+    return None
 
 
 async def clone_repo(repo_url: str, branch: str, dest: str) -> None:
@@ -107,7 +183,7 @@ async def run_project_operation(
     approval_queue: asyncio.Queue[list[str]] | None = None,
     scan_id: str | None = None,
     galaxy_servers: list[GalaxyServerDef] | None = None,
-) -> tuple[str, primary_pb2.SessionResult | None]:
+) -> tuple[str, primary_pb2.SessionResult | None, str]:
     """Clone a project repo and run check or remediate via Primary ``FixSession``.
 
     Check mode (``remediate=False``) sends chunks without ``fix_options``.
@@ -129,7 +205,8 @@ async def run_project_operation(
         galaxy_servers: Global Galaxy server defs to inject into scan metadata (ADR-045).
 
     Returns:
-        Tuple of (scan_id, SessionResult or None).
+        Tuple of (scan_id, SessionResult or None, clone_commit_sha).
+        The commit SHA is the HEAD of the cloned repo (empty string on failure).
     """
     if scan_id is None:
         scan_id = uuid.uuid4().hex
@@ -139,6 +216,7 @@ async def run_project_operation(
 
     try:
         await clone_repo(repo_url, branch, temp_dir)
+        clone_sha = get_clone_head(temp_dir) or ""
 
         chunks = list(
             yield_scan_chunks(
@@ -207,7 +285,7 @@ async def run_project_operation(
                     await command_queue.put(primary_pb2.SessionCommand(close=primary_pb2.CloseRequest()))
                     await command_queue.put(None)
 
-            return scan_id, result
+            return scan_id, result, clone_sha
         finally:
             await channel.close(grace=None)
 
@@ -226,7 +304,7 @@ async def run_project_scan(
     progress_callback: ProgressCallback | None = None,
     scan_id: str | None = None,
     galaxy_servers: list[GalaxyServerDef] | None = None,
-) -> tuple[str, primary_pb2.SessionResult | None]:
+) -> tuple[str, primary_pb2.SessionResult | None, str]:
     """Backward-compatible alias for check mode.
 
     Delegates to :func:`run_project_operation` with ``remediate=False``.
@@ -244,7 +322,7 @@ async def run_project_scan(
         galaxy_servers: Global Galaxy server defs to inject (ADR-045).
 
     Returns:
-        Tuple of (scan_id, SessionResult or None).
+        Tuple of (scan_id, SessionResult or None, clone_commit_sha).
     """
     return await run_project_operation(
         project_id=project_id,
@@ -274,7 +352,7 @@ async def run_project_fix(
     approval_queue: asyncio.Queue[list[str]] | None = None,
     scan_id: str | None = None,
     galaxy_servers: list[GalaxyServerDef] | None = None,
-) -> tuple[str, primary_pb2.SessionResult | None]:
+) -> tuple[str, primary_pb2.SessionResult | None, str]:
     """Backward-compatible alias for remediate mode.
 
     Delegates to :func:`run_project_operation` with ``remediate=True``.
@@ -295,7 +373,7 @@ async def run_project_fix(
         galaxy_servers: Global Galaxy server defs to inject (ADR-045).
 
     Returns:
-        Tuple of (scan_id, SessionResult or None).
+        Tuple of (scan_id, SessionResult or None, clone_commit_sha).
     """
     return await run_project_operation(
         project_id=project_id,

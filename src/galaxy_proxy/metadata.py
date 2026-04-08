@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import io
+import logging
 import re
 from typing import TYPE_CHECKING, Any
 
@@ -12,6 +13,8 @@ from galaxy_proxy.naming import fqcn_to_python
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 def galaxy_to_metadata(galaxy: dict[str, Any]) -> str:
@@ -84,10 +87,19 @@ def galaxy_to_metadata_with_python_deps(
     if not requirements_txt:
         return base
 
+    from packaging.requirements import InvalidRequirement, Requirement
+
     extra_lines = []
     for line in requirements_txt.splitlines():
         line = re.split(r"\s+#", line, maxsplit=1)[0].strip()
-        if not line or line.startswith("#") or line.startswith("-"):
+        if not line or line.startswith(("#", "-")):
+            continue
+        if "://" in line or line.startswith((".", "/")):
+            continue
+        try:
+            Requirement(line)
+        except InvalidRequirement:
+            logger.debug("Skipping non-PEP-508 requirement line: %s", line)
             continue
         extra_lines.append(f"Requires-Dist: {line}")
 

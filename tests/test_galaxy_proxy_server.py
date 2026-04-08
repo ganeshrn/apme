@@ -84,6 +84,7 @@ class TestProjectPage:
         mock_download = AsyncMock(
             return_value=DownloadResult(tarball_paths=[fake_tarball]),
         )
+        mock_versions = AsyncMock(return_value=[])
         whl_data = b"PK\x03\x04converted-wheel"
         whl_name = "ansible_collection_ansible_posix-1.5.4-py3-none-any.whl"
 
@@ -94,6 +95,7 @@ class TestProjectPage:
                 "galaxy_proxy.proxy.server.tarball_to_wheel",
                 return_value=(whl_name, whl_data),
             ),
+            patch("galaxy_proxy.proxy.server._fetch_galaxy_versions", mock_versions),
         ):
             resp = client.get("/simple/ansible-collection-ansible-posix/")
 
@@ -111,10 +113,12 @@ class TestProjectPage:
         application = create_app(cache_dir=cache_dir, enable_passthrough=False)
 
         mock_download = AsyncMock(side_effect=RuntimeError("Galaxy unreachable"))
+        mock_versions = AsyncMock(return_value=[])
 
         with (
             TestClient(application) as client,
             patch("galaxy_proxy.proxy.server.download_collections", mock_download),
+            patch("galaxy_proxy.proxy.server._fetch_galaxy_versions", mock_versions),
         ):
             resp = client.get("/simple/ansible-collection-ansible-posix/")
 
@@ -133,8 +137,12 @@ class TestProjectPage:
         whl_name = "ansible_collection_ansible_posix-1.5.4-py3-none-any.whl"
         (wheels_dir / whl_name).write_bytes(b"fake-wheel")
 
+        mock_versions = AsyncMock(return_value=[])
         application = create_app(cache_dir=cache_dir, enable_passthrough=False)
-        with TestClient(application) as client:
+        with (
+            TestClient(application) as client,
+            patch("galaxy_proxy.proxy.server._fetch_galaxy_versions", mock_versions),
+        ):
             resp = client.get("/simple/ansible-collection-ansible-posix/")
         assert resp.status_code == 200
         assert whl_name in resp.text

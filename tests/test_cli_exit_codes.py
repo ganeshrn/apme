@@ -25,7 +25,7 @@ def _check_args(**overrides: object) -> argparse.Namespace:
         "json": False,
         "diff": False,
         "session": None,
-        "timeout": 120,
+        "timeout": 300,
         "ansible_version": None,
         "collections": None,
         "no_ansi": False,

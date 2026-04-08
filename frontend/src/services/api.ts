@@ -11,6 +11,7 @@ import type {
   CreatePullRequestRequest,
   CreatePullRequestResponse,
   DashboardSummary,
+  DepHealthSummary,
   GalaxyServer,
   HealthStatus,
   PaginatedResponse,
@@ -245,6 +246,16 @@ export function listPythonPackages(
 
 export function getPythonPackageDetail(name: string): Promise<PythonPackageDetail> {
   return request(`/python-packages/${encodeURIComponent(name)}`);
+}
+
+// ── Dependency health (ADR-051) ─────────────────────────────────────────
+
+export function getDepHealthSummary(): Promise<DepHealthSummary> {
+  return request("/dep-health");
+}
+
+export function getProjectDepHealth(projectId: string): Promise<DepHealthSummary> {
+  return request(`/projects/${encodeURIComponent(projectId)}/dep-health`);
 }
 
 // ── Galaxy server settings (ADR-045) ────────────────────────────────────

@@ -346,6 +346,8 @@ class ProjectSummary(BaseModel):  # type: ignore[misc]
         last_scanned_at: ISO timestamp of most recent run (``last_scanned_at`` column).
         scm_provider: Explicit SCM provider type (ADR-050), or None for auto-detect.
         has_scm_token: Whether a project-level SCM token is configured (ADR-050).
+        last_scanned_commit: Git SHA of the commit used in the most recent scan.
+        has_new_commits: True when the remote branch HEAD is ahead of last_scanned_commit.
     """
 
     id: str
@@ -360,6 +362,8 @@ class ProjectSummary(BaseModel):  # type: ignore[misc]
     last_scanned_at: str | None = None
     scm_provider: str | None = None
     has_scm_token: bool = False
+    last_scanned_commit: str = ""
+    has_new_commits: bool = False
 
 
 class ProjectDetail(ProjectSummary):
@@ -489,12 +493,14 @@ class CollectionProjectRef(BaseModel):  # type: ignore[misc]
         name: Project display label.
         health_score: Project health score.
         collection_version: Version of the collection in this project.
+        last_scan_id: Scan ID where this collection was last seen.
     """
 
     id: str
     name: str
     health_score: int
     collection_version: str
+    last_scan_id: str = ""
 
 
 class CollectionDetail(BaseModel):  # type: ignore[misc]
@@ -537,12 +543,14 @@ class PythonPackageProjectRef(BaseModel):  # type: ignore[misc]
         name: Project display label.
         health_score: Project health score.
         package_version: Version of the package in this project.
+        last_scan_id: Scan ID where this package was last seen.
     """
 
     id: str
     name: str
     health_score: int = 0
     package_version: str = ""
+    last_scan_id: str = ""
 
 
 class PythonPackageDetail(BaseModel):  # type: ignore[misc]
@@ -592,6 +600,61 @@ class CreatePullRequestResponse(BaseModel):  # type: ignore[misc]
     pr_url: str
     branch_name: str
     provider: str
+
+
+# ── Dependency health schemas (ADR-051) ──────────────────────────────
+
+
+class CollectionHealthSummary(BaseModel):  # type: ignore[misc]
+    """Collection health findings count (ADR-051).
+
+    Attributes:
+        fqcn: Fully-qualified collection name.
+        finding_count: Total findings from collection health scan.
+        critical: Critical-severity count.
+        error: Error-severity count.
+        high: High-severity count.
+        medium: Medium-severity count.
+        low: Low-severity count.
+        info: Info-severity count.
+    """
+
+    fqcn: str
+    finding_count: int
+    critical: int = 0
+    error: int = 0
+    high: int = 0
+    medium: int = 0
+    low: int = 0
+    info: int = 0
+
+
+class PythonCveSummary(BaseModel):  # type: ignore[misc]
+    """Python CVE finding summary (ADR-051).
+
+    Attributes:
+        rule_id: Rule identifier (e.g. R200).
+        level: Severity level string.
+        message: Human-readable CVE description.
+        occurrence_count: Number of projects affected.
+    """
+
+    rule_id: str
+    level: str
+    message: str
+    occurrence_count: int
+
+
+class DepHealthSummary(BaseModel):  # type: ignore[misc]
+    """Aggregated dependency health findings (ADR-051).
+
+    Attributes:
+        collection_findings: Per-collection finding counts.
+        python_cves: Per-CVE finding summaries.
+    """
+
+    collection_findings: list[CollectionHealthSummary] = Field(default_factory=list)
+    python_cves: list[PythonCveSummary] = Field(default_factory=list)
 
 
 class OperationRequestOptions(BaseModel):  # type: ignore[misc]

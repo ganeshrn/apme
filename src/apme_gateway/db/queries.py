@@ -450,6 +450,20 @@ async def link_scan_to_project(
     return True
 
 
+async def update_project_commit(db: AsyncSession, project_id: str, commit_sha: str) -> None:
+    """Store the git commit SHA used in the most recent scan.
+
+    Does **not** commit — the caller is expected to commit the enclosing
+    transaction (typically together with :func:`link_scan_to_project`).
+
+    Args:
+        db: Active async database session.
+        project_id: UUID of the project.
+        commit_sha: 40-char hex SHA from the cloned repo HEAD.
+    """
+    await db.execute(Project.__table__.update().where(Project.id == project_id).values(last_scanned_commit=commit_sha))
+
+
 async def update_project_health(db: AsyncSession, project_id: str) -> int:
     """Recompute and persist health score from the latest scan.
 
@@ -1088,6 +1102,7 @@ async def collection_detail(
         select(
             ScanCollection.version,
             ScanCollection.source,
+            ScanCollection.scan_id,
             Scan.project_id,
             Project.name.label("project_name"),
             Project.health_score,
@@ -1112,6 +1127,7 @@ async def collection_detail(
             "name": r.project_name,
             "health_score": r.health_score,
             "version": r.version,
+            "last_scan_id": r.scan_id,
         }
         for r in rows
     ]
@@ -1154,6 +1170,7 @@ async def collection_projects(
             Project.name.label("project_name"),
             Project.health_score,
             ScanCollection.version,
+            ScanCollection.scan_id,
         )
         .join(Scan, ScanCollection.scan_id == Scan.scan_id)
         .join(Project, Scan.project_id == Project.id)
@@ -1169,6 +1186,7 @@ async def collection_projects(
             "name": r.project_name,
             "health_score": r.health_score,
             "collection_version": r.version,
+            "last_scan_id": r.scan_id,
         }
         for r in result.all()
     ]
@@ -1273,6 +1291,7 @@ async def python_package_detail(
     stmt = (
         select(
             ScanPythonPackage.version,
+            ScanPythonPackage.scan_id,
             Scan.project_id,
             Project.name.label("project_name"),
             Project.health_score,
@@ -1296,6 +1315,7 @@ async def python_package_detail(
             "name": r.project_name,
             "health_score": r.health_score,
             "package_version": r.version,
+            "last_scan_id": r.scan_id,
         }
         for r in rows
     ]
@@ -1305,6 +1325,226 @@ async def python_package_detail(
         "project_count": len(projects),
         "projects": projects,
     }
+
+
+# ---------------------------------------------------------------------------
+# Dependency health findings (ADR-051)
+# ---------------------------------------------------------------------------
+
+
+async def collection_health_counts(
+    db: AsyncSession,
+) -> list[dict[str, object]]:
+    """Return violation counts per collection FQCN from latest scans.
+
+    Counts violations where ``validator_source == "collection_health"``,
+    grouped by the ``path`` field (collection FQCN). That validator only
+    emits collection-scoped findings, so no separate scope filter is needed.
+
+    Args:
+        db: Active async database session.
+
+    Returns:
+        List of dicts with fqcn, finding_count, and severity breakdown.
+    """
+    latest_scans = (
+        select(
+            Scan.scan_id,
+            func.row_number().over(partition_by=Scan.project_id, order_by=Scan.created_at.desc()).label("rn"),
+        )
+        .where(Scan.project_id.is_not(None))
+        .subquery()
+    )
+    latest = select(latest_scans.c.scan_id).where(latest_scans.c.rn == 1).subquery()
+
+    stmt = (
+        select(
+            Violation.path.label("fqcn"),
+            func.count().label("finding_count"),
+            func.sum(case((Violation.level.in_(["critical", "fatal"]), 1), else_=0)).label("critical"),
+            func.sum(case((Violation.level == "error", 1), else_=0)).label("error"),
+            func.sum(case((Violation.level.in_(["high", "very_high"]), 1), else_=0)).label("high"),
+            func.sum(case((Violation.level.in_(["medium", "warning", "warn"]), 1), else_=0)).label("medium"),
+            func.sum(case((Violation.level == "low", 1), else_=0)).label("low"),
+            func.sum(case((Violation.level.in_(["info", "none", "very_low"]), 1), else_=0)).label("info"),
+        )
+        .where(
+            Violation.validator_source == "collection_health",
+            Violation.scan_id.in_(select(latest.c.scan_id)),
+        )
+        .group_by(Violation.path)
+        .order_by(func.count().desc())
+    )
+    result = await db.execute(stmt)
+    return [
+        {
+            "fqcn": row.fqcn or "unknown",
+            "finding_count": row.finding_count,
+            "critical": row.critical,
+            "error": row.error,
+            "high": row.high,
+            "medium": row.medium,
+            "low": row.low,
+            "info": row.info,
+        }
+        for row in result.all()
+    ]
+
+
+async def python_cve_counts(
+    db: AsyncSession,
+) -> list[dict[str, object]]:
+    """Return CVE violation counts per unique CVE finding from latest scans.
+
+    Counts violations with ``validator_source='dep_audit'``, grouped by
+    ``(rule_id, level, message)`` so each distinct finding aggregates separately.
+
+    Args:
+        db: Active async database session.
+
+    Returns:
+        List of dicts with rule_id, level, message, count.
+    """
+    latest_scans = (
+        select(
+            Scan.scan_id,
+            func.row_number().over(partition_by=Scan.project_id, order_by=Scan.created_at.desc()).label("rn"),
+        )
+        .where(Scan.project_id.is_not(None))
+        .subquery()
+    )
+    latest = select(latest_scans.c.scan_id).where(latest_scans.c.rn == 1).subquery()
+
+    stmt = (
+        select(
+            Violation.rule_id,
+            Violation.level,
+            Violation.message,
+            func.count().label("occurrence_count"),
+        )
+        .where(
+            Violation.validator_source == "dep_audit",
+            Violation.scan_id.in_(select(latest.c.scan_id)),
+        )
+        .group_by(Violation.rule_id, Violation.level, Violation.message)
+        .order_by(func.count().desc())
+    )
+    result = await db.execute(stmt)
+    return [
+        {
+            "rule_id": row.rule_id,
+            "level": row.level,
+            "message": row.message,
+            "occurrence_count": row.occurrence_count,
+        }
+        for row in result.all()
+    ]
+
+
+async def project_collection_health_counts(
+    db: AsyncSession,
+    project_id: str,
+) -> list[dict[str, object]]:
+    """Return collection health violation counts for a specific project.
+
+    Scoped to the latest scan belonging to ``project_id``.
+
+    Args:
+        db: Active async database session.
+        project_id: UUID of the project.
+
+    Returns:
+        List of dicts with fqcn, finding_count, and severity breakdown.
+    """
+    latest_scan = (
+        select(Scan.scan_id)
+        .where(Scan.project_id == project_id)
+        .order_by(Scan.created_at.desc())
+        .limit(1)
+        .scalar_subquery()
+    )
+
+    stmt = (
+        select(
+            Violation.path.label("fqcn"),
+            func.count().label("finding_count"),
+            func.sum(case((Violation.level.in_(["critical", "fatal"]), 1), else_=0)).label("critical"),
+            func.sum(case((Violation.level == "error", 1), else_=0)).label("error"),
+            func.sum(case((Violation.level.in_(["high", "very_high"]), 1), else_=0)).label("high"),
+            func.sum(case((Violation.level.in_(["medium", "warning", "warn"]), 1), else_=0)).label("medium"),
+            func.sum(case((Violation.level == "low", 1), else_=0)).label("low"),
+            func.sum(case((Violation.level.in_(["info", "none", "very_low"]), 1), else_=0)).label("info"),
+        )
+        .where(
+            Violation.validator_source == "collection_health",
+            Violation.scan_id == latest_scan,
+        )
+        .group_by(Violation.path)
+        .order_by(func.count().desc())
+    )
+    result = await db.execute(stmt)
+    return [
+        {
+            "fqcn": row.fqcn or "unknown",
+            "finding_count": row.finding_count,
+            "critical": row.critical,
+            "error": row.error,
+            "high": row.high,
+            "medium": row.medium,
+            "low": row.low,
+            "info": row.info,
+        }
+        for row in result.all()
+    ]
+
+
+async def project_python_cve_counts(
+    db: AsyncSession,
+    project_id: str,
+) -> list[dict[str, object]]:
+    """Return Python CVE counts for a specific project.
+
+    Scoped to the latest scan belonging to ``project_id``.
+
+    Args:
+        db: Active async database session.
+        project_id: UUID of the project.
+
+    Returns:
+        List of dicts with rule_id, level, message, count.
+    """
+    latest_scan = (
+        select(Scan.scan_id)
+        .where(Scan.project_id == project_id)
+        .order_by(Scan.created_at.desc())
+        .limit(1)
+        .scalar_subquery()
+    )
+
+    stmt = (
+        select(
+            Violation.rule_id,
+            Violation.level,
+            Violation.message,
+            func.count().label("occurrence_count"),
+        )
+        .where(
+            Violation.validator_source == "dep_audit",
+            Violation.scan_id == latest_scan,
+        )
+        .group_by(Violation.rule_id, Violation.level, Violation.message)
+        .order_by(func.count().desc())
+    )
+    result = await db.execute(stmt)
+    return [
+        {
+            "rule_id": row.rule_id,
+            "level": row.level,
+            "message": row.message,
+            "occurrence_count": row.occurrence_count,
+        }
+        for row in result.all()
+    ]
 
 
 # ---------------------------------------------------------------------------

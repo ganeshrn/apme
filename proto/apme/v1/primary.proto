@@ -50,6 +50,8 @@ message ScanOptions {
                                      // false = partial overrides only (CLI).
                                      // When true, Primary performs bidirectional audit and
                                      // hard-fails if any known rule is missing (ADR-041).
+  bool skip_collection_health = 8;   // disable collection health validator (ADR-051)
+  bool skip_dep_audit = 9;           // disable Python CVE audit validator (ADR-051)
 }
 
 // Per-rule configuration delivered with each scan request (ADR-041).

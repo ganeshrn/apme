@@ -212,6 +212,13 @@ originate from the gRPC Reporting servicer (push model) or project CRUD.
 | GET | `/python-packages` | All packages with usage counts |
 | GET | `/python-packages/{name}` | Package detail |
 
+#### Dependency Health
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/dep-health` | Aggregated collection health findings and Python CVEs |
+| GET | `/projects/{id}/dep-health` | Project-scoped dependency health summary |
+
 #### Galaxy Server Settings (ADR-045)
 
 | Method | Path | Purpose |

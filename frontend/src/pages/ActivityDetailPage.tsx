@@ -7,6 +7,7 @@ import { SeverityStatusBar } from '../components/SeverityStatusBar';
 import { ViolationOutputToolbar } from '../components/ViolationOutputToolbar';
 import { ViolationOutput } from '../components/ViolationOutput';
 import { PipelineLogOutput } from '../components/PipelineLogOutput';
+import { DependencyHealthOutput, isDepHealthViolation } from '../components/DependencyHealthOutput';
 import {
   Alert,
   AlertActionCloseButton,
@@ -35,7 +36,6 @@ export function ActivityDetailPage() {
   const [detail, setDetail] = useState<ActivityDetail | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Filter state
   const [sevFilters, setSevFilters] = useState<Set<string>>(new Set());
   const [ruleFilters, setRuleFilters] = useState<Set<string>>(new Set());
   const [searchText, setSearchText] = useState('');
@@ -52,26 +52,33 @@ export function ActivityDetailPage() {
       .finally(() => setLoading(false));
   }, [activityId]);
 
+  const projectViolations = useMemo(() => {
+    if (!detail) return [];
+    return detail.violations.filter((v) => !isDepHealthViolation(v));
+  }, [detail]);
+
+  const depHealthCount = useMemo(() => {
+    if (!detail) return 0;
+    return detail.violations.filter(isDepHealthViolation).length;
+  }, [detail]);
+
   const sevCounts = useMemo(() => {
-    if (!detail) return new Map<string, number>();
     const counts = new Map<string, number>();
-    for (const v of detail.violations) {
+    for (const v of projectViolations) {
       const cls = severityClass(v.level, v.rule_id);
       counts.set(cls, (counts.get(cls) ?? 0) + 1);
     }
     return counts;
-  }, [detail]);
+  }, [projectViolations]);
 
   const uniqueRules = useMemo(() => {
-    if (!detail) return [] as string[];
     const set = new Set<string>();
-    for (const v of detail.violations) set.add(v.rule_id);
+    for (const v of projectViolations) set.add(v.rule_id);
     return Array.from(set).sort();
-  }, [detail]);
+  }, [projectViolations]);
 
   const filtered = useMemo(() => {
-    if (!detail) return [];
-    let violations = detail.violations;
+    let violations = projectViolations;
     if (sevFilters.size > 0) {
       violations = violations.filter((v) => sevFilters.has(severityClass(v.level, v.rule_id)));
     }
@@ -88,7 +95,7 @@ export function ActivityDetailPage() {
       );
     }
     return violations;
-  }, [detail, sevFilters, ruleFilters, searchText]);
+  }, [projectViolations, sevFilters, ruleFilters, searchText]);
 
   const patchByFile = useMemo(() => {
     if (!detail) return new Map<string, string>();
@@ -193,22 +200,14 @@ export function ActivityDetailPage() {
         </div>
       )}
 
-      {/*
-        Layout mirrors AAP job output:
-        1. Status bar (like JobStatusBar — name + counts)
-        2. Severity bar (like HostStatusBar — proportional colored segments)
-        3. Toolbar (like JobOutputToolbar — search + filters)
-        4. Controls + Output (like PageControls + JobOutputEvents)
-        5. Pipeline log (moved below violations)
-      */}
-      <div className="apme-job-output-section">
-        {/* 1. Status bar */}
-        <ViolationStatusBar detail={detail} />
-
-        {/* 2. Severity proportional bar */}
+      {/* Unified layout — all panels share viewport height */}
+      <div className="apme-activity-layout">
+        {/* Status bar + severity bar (fixed height, always visible) */}
+        <ViolationStatusBar
+          detail={detail}
+          depHealthCount={depHealthCount}
+        />
         <SeverityStatusBar sevCounts={sevCounts} />
-
-        {/* 3. Toolbar with search + filters */}
         <ViolationOutputToolbar
           searchText={searchText}
           onSearchChange={setSearchText}
@@ -219,29 +218,33 @@ export function ActivityDetailPage() {
           onSevChange={setSevFilters}
           onRuleChange={setRuleFilters}
           filteredCount={filtered.length}
-          totalCount={detail.violations.length}
+          totalCount={projectViolations.length}
         />
 
-        {/* 4. Violation output (controls + scrollable list) */}
-        <ViolationOutput
-          violations={filtered}
-          patchByFile={patchByFile}
-          hasFilters={hasFilters}
-          scanType={detail.scan_type}
-          getRuleDescription={getRuleDescription}
-          onSectionToggle={setResultsOpen}
-          scanId={activityId}
-          feedbackEnabled={feedbackEnabled}
-        />
+        {/* Results panel */}
+        <div className={`apme-output-panel ${resultsOpen ? 'apme-panel-open' : 'apme-panel-closed'}`}>
+          <ViolationOutput
+            violations={filtered}
+            patchByFile={patchByFile}
+            hasFilters={hasFilters}
+            scanType={detail.scan_type}
+            getRuleDescription={getRuleDescription}
+            onSectionToggle={setResultsOpen}
+            scanId={activityId}
+            feedbackEnabled={feedbackEnabled}
+          />
+        </div>
+
+        {/* Dependencies panel */}
+        <DependencyHealthOutput violations={detail.violations} />
+
+        {/* Pipeline log panel */}
+        <PipelineLogOutput logs={detail.logs} />
       </div>
 
-      {/* 5. Pipeline log — same output style, grouped by phase */}
-      <PipelineLogOutput logs={detail.logs} expanded={!resultsOpen} />
-
-      <div style={{ padding: '0 24px 24px' }}>
-        {/* AI proposals */}
+      <div style={{ padding: '16px 24px 24px' }}>
         {detail.proposals.length > 0 && (
-          <div style={{ marginTop: 24 }}>
+          <div style={{ marginTop: 8 }}>
             <h3 style={{ marginBottom: 12 }}>AI Proposals ({detail.proposals.length})</h3>
             <table className="pf-v6-c-table pf-m-compact" role="grid">
               <thead>
@@ -272,9 +275,8 @@ export function ActivityDetailPage() {
           </div>
         )}
 
-        {/* Diagnostics */}
         {detail.diagnostics_json && (
-          <ExpandableSection toggleText="Diagnostics (raw)" style={{ marginTop: 24 }}>
+          <ExpandableSection toggleText="Diagnostics (raw)" style={{ marginTop: 16 }}>
             <pre style={{ padding: 16, fontSize: 12, overflow: 'auto', maxHeight: 400, background: 'var(--pf-t--global--background--color--secondary--default)' }}>
               {(() => {
                 try { return JSON.stringify(JSON.parse(detail.diagnostics_json), null, 2); }

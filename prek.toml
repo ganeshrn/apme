@@ -27,6 +27,7 @@ hooks = [
     ],
     pass_filenames = false,
     additional_dependencies = [
+      "packaging>=23",
       "types-protobuf",
       "types-PyYAML",
       "grpc-stubs"

@@ -140,6 +140,8 @@ export interface ProjectSummary {
   last_scanned_at: string | null;
   scm_provider: string | null;
   has_scm_token: boolean;
+  last_scanned_commit: string;
+  has_new_commits: boolean;
 }
 
 export interface ProjectDetail extends ProjectSummary {
@@ -231,6 +233,7 @@ export interface CollectionProjectRef {
   name: string;
   health_score: number;
   collection_version: string;
+  last_scan_id: string;
 }
 
 export interface CollectionDetail {
@@ -252,6 +255,7 @@ export interface PythonPackageProjectRef {
   name: string;
   health_score: number;
   package_version: string;
+  last_scan_id: string;
 }
 
 export interface PythonPackageDetail {
@@ -259,6 +263,31 @@ export interface PythonPackageDetail {
   versions: string[];
   project_count: number;
   projects: PythonPackageProjectRef[];
+}
+
+// ── Dependency health types (ADR-051) ─────────────────────────────
+
+export interface CollectionHealthSummary {
+  fqcn: string;
+  finding_count: number;
+  critical: number;
+  error: number;
+  high: number;
+  medium: number;
+  low: number;
+  info: number;
+}
+
+export interface PythonCveSummary {
+  rule_id: string;
+  level: string;
+  message: string;
+  occurrence_count: number;
+}
+
+export interface DepHealthSummary {
+  collection_findings: CollectionHealthSummary[];
+  python_cves: PythonCveSummary[];
 }
 
 // ── Galaxy server types (ADR-045) ────────────────────────────────────

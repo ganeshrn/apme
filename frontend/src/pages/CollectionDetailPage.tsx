@@ -9,6 +9,7 @@ import {
   Split,
   SplitItem,
 } from '@patternfly/react-core';
+import { ExternalLinkAltIcon } from '@patternfly/react-icons';
 import { getCollectionDetail } from '../services/api';
 import type { CollectionDetail } from '../types/api';
 import { healthLabelColor } from '../components/severity';
@@ -122,6 +123,7 @@ export function CollectionDetailPage() {
                     <th role="columnheader">Project</th>
                     <th role="columnheader">Health</th>
                     <th role="columnheader">Collection Version</th>
+                    <th role="columnheader">Last Scan</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -138,6 +140,22 @@ export function CollectionDetailPage() {
                       <td role="cell"><HealthBadge score={proj.health_score} /></td>
                       <td role="cell">
                         <Label isCompact>{proj.collection_version}</Label>
+                      </td>
+                      <td role="cell">
+                        {proj.last_scan_id ? (
+                          <Button
+                            variant="link"
+                            isInline
+                            size="sm"
+                            icon={<ExternalLinkAltIcon />}
+                            iconPosition="end"
+                            onClick={(e) => { e.stopPropagation(); navigate(`/activity/${proj.last_scan_id}`); }}
+                          >
+                            View
+                          </Button>
+                        ) : (
+                          <span style={{ opacity: 0.4 }}>&mdash;</span>
+                        )}
                       </td>
                     </tr>
                   ))}

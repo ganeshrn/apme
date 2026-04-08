@@ -43,6 +43,7 @@ def run_scan(
     project_root: str,
     include_scandata: bool = True,
     dependency_dir: str = "",
+    include_test_contents: bool = True,
 ) -> ScanContext:
     """Run the engine on target_path and return a ScanContext for validators.
 
@@ -56,6 +57,7 @@ def run_scan(
         include_scandata: If True, attach the SingleScan to context for native validator.
         dependency_dir: Pre-installed dependency directory (e.g. session venv
             site-packages).  The loader reads from this path but never writes to it.
+        include_test_contents: If True, include test directories in the scan.
 
     Returns:
         ScanContext with hierarchy_payload and optionally scandata.
@@ -91,7 +93,7 @@ def run_scan(
         dependency_dir=dependency_dir,
         skip_dependency=False,
         load_all_taskfiles=True,
-        include_test_contents=True,
+        include_test_contents=include_test_contents,
     )
     engine_total_ms = (time.monotonic() - t0) * 1000
     logger.info("Engine: loader done (%.0fms)", engine_total_ms)

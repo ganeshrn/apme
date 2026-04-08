@@ -18,7 +18,7 @@ From the repo root:
 tox -e build
 ```
 
-This builds a shared base image, nine service images, and pulls one official image:
+This builds a shared base image, eleven service images, and pulls one official image:
 
 | Image | Source | Purpose |
 |-------|--------|---------|
@@ -27,6 +27,8 @@ This builds a shared base image, nine service images, and pulls one official ima
 | `apme-opa:latest` | `containers/opa/Dockerfile` | OPA + gRPC wrapper |
 | `apme-ansible:latest` | `containers/ansible/Dockerfile` | Ansible validator (reads session venvs) |
 | `apme-gitleaks:latest` | `containers/gitleaks/Dockerfile` | Gitleaks secret scanner + gRPC wrapper |
+| `apme-collection-health:latest` | `containers/collection-health/Dockerfile` | Installed collection health scanner |
+| `apme-dep-audit:latest` | `containers/dep-audit/Dockerfile` | Python CVE scanner (pip-audit) |
 | `apme-galaxy-proxy:latest` | `containers/galaxy-proxy/Dockerfile` | PEP 503 proxy: Galaxy tarballs → Python wheels |
 | `apme-gateway:latest` | `containers/gateway/Dockerfile` | REST API + gRPC Reporting service (SQLite) |
 | `apme-ui:latest` | `containers/ui/Dockerfile` | React SPA served by nginx (proxies API to Gateway) |
@@ -62,7 +64,7 @@ The start script (`up.sh`) automatically mounts the bundle into the Abbenay cont
 tox -e up
 ```
 
-This runs `podman play kube containers/podman/pod.yaml`, which starts the pod `apme-pod` with all service containers (Primary, Native, OPA, Ansible, Gitleaks, Galaxy Proxy, Gateway, UI, Abbenay). The `up.sh` script sources `containers/abbenay/.env` to inject LLM API keys into the Abbenay container. A sessions directory is created for session-scoped venvs.
+This runs `podman play kube containers/podman/pod.yaml`, which starts the pod `apme-pod` with all service containers (Primary, Native, OPA, Ansible, Gitleaks, Collection Health, Dep Audit, Galaxy Proxy, Gateway, UI, Abbenay). The `up.sh` script sources `containers/abbenay/.env` to inject LLM API keys into the Abbenay container. A sessions directory is created for session-scoped venvs.
 
 ### Run CLI commands
 
@@ -94,7 +96,7 @@ apme health-check
 
 The CLI discovers the Primary via `APME_PRIMARY_ADDRESS` env var, a running daemon, or auto-starts one locally.
 
-Reports status of all services (Primary, Native, OPA, Ansible, Gitleaks) with latency.
+Reports status of all services (Primary, Native, OPA, Ansible, Gitleaks, Collection Health, Dep Audit) with latency.
 
 ## Container configuration
 
@@ -109,6 +111,8 @@ Reports status of all services (Primary, Native, OPA, Ansible, Gitleaks) with la
 | `OPA_GRPC_ADDRESS` | — | OPA validator address (e.g., `127.0.0.1:50054`) |
 | `ANSIBLE_GRPC_ADDRESS` | — | Ansible validator address (e.g., `127.0.0.1:50053`) |
 | `GITLEAKS_GRPC_ADDRESS` | — | Gitleaks validator address (e.g., `127.0.0.1:50056`) |
+| `COLLECTION_HEALTH_GRPC_ADDRESS` | — | Collection Health validator address (e.g., `127.0.0.1:50058`) |
+| `DEP_AUDIT_GRPC_ADDRESS` | — | Dep Audit validator address (e.g., `127.0.0.1:50059`) |
 | `APME_REPORTING_ENDPOINT` | — | Gateway gRPC Reporting address (e.g., `127.0.0.1:50060`). Events are pushed after each check or remediate run. |
 | `APME_ABBENAY_ADDR` | — | Abbenay AI daemon address (e.g., `127.0.0.1:50057`). Supports `host:port` and `unix://` formats. |
 | `APME_ABBENAY_TOKEN` | — | Consumer token for Abbenay authentication. Must match a token in Abbenay's `config.yaml`. |
@@ -136,6 +140,18 @@ The OPA binary runs internally on `localhost:8181`; the gRPC wrapper proxies to 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `APME_ANSIBLE_VALIDATOR_LISTEN` | `0.0.0.0:50053` | gRPC listen address |
+
+#### Collection Health
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `APME_COLLECTION_HEALTH_VALIDATOR_LISTEN` | `0.0.0.0:50058` | gRPC listen address |
+
+#### Dep Audit
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `APME_DEP_AUDIT_VALIDATOR_LISTEN` | `0.0.0.0:50059` | gRPC listen address |
 
 #### Galaxy Proxy
 
@@ -245,6 +261,8 @@ See [PODMAN_OPA_ISSUES.md](PODMAN_OPA_ISSUES.md) for common Podman rootless issu
 | 50055 | Native | `APME_NATIVE_VALIDATOR_LISTEN` |
 | 50056 | Gitleaks | `APME_GITLEAKS_VALIDATOR_LISTEN` |
 | 50057 | Abbenay AI | `--grpc-port` (CLI flag) |
+| 50058 | Collection Health | `APME_COLLECTION_HEALTH_VALIDATOR_LISTEN` |
+| 50059 | Dep Audit | `APME_DEP_AUDIT_VALIDATOR_LISTEN` |
 | 50060 | Gateway (gRPC) | `APME_GATEWAY_GRPC_LISTEN` |
 | 8080 | Gateway (HTTP) | `APME_GATEWAY_HTTP_PORT` |
 | 8081 | UI (nginx) | — |

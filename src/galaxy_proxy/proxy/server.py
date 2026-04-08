@@ -18,8 +18,10 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
+import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, Response
+from packaging.version import InvalidVersion, Version
 from pydantic import BaseModel
 
 from galaxy_proxy.collection_downloader import (
@@ -32,11 +34,15 @@ from galaxy_proxy.naming import (
     is_collection_package,
     normalize_pep503,
     python_to_fqcn,
+    wheel_filename,
 )
 from galaxy_proxy.proxy.cache import ProxyCache
 from galaxy_proxy.proxy.passthrough import PyPIPassthrough
 
 logger = logging.getLogger(__name__)
+
+_GALAXY_API_URL = "https://galaxy.ansible.com"
+_GALAXY_VERSIONS_PATH = "/api/v3/plugin/ansible/content/published/collections/index"
 
 
 class _GalaxyServerPayload(BaseModel):  # type: ignore[misc]
@@ -199,9 +205,10 @@ def create_app(
     async def project_page(package_name: str) -> HTMLResponse:
         """PEP 503 project page listing available versions.
 
-        For collections, lists all cached wheel versions.  If no wheels are
-        cached, triggers a download via ``ansible-galaxy`` for the latest
-        version.
+        For collections, lists all Galaxy versions (cached with TTL) so
+        pip can resolve any version constraint.  Cached wheels include
+        SHA256 hashes; uncached versions get plain links — ``serve_wheel``
+        downloads on demand when pip requests them.
 
         Args:
             package_name: Requested package name from the URL path.
@@ -232,29 +239,40 @@ def create_app(
                 detail=f"Package {package_name!r} is not a valid Ansible collection name",
             ) from exc
 
-        cached_wheels = _list_cached_wheels(cache, namespace, name)
+        cached_wheel_set = set(_list_cached_wheels(cache, namespace, name))
 
-        if not cached_wheels:
+        versions: list[str] | None = None
+        meta = cache.get_metadata(namespace, name)
+        if meta is not None:
+            versions = meta.versions
+
+        if versions is None:
+            galaxy_versions = await _fetch_galaxy_versions(namespace, name)
+            if galaxy_versions:
+                cache.put_metadata(namespace, name, galaxy_versions)
+                versions = galaxy_versions
+
+        if not versions and not cached_wheel_set:
             lock_key = f"{namespace}.{name}:latest"
             lock = _download_locks.get(lock_key)
             if lock is None:
                 lock = _download_locks.setdefault(lock_key, asyncio.Lock())
             async with lock:
-                cached_wheels = _list_cached_wheels(cache, namespace, name)
-                if not cached_wheels:
+                cached_wheel_set = set(_list_cached_wheels(cache, namespace, name))
+                if not cached_wheel_set:
                     try:
-                        cfg_path, servers, galaxy_bin = _get_galaxy_config()
+                        cfg_path, servers_cfg, galaxy_bin = _get_galaxy_config()
                         whl_name, whl_data = await _download_and_convert(
                             namespace,
                             name,
                             "",
                             ansible_cfg_path=cfg_path,
-                            galaxy_servers=servers,
+                            galaxy_servers=servers_cfg,
                             ansible_galaxy_bin=galaxy_bin,
                         )
                         cache.put_wheel(whl_name, whl_data)
                         logger.info("On-demand download for %s.%s: %s", namespace, name, whl_name)
-                        cached_wheels = [whl_name]
+                        cached_wheel_set = {whl_name}
                     except Exception:
                         logger.warning(
                             "On-demand download failed for %s.%s — returning empty listing",
@@ -264,13 +282,25 @@ def create_app(
                         )
 
         links: list[str] = []
-        for whl_name in cached_wheels:
+        seen_versions: set[str] = set()
+
+        for whl_name in sorted(cached_wheel_set):
             cached_wheel = cache.wheel_path(whl_name)
             whl_hash = sha256_file_hex(cached_wheel) if cached_wheel else ""
             href = f"/wheels/{whl_name}"
             if whl_hash:
                 href += f"#sha256={whl_hash}"
             links.append(f'<a href="{href}">{whl_name}</a>')
+            parts = whl_name.split("-")
+            if len(parts) >= 2:
+                seen_versions.add(parts[1])
+
+        if versions:
+            for ver in versions:
+                if ver in seen_versions:
+                    continue
+                whl_name = wheel_filename(namespace, name, ver)
+                links.append(f'<a href="/wheels/{whl_name}">{whl_name}</a>')
 
         html = "<!DOCTYPE html>\n<html><body>\n" + "\n".join(links) + "\n</body></html>\n"
         return HTMLResponse(content=html)
@@ -427,6 +457,51 @@ def create_app(
         return {"converted": converted, "failed": failed}
 
     return app
+
+
+def _galaxy_version_sort_key(version: str) -> tuple[int, Version | str]:
+    """Build a sort key for PEP 440 version ordering.
+
+    Args:
+        version: Galaxy collection version string.
+
+    Returns:
+        ``(0, Version(...))`` for valid PEP 440 versions, or ``(1, version)``
+        so non-PEP-440 strings sort after all valid ones.
+    """
+    try:
+        return (0, Version(version))
+    except InvalidVersion:
+        return (1, version)
+
+
+async def _fetch_galaxy_versions(namespace: str, name: str) -> list[str]:
+    """Fetch all published version strings for a collection from Galaxy.
+
+    Args:
+        namespace: Collection namespace.
+        name: Collection name.
+
+    Returns:
+        List of version strings, empty on error.
+    """
+    versions: list[str] = []
+    url = f"{_GALAXY_API_URL}{_GALAXY_VERSIONS_PATH}/{namespace}/{name}/versions/"
+    params: dict[str, str | int] = {"limit": 100, "offset": 0}
+    try:
+        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+            while True:
+                resp = await client.get(url, params=params)
+                resp.raise_for_status()
+                payload = resp.json()
+                for entry in payload.get("data", []):
+                    versions.append(entry["version"])
+                if not payload.get("links", {}).get("next"):
+                    break
+                params["offset"] = int(params["offset"]) + int(params["limit"])
+    except (httpx.HTTPError, KeyError, ValueError) as exc:
+        logger.warning("Failed to fetch Galaxy versions for %s.%s: %s", namespace, name, exc)
+    return sorted(set(versions), key=_galaxy_version_sort_key)
 
 
 def _list_cached_wheels(cache: ProxyCache, namespace: str, name: str) -> list[str]:

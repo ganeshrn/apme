@@ -72,6 +72,23 @@ Collections are installed as pip packages using the naming convention:
 The proxy caches downloaded wheels and serves them via its simple index at
 `http://localhost:8765/simple/`.
 
+### Version-Pinned Collection Installs
+
+The proxy's PEP 503 project page lists **all available versions** of a
+collection from Galaxy, not just cached wheels. When `requirements.yml`
+pins a specific version (e.g., `community.vmware: 1.8.0`), `uv` can
+request that exact version and the proxy downloads the tarball on demand.
+Version metadata is fetched via the Galaxy V3 API and cached locally.
+
+### Python Dependency Extraction
+
+When converting a Galaxy tarball to a wheel, the proxy extracts the
+collection's `requirements.txt` (if present) and includes valid PEP 508
+entries as `Requires-Dist` in the wheel metadata. This causes `uv` to
+automatically install the collection's Python dependencies (e.g.,
+`pyvmomi` for `community.vmware`), making them visible to `pip-audit`
+for CVE scanning. Non-PEP 508 lines (VCS URLs, local paths) are filtered.
+
 ## VenvSessionManager
 
 `src/apme_engine/venv_manager/session.py` manages session-scoped venvs.

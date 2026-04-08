@@ -25,6 +25,13 @@ convention — there is no service discovery, no message queue.
 │  │ session  │  │ graph    │  │ wrapper  │  │ venvs    │  │ wrapper  │ │
 │  │  venvs   │  │          │  │          │  │ (ro)     │  │          │ │
 │  └────┬─────┘  └──────────┘  └──────────┘  └──────────┘  └──────────┘ │
+│                                                                       │
+│  ┌──────────────────┐  ┌──────────────────┐                           │
+│  │ Collection Health │  │    Dep Audit     │                           │
+│  │     :50058        │  │     :50059       │                           │
+│  │ collection lint   │  │ pip-audit CVEs   │                           │
+│  │ (sessions ro)     │  │ (sessions ro)    │                           │
+│  └──────────────────┘  └──────────────────┘                           │
 │       │                                                               │
 │  ┌────┴─────────────────────────────────────┐                         │
 │  │      Galaxy Proxy :8765 (PEP 503)        │                         │
@@ -55,6 +62,8 @@ convention — there is no service discovery, no message queue.
 | 50055 | Native | gRPC | Python graph rules validator |
 | 50056 | Gitleaks | gRPC | Secrets scanner (subprocess wrapper) |
 | 50057 | Abbenay | gRPC | AI inference gateway (optional) |
+| 50058 | Collection Health | gRPC | Installed collection health scanner (optional) |
+| 50059 | Dep Audit | gRPC | Python CVE scanner via pip-audit (optional) |
 | 50060 | Gateway | gRPC | Reporting service (receives engine events) |
 | 8080 | Gateway | HTTP | REST API for UI and external consumers |
 | 8081 | UI | HTTP | nginx-served React SPA (proxies `/api/` to Gateway) |
@@ -64,7 +73,7 @@ convention — there is no service discovery, no message queue.
 
 | Volume | Mount path | Services | Access | Purpose |
 |--------|-----------|----------|--------|---------|
-| `sessions` | `/sessions` | Primary (rw), Ansible (ro) | Named volume | Session-scoped venvs with ansible-core + installed collections |
+| `sessions` | `/sessions` | Primary (rw), Ansible, Collection Health, Dep Audit (ro) | Named volume | Session-scoped venvs with ansible-core + installed collections |
 | `workspace` | `/workspace` | CLI (ro) | Bind mount from host CWD | Project being scanned |
 
 ### Sessions Volume
@@ -165,6 +174,8 @@ network.
 | `apme-opa` | Python 3.12 slim + OPA binary | OPA validator server + Rego bundle |
 | `apme-ansible` | Python 3.12 slim | Ansible validator server |
 | `apme-gitleaks` | Python 3.12 slim + gitleaks binary | Gitleaks validator server |
+| `apme-collection-health` | Python 3.12 slim | Collection health validator server |
+| `apme-dep-audit` | Python 3.12 slim + pip-audit | Python CVE scanner server |
 | `apme-galaxy-proxy` | Python 3.12 slim | PEP 503 proxy server |
 | `apme-gateway` | Python 3.12 slim | FastAPI + gRPC Reporting + SQLite |
 | `apme-ui` | nginx alpine | React SPA static files |

@@ -3,11 +3,13 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { PageLayout, PageHeader } from '@ansible/ansible-ui-framework';
 import { severityClass, severityLabel, severityOrder, SEVERITY_LABELS, bareRuleId, healthColor } from '../components/severity';
 import {
+  Badge,
   Button,
   Card,
   CardBody,
   Flex,
   FlexItem,
+  Label,
   Split,
   SplitItem,
   Tab,
@@ -15,9 +17,14 @@ import {
   TabTitleText,
   TextInput,
 } from '@patternfly/react-core';
-import { createPullRequest, deleteProject, getProject, getProjectDependencies, getProjectGraph, getProjectSbom, getProjectTrend, listProjectActivity, listProjectViolations, updateProject } from '../services/api';
+import {
+  ExclamationCircleIcon,
+  ExclamationTriangleIcon,
+  ShieldAltIcon,
+} from '@patternfly/react-icons';
+import { createPullRequest, deleteProject, getProject, getProjectDependencies, getProjectDepHealth, getProjectGraph, getProjectSbom, getProjectTrend, listProjectActivity, listProjectViolations, updateProject } from '../services/api';
 import type { GraphData } from '../services/api';
-import type { ActivitySummary, ProjectDependencies, ProjectDetail, TrendPoint, ViolationDetail } from '../types/api';
+import type { ActivitySummary, DepHealthSummary, ProjectDependencies, ProjectDetail, TrendPoint, ViolationDetail } from '../types/api';
 import { GraphVisualization } from '../components/GraphVisualization';
 import type { OperationStatus, OperationProgress, OperationProposal, OperationResult } from '../types/operation';
 import { StatusBadge } from '../components/StatusBadge';
@@ -43,6 +50,7 @@ export function ProjectDetailPage() {
   const [scans, setScans] = useState<ActivitySummary[]>([]);
   const [violations, setViolations] = useState<ViolationDetail[]>([]);
   const [dependencies, setDependencies] = useState<ProjectDependencies | null>(null);
+  const [depHealth, setDepHealth] = useState<DepHealthSummary | null>(null);
   const [graphData, setGraphData] = useState<GraphData | null>(null);
   const [graphLoading, setGraphLoading] = useState(false);
   const [trend, setTrend] = useState<TrendPoint[]>([]);
@@ -108,20 +116,23 @@ export function ProjectDetailPage() {
     setScans([]);
     setViolations([]);
     setDependencies(null);
+    setDepHealth(null);
     setTrend([]);
     try {
       const proj = await getProject(projectId);
       setProject(proj);
-      const [scanResult, violResult, depsResult, trendResult] = await Promise.allSettled([
+      const [scanResult, violResult, depsResult, trendResult, healthResult] = await Promise.allSettled([
         listProjectActivity(projectId, 20, 0),
         listProjectViolations(projectId, 100, 0),
         getProjectDependencies(projectId),
         getProjectTrend(projectId),
+        getProjectDepHealth(projectId),
       ]);
       if (scanResult.status === 'fulfilled') setScans(scanResult.value.items);
       if (violResult.status === 'fulfilled') setViolations(violResult.value);
       if (depsResult.status === 'fulfilled') setDependencies(depsResult.value);
       if (trendResult.status === 'fulfilled') setTrend(trendResult.value);
+      if (healthResult.status === 'fulfilled') setDepHealth(healthResult.value);
     } catch {
       setProject(null);
     } finally {
@@ -476,7 +487,7 @@ export function ProjectDetailPage() {
           </Tab>
 
           <Tab eventKey={3} title={<TabTitleText>Dependencies</TabTitleText>}>
-            <DependenciesTab dependencies={dependencies} loading={loading} projectId={projectId} />
+            <DependenciesTab dependencies={dependencies} depHealth={depHealth} loading={loading} projectId={projectId} />
           </Tab>
 
           <Tab eventKey={4} title={<TabTitleText>Visualize</TabTitleText>}>
@@ -628,9 +639,34 @@ function ViolationsTab({ violations }: { violations: ViolationDetail[] }) {
   );
 }
 
-function DependenciesTab({ dependencies, loading, projectId }: { dependencies: ProjectDependencies | null; loading: boolean; projectId?: string }) {
+function DependenciesTab({ dependencies, depHealth, loading, projectId }: { dependencies: ProjectDependencies | null; depHealth: DepHealthSummary | null; loading: boolean; projectId?: string }) {
   const navigate = useNavigate();
   const [downloading, setDownloading] = useState(false);
+
+  const collHealthMap = useMemo(() => {
+    const map = new Map<string, { finding_count: number; critical: number; error: number; high: number; medium: number; low: number; info: number }>();
+    if (!depHealth) return map;
+    for (const f of depHealth.collection_findings) {
+      map.set(f.fqcn, f);
+    }
+    return map;
+  }, [depHealth]);
+
+  const pkgCveMap = useMemo(() => {
+    const map = new Map<string, { count: number; hasCritical: boolean }>();
+    if (!depHealth) return map;
+    for (const cve of depHealth.python_cves) {
+      const match = cve.message.match(/^([a-zA-Z0-9_.-]+)==/);
+      if (!match?.[1]) continue;
+      const pkg = match[1].toLowerCase();
+      const existing = map.get(pkg) ?? { count: 0, hasCritical: false };
+      existing.count += cve.occurrence_count;
+      const cls = severityClass(cve.level);
+      if (cls === 'critical' || cls === 'error' || cls === 'high') existing.hasCritical = true;
+      map.set(pkg, existing);
+    }
+    return map;
+  }, [depHealth]);
 
   const handleSbomDownload = useCallback(async () => {
     if (!projectId) return;
@@ -695,6 +731,40 @@ function DependenciesTab({ dependencies, loading, projectId }: { dependencies: P
         </Button>
       </Flex>
 
+      {depHealth && (depHealth.collection_findings.length > 0 || depHealth.python_cves.length > 0) && (
+        <Card style={{ marginBottom: 16, borderLeft: '4px solid var(--pf-t--global--color--status--warning--default)' }}>
+          <CardBody>
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <ShieldAltIcon />
+              Dependency Health Summary
+            </h3>
+            <Flex gap={{ default: 'gapLg' }}>
+              {depHealth.collection_findings.length > 0 && (
+                <FlexItem>
+                  <span style={{ fontWeight: 600 }}>
+                    {depHealth.collection_findings.reduce((s, c) => s + c.finding_count, 0)}
+                  </span>{' '}
+                  collection findings in{' '}
+                  <span style={{ fontWeight: 600 }}>
+                    {depHealth.collection_findings.length}
+                  </span>{' '}
+                  collection{depHealth.collection_findings.length !== 1 ? 's' : ''}
+                </FlexItem>
+              )}
+              {depHealth.python_cves.length > 0 && (
+                <FlexItem>
+                  <ExclamationCircleIcon style={{ color: 'var(--pf-t--global--color--status--danger--default)', marginRight: 4 }} />
+                  <span style={{ fontWeight: 600 }}>
+                    {depHealth.python_cves.length}
+                  </span>{' '}
+                  Python CVE{depHealth.python_cves.length !== 1 ? 's' : ''} detected
+                </FlexItem>
+              )}
+            </Flex>
+          </CardBody>
+        </Card>
+      )}
+
       {hasAnsibleCore && (
         <Card style={{ marginBottom: 16 }}>
           <CardBody>
@@ -716,10 +786,14 @@ function DependenciesTab({ dependencies, loading, projectId }: { dependencies: P
                   <th role="columnheader">FQCN</th>
                   <th role="columnheader">Version</th>
                   <th role="columnheader">Source</th>
+                  <th role="columnheader">Findings</th>
                 </tr>
               </thead>
               <tbody>
-                {dependencies.collections.map((c) => (
+                {dependencies.collections.map((c) => {
+                  const h = collHealthMap.get(c.fqcn);
+                  const hasCritical = h && (h.critical > 0 || h.error > 0);
+                  return (
                   <tr
                     key={`${c.fqcn}-${c.version}`}
                     role="row"
@@ -733,8 +807,20 @@ function DependenciesTab({ dependencies, loading, projectId }: { dependencies: P
                     </td>
                     <td role="cell">{c.version}</td>
                     <td role="cell" style={{ opacity: 0.7 }}>{c.source}</td>
+                    <td role="cell">
+                      {h ? (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          {hasCritical && <ExclamationCircleIcon style={{ color: 'var(--pf-t--global--color--status--danger--default)' }} />}
+                          {h.high > 0 && <ExclamationTriangleIcon style={{ color: 'var(--pf-t--global--color--status--warning--default)' }} />}
+                          <Badge isRead={!hasCritical}>{h.finding_count}</Badge>
+                        </span>
+                      ) : (
+                        <span style={{ opacity: 0.4 }}>&mdash;</span>
+                      )}
+                    </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </CardBody>
@@ -750,10 +836,13 @@ function DependenciesTab({ dependencies, loading, projectId }: { dependencies: P
                 <tr role="row">
                   <th role="columnheader">Package</th>
                   <th role="columnheader">Version</th>
+                  <th role="columnheader">CVEs</th>
                 </tr>
               </thead>
               <tbody>
-                {dependencies.python_packages.map((p) => (
+                {dependencies.python_packages.map((p) => {
+                  const cveInfo = pkgCveMap.get(p.name.toLowerCase());
+                  return (
                   <tr
                     key={`${p.name}-${p.version}`}
                     role="row"
@@ -766,8 +855,65 @@ function DependenciesTab({ dependencies, loading, projectId }: { dependencies: P
                       {p.name}
                     </td>
                     <td role="cell">{p.version}</td>
+                    <td role="cell">
+                      {cveInfo ? (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          {cveInfo.hasCritical && <ExclamationCircleIcon style={{ color: 'var(--pf-t--global--color--status--danger--default)' }} />}
+                          <Badge isRead={!cveInfo.hasCritical}>{cveInfo.count}</Badge>
+                        </span>
+                      ) : (
+                        <span style={{ opacity: 0.4 }}>&mdash;</span>
+                      )}
+                    </td>
                   </tr>
-                ))}
+                  );
+                })}
+              </tbody>
+            </table>
+          </CardBody>
+        </Card>
+      )}
+
+      {depHealth && depHealth.python_cves.length > 0 && (
+        <Card style={{ marginBottom: 16, borderLeft: '4px solid var(--pf-t--global--color--status--danger--default)' }}>
+          <CardBody>
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <ExclamationCircleIcon style={{ color: 'var(--pf-t--global--color--status--danger--default)' }} />
+              Python CVEs ({depHealth.python_cves.length})
+            </h3>
+            <table className="pf-v6-c-table pf-m-compact" role="grid">
+              <thead>
+                <tr role="row">
+                  <th role="columnheader" style={{ width: 90 }}>Severity</th>
+                  <th role="columnheader" style={{ width: 160 }}>CVE / Rule</th>
+                  <th role="columnheader">Details</th>
+                  <th role="columnheader" style={{ width: 100 }}>Occurrences</th>
+                </tr>
+              </thead>
+              <tbody>
+                {depHealth.python_cves.map((cve, i) => {
+                  const cls = severityClass(cve.level);
+                  const cveId = cve.message.match(/CVE-\d{4}-\d+/)?.[0] ?? cve.rule_id;
+                  return (
+                    <tr key={`${cve.rule_id}-${i}`} role="row">
+                      <td role="cell">
+                        <Label
+                          color={cls === 'critical' || cls === 'error' ? 'red' : cls === 'high' ? 'orange' : cls === 'medium' ? 'yellow' : 'blue'}
+                          isCompact
+                        >
+                          {cls.toUpperCase()}
+                        </Label>
+                      </td>
+                      <td role="cell">
+                        <span style={{ fontFamily: 'var(--pf-t--global--font--family--mono)', fontWeight: 600 }}>
+                          {cveId}
+                        </span>
+                      </td>
+                      <td role="cell" style={{ fontSize: 13 }}>{cve.message}</td>
+                      <td role="cell"><Badge isRead>{cve.occurrence_count}</Badge></td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </CardBody>

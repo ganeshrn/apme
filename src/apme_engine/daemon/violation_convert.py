@@ -39,6 +39,12 @@ _METADATA_KEYS = frozenset(
         "with_key",
         "redirect_chain",
         "removal_msg",
+        "collection_fqcn",
+        "collection_version",
+        "cve_id",
+        "dep_package",
+        "dep_installed_version",
+        "dep_fix_versions",
     }
 )
 

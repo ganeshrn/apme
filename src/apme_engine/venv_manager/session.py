@@ -171,6 +171,8 @@ def _run_pip_install(
             str(pip_python),
             "--extra-index-url",
             simple_url,
+            "--index-strategy",
+            "unsafe-best-match",
             *pip_specs,
         ]
     else:

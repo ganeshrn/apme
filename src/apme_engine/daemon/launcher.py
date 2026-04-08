@@ -32,6 +32,8 @@ _DEFAULT_PORTS = {
 
 _OPTIONAL_SERVICES = {
     "gitleaks": 50056,
+    "collection_health": 50058,
+    "dep_audit": 50059,
 }
 
 _HEALTH_TIMEOUT = 10.0
@@ -185,6 +187,8 @@ async def _run_daemon(services: dict[str, str]) -> None:
         "opa": "OPA_GRPC_ADDRESS",
         "ansible": "ANSIBLE_GRPC_ADDRESS",
         "gitleaks": "GITLEAKS_GRPC_ADDRESS",
+        "collection_health": "COLLECTION_HEALTH_GRPC_ADDRESS",
+        "dep_audit": "DEP_AUDIT_GRPC_ADDRESS",
     }
     for name, env_var in env_map.items():
         if name in services:
@@ -214,6 +218,18 @@ async def _run_daemon(services: dict[str, str]) -> None:
 
         servers.append(await gitleaks_serve(services["gitleaks"]))
         sys.stderr.write(f"  Gitleaks validator on {services['gitleaks']}\n")
+
+    if "collection_health" in services:
+        from apme_engine.daemon.collection_health_server import serve as collection_health_serve
+
+        servers.append(await collection_health_serve(services["collection_health"]))
+        sys.stderr.write(f"  Collection Health validator on {services['collection_health']}\n")
+
+    if "dep_audit" in services:
+        from apme_engine.daemon.dep_audit_server import serve as dep_audit_serve
+
+        servers.append(await dep_audit_serve(services["dep_audit"]))
+        sys.stderr.write(f"  Dep Audit validator on {services['dep_audit']}\n")
 
     # Galaxy Proxy (uvicorn, not gRPC) — must start before Primary so
     # APME_GALAXY_PROXY_URL is set when the engine creates session venvs.
@@ -256,7 +272,7 @@ def start_daemon(
     """Fork a background daemon process running Primary + all validators.
 
     Args:
-        include_optional: Also start Gitleaks validator (requires gitleaks binary).
+        include_optional: Also start optional validators (Gitleaks, Collection Health, Dep Audit).
         host: Bind address (default 127.0.0.1 for localhost-only).
 
     Returns:

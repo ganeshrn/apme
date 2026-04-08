@@ -58,13 +58,15 @@ results = await asyncio.gather(
     self._call_validator("opa", request),
     self._call_validator("ansible", request),
     self._call_validator("gitleaks", request),
+    self._call_validator("collection_health", request),
+    self._call_validator("dep_audit", request),
     return_exceptions=True,
 )
 ```
 
-Wall-clock time = `max(native, opa, ansible, gitleaks)` rather than
-`sum`. Each call is an independent async gRPC stub call. Failures in
-one validator do not block or cancel others — `return_exceptions=True`
+Wall-clock time = `max(all validators)` rather than `sum`. Each call is
+an independent async gRPC stub call. Failures in one validator do not
+block or cancel others — `return_exceptions=True`
 captures errors as return values for graceful degradation.
 
 ## Validator Services

@@ -157,6 +157,52 @@
 
 /* ── AAP-style Job Output layout ───────────────────── */
 
+.apme-activity-layout {
+  display: flex;
+  flex-direction: column;
+  margin: 0 24px;
+  border: 1px solid var(--pf-t--global--border--color--default);
+  border-radius: var(--pf-t--global--border--radius--small);
+  overflow: hidden;
+  height: calc(100vh - 200px);
+  min-height: 400px;
+}
+
+.apme-activity-layout > .apme-output-panel,
+.apme-activity-layout > .apme-output-panel .apme-output-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  border-top: 1px solid var(--pf-t--global--border--color--default);
+}
+
+.apme-activity-layout > .apme-output-panel.apme-panel-open,
+.apme-activity-layout > .apme-output-panel .apme-panel-open {
+  flex: 1;
+}
+
+.apme-activity-layout > .apme-output-panel.apme-panel-closed,
+.apme-activity-layout > .apme-output-panel .apme-panel-closed {
+  flex: 0 0 auto;
+}
+
+.apme-activity-layout .apme-output-controls {
+  border: none;
+  border-bottom: 1px solid var(--pf-t--global--border--color--default);
+  flex-shrink: 0;
+}
+
+.apme-activity-layout .apme-panel-closed .apme-output-controls {
+  border-bottom: none;
+}
+
+.apme-activity-layout .apme-output-scroll {
+  border: none;
+  flex: 1;
+  min-height: 0;
+}
+
 .apme-job-output-section {
   display: flex;
   flex-direction: column;

@@ -29,6 +29,7 @@ class Project(Base):
         health_score: Computed 0-100 health score from latest scan.
         scm_token: Per-project SCM token (ADR-050). Overrides global fallback.
         scm_provider: Explicit SCM provider type (ADR-050). Auto-detected if unset.
+        last_scanned_commit: Git SHA of the commit used in the most recent scan.
         scans: Related scan rows.
     """
 
@@ -42,6 +43,7 @@ class Project(Base):
     health_score: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     scm_token: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
     scm_provider: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
+    last_scanned_commit: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
     scans: Mapped[list[Scan]] = relationship(back_populates="project", cascade="all, delete-orphan")
 

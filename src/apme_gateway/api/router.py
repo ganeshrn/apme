@@ -29,6 +29,7 @@ from apme_gateway.api.schemas import (
     AiAcceptanceEntry,
     AiModelInfo,
     CollectionDetail,
+    CollectionHealthSummary,
     CollectionProjectRef,
     CollectionRefSchema,
     CollectionSummary,
@@ -38,6 +39,7 @@ from apme_gateway.api.schemas import (
     CreatePullRequestRequest,
     CreatePullRequestResponse,
     DashboardSummary,
+    DepHealthSummary,
     GalaxyServerSchema,
     HealthStatus,
     LogEntry,
@@ -48,6 +50,7 @@ from apme_gateway.api.schemas import (
     ProjectRanking,
     ProjectSummary,
     ProposalDetail,
+    PythonCveSummary,
     PythonPackageDetail,
     PythonPackageProjectRef,
     PythonPackageRefSchema,
@@ -98,6 +101,8 @@ _UPSTREAM_SERVICES: list[tuple[str, str, str]] = [
     ("OPA Validator", "OPA_GRPC_ADDRESS", "127.0.0.1:50054"),
     ("Ansible Validator", "ANSIBLE_GRPC_ADDRESS", "127.0.0.1:50053"),
     ("Gitleaks Validator", "GITLEAKS_GRPC_ADDRESS", "127.0.0.1:50056"),
+    ("Collection Health", "COLLECTION_HEALTH_GRPC_ADDRESS", "127.0.0.1:50058"),
+    ("Dep Audit", "DEP_AUDIT_GRPC_ADDRESS", "127.0.0.1:50059"),
     ("Galaxy Proxy", "APME_GALAXY_PROXY_URL", "http://127.0.0.1:8765"),
     ("Abbenay AI", "APME_ABBENAY_ADDR", "127.0.0.1:50057"),
 ]
@@ -436,6 +441,7 @@ async def create_project(body: CreateProjectRequest) -> ProjectSummary:
         health_score=proj.health_score,
         scm_provider=proj.scm_provider,
         has_scm_token=bool(proj.scm_token),
+        last_scanned_commit=proj.last_scanned_commit,
     )
 
 
@@ -487,6 +493,7 @@ async def list_projects(
                     last_scanned_at=last_scan_at,
                     scm_provider=proj.scm_provider,
                     has_scm_token=bool(proj.scm_token),
+                    last_scanned_commit=proj.last_scanned_commit,
                 )
             )
     return PaginatedResponse(total=total, limit=limit, offset=offset, items=items)
@@ -515,6 +522,9 @@ def _compute_violation_trend(scans: list[Scan]) -> str:
 async def get_project_detail(project_id: str) -> ProjectDetail:
     """Fetch a project with latest activity info.
 
+    Performs a lightweight ``git ls-remote`` to detect whether the remote
+    branch has new commits since the last scan.
+
     Args:
         project_id: Project UUID.
 
@@ -524,6 +534,8 @@ async def get_project_detail(project_id: str) -> ProjectDetail:
     Raises:
         HTTPException: 404 if project not found.
     """
+    from apme_gateway.scan.driver import fetch_remote_head
+
     async with get_session() as db:
         proj = await q.resolve_project(db, project_id)
         if not proj:
@@ -537,6 +549,13 @@ async def get_project_detail(project_id: str) -> ProjectDetail:
         latest_summary = _to_activity_summary(latest) if latest else None
         vt = _compute_violation_trend(trend)
         last_scan_at = trend[-1].created_at if trend else None
+
+    has_new = False
+    if proj.last_scanned_commit:
+        remote_sha = await fetch_remote_head(proj.repo_url, proj.branch)
+        if remote_sha and remote_sha != proj.last_scanned_commit:
+            has_new = True
+
     return ProjectDetail(
         id=proj.id,
         name=proj.name,
@@ -550,6 +569,8 @@ async def get_project_detail(project_id: str) -> ProjectDetail:
         last_scanned_at=last_scan_at,
         scm_provider=proj.scm_provider,
         has_scm_token=bool(proj.scm_token),
+        last_scanned_commit=proj.last_scanned_commit,
+        has_new_commits=has_new,
         latest_scan=latest_summary,
         severity_breakdown=severity,
     )
@@ -599,6 +620,7 @@ async def update_project(
         health_score=proj.health_score,
         scm_provider=proj.scm_provider,
         has_scm_token=bool(proj.scm_token),
+        last_scanned_commit=proj.last_scanned_commit,
     )
 
 
@@ -937,6 +959,7 @@ async def get_collection_detail(fqcn: str) -> CollectionDetail:
                 name=str(p["name"]),
                 health_score=cast(int, p.get("health_score", 0)),
                 collection_version=str(p.get("version", "")),
+                last_scan_id=str(p.get("last_scan_id", "")),
             )
             for p in projects_list
         ],
@@ -961,6 +984,7 @@ async def list_collection_projects(fqcn: str) -> list[CollectionProjectRef]:
             name=str(r["name"]),
             health_score=cast(int, r.get("health_score", 0)),
             collection_version=str(r.get("collection_version", "")),
+            last_scan_id=str(r.get("last_scan_id", "")),
         )
         for r in rows
     ]
@@ -1020,8 +1044,93 @@ async def get_python_package_detail(name: str) -> PythonPackageDetail:
                 name=str(p["name"]),
                 health_score=cast(int, p.get("health_score", 0)),
                 package_version=str(p.get("package_version", "")),
+                last_scan_id=str(p.get("last_scan_id", "")),
             )
             for p in pkg_projects
+        ],
+    )
+
+
+# ── Dependency health (ADR-051) ──────────────────────────────────────
+
+
+@router.get("/dep-health")  # type: ignore[untyped-decorator]
+async def dep_health_summary() -> DepHealthSummary:
+    """Return aggregated dependency health findings from latest scans.
+
+    Returns:
+        Summary of collection health findings and Python CVEs.
+    """
+    async with get_session() as db:
+        coll_rows = await q.collection_health_counts(db)
+        cve_rows = await q.python_cve_counts(db)
+    return DepHealthSummary(
+        collection_findings=[
+            CollectionHealthSummary(
+                fqcn=str(r["fqcn"]),
+                finding_count=cast(int, r["finding_count"]),
+                critical=cast(int, r.get("critical", 0)),
+                error=cast(int, r.get("error", 0)),
+                high=cast(int, r.get("high", 0)),
+                medium=cast(int, r.get("medium", 0)),
+                low=cast(int, r.get("low", 0)),
+                info=cast(int, r.get("info", 0)),
+            )
+            for r in coll_rows
+        ],
+        python_cves=[
+            PythonCveSummary(
+                rule_id=str(r["rule_id"]),
+                level=str(r["level"]),
+                message=str(r["message"]),
+                occurrence_count=cast(int, r["occurrence_count"]),
+            )
+            for r in cve_rows
+        ],
+    )
+
+
+@router.get("/projects/{project_id}/dep-health")  # type: ignore[untyped-decorator]
+async def project_dep_health_summary(project_id: str) -> DepHealthSummary:
+    """Return dependency health findings for a specific project.
+
+    Args:
+        project_id: UUID of the project.
+
+    Returns:
+        Summary of collection health findings and Python CVEs for this project.
+
+    Raises:
+        HTTPException: 404 if project not found.
+    """
+    async with get_session() as db:
+        proj = await q.get_project(db, project_id)
+        if proj is None:
+            raise HTTPException(status_code=404, detail="Project not found")
+        coll_rows = await q.project_collection_health_counts(db, proj.id)
+        cve_rows = await q.project_python_cve_counts(db, proj.id)
+    return DepHealthSummary(
+        collection_findings=[
+            CollectionHealthSummary(
+                fqcn=str(r["fqcn"]),
+                finding_count=cast(int, r["finding_count"]),
+                critical=cast(int, r.get("critical", 0)),
+                error=cast(int, r.get("error", 0)),
+                high=cast(int, r.get("high", 0)),
+                medium=cast(int, r.get("medium", 0)),
+                low=cast(int, r.get("low", 0)),
+                info=cast(int, r.get("info", 0)),
+            )
+            for r in coll_rows
+        ],
+        python_cves=[
+            PythonCveSummary(
+                rule_id=str(r["rule_id"]),
+                level=str(r["level"]),
+                message=str(r["message"]),
+                occurrence_count=cast(int, r["occurrence_count"]),
+            )
+            for r in cve_rows
         ],
     )
 
@@ -1879,7 +1988,7 @@ async def project_operate_ws(
     """
     from apme_gateway._galaxy_inject import load_galaxy_server_defs
     from apme_gateway.config import load_config
-    from apme_gateway.scan.driver import run_project_operation
+    from apme_gateway.scan.driver import fetch_remote_head, run_project_operation
 
     await websocket.accept()
 
@@ -1893,6 +2002,17 @@ async def project_operate_ws(
         if not proj:
             await websocket.send_json({"type": "error", "message": "Project not found"})
             return
+
+        remote_sha = await fetch_remote_head(proj.repo_url, proj.branch)
+        if remote_sha and proj.last_scanned_commit and remote_sha != proj.last_scanned_commit:
+            await websocket.send_json(
+                {
+                    "type": "new_commits",
+                    "remote_head": remote_sha[:12],
+                    "last_scanned": proj.last_scanned_commit[:12],
+                    "message": "New commits detected since last scan",
+                }
+            )
 
         cfg = load_config()
         galaxy_servers = await load_galaxy_server_defs()
@@ -2018,11 +2138,12 @@ async def project_operate_ws(
 
         await websocket.send_json({"type": "cloning"})
 
+        clone_commit = ""
         if is_remediate:
             approval_queue: asyncio.Queue[list[str]] = asyncio.Queue()
-            op_result: tuple[str, object] | None = None
+            op_result: tuple[str, object, str] | None = None
 
-            async def _run_op() -> tuple[str, object]:
+            async def _run_op() -> tuple[str, object, str]:
                 return await run_project_operation(
                     project_id=proj.id,
                     repo_url=proj.repo_url,
@@ -2066,8 +2187,9 @@ async def project_operate_ws(
 
             if op_result is not None:
                 completed_scan_id = op_result[0]
+                clone_commit = op_result[2]
         else:
-            scan_id, _result = await run_project_operation(
+            scan_id, _result, clone_commit = await run_project_operation(
                 project_id=proj.id,
                 repo_url=proj.repo_url,
                 branch=proj.branch,
@@ -2084,6 +2206,8 @@ async def project_operate_ws(
         if completed_scan_id:
             op_scan_type = "remediate" if is_remediate else "check"
             async with get_session() as db:
+                if clone_commit:
+                    await q.update_project_commit(db, proj.id, clone_commit)
                 await q.link_scan_to_project(
                     db,
                     completed_scan_id,
