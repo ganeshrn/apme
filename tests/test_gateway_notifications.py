@@ -13,6 +13,7 @@ from apme_gateway.db import close_db, get_session, init_db
 from apme_gateway.db.models import Scan, Session, Violation
 from apme_gateway.notifications import (
     _broadcast,
+    broadcast_notifications,
     generate_notifications,
     subscribe,
     unsubscribe,
@@ -416,3 +417,77 @@ class TestNotificationEndpoints:
         assert item["read"] is False
         assert "created_at" in item
         assert "id" in item
+
+    async def test_sse_stream_delivers_notification(self, client: AsyncClient) -> None:
+        """The SSE endpoint yields broadcast payloads as ``data:`` lines.
+
+        Args:
+            client: Async HTTP test client.
+        """
+        import asyncio
+        import json
+
+        payload = {"id": 1, "type": "scan_complete", "title": "Test"}
+
+        async def _trigger_broadcast() -> None:
+            await asyncio.sleep(0.05)
+            _broadcast(payload)
+
+        asyncio.get_event_loop().create_task(_trigger_broadcast())
+
+        async with client.stream("GET", "/api/v1/notifications/stream") as resp:
+            assert resp.status_code == 200
+            assert resp.headers["content-type"] == "text/event-stream; charset=utf-8"
+            async for line in resp.aiter_lines():
+                if line.startswith("data:"):
+                    data = json.loads(line[len("data: "):])
+                    assert data["type"] == "scan_complete"
+                    assert data["title"] == "Test"
+                    break
+
+
+# ---------------------------------------------------------------------------
+# Broadcast-after-commit tests
+# ---------------------------------------------------------------------------
+
+
+class TestBroadcastNotifications:
+    """Tests for the broadcast_notifications helper."""
+
+    def test_broadcast_notifications_delivers_to_subscribers(self) -> None:
+        """broadcast_notifications pushes payloads to all SSE subscribers."""
+        q = subscribe()
+        try:
+            payloads = [{"id": 1, "type": "scan_complete"}, {"id": 2, "type": "secrets_detected"}]
+            broadcast_notifications(payloads)
+            assert q.get_nowait() == payloads[0]
+            assert q.get_nowait() == payloads[1]
+        finally:
+            unsubscribe(q)
+
+
+# ---------------------------------------------------------------------------
+# Edge-case tests for notification generator
+# ---------------------------------------------------------------------------
+
+
+class TestNotificationEdgeCases:
+    """Edge-case tests for generate_notifications."""
+
+    async def test_secrets_with_no_file_paths(self) -> None:
+        """SEC violations with empty file fields produce a clean message."""
+        await _seed_session_and_scan()
+        sec_violations = [
+            Violation(scan_id="scan-1", rule_id="SEC:generic-secret", level="error", message="", file=""),
+        ]
+        async with get_session() as db:
+            from sqlalchemy import select
+
+            scan = (await db.execute(select(Scan).where(Scan.scan_id == "scan-1"))).scalar_one()
+            payloads = await generate_notifications(db, scan, sec_violations)
+            await db.commit()
+
+        sec_payload = payloads[1]
+        assert sec_payload["type"] == "secrets_detected"
+        assert "found in" not in sec_payload["message"]
+        assert "1 secret(s) found" in sec_payload["message"]

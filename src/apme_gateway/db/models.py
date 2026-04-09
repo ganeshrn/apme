@@ -522,8 +522,12 @@ class Notification(Base):
     title: Mapped[str] = mapped_column(Text, nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False, default="")
     variant: Mapped[str] = mapped_column(Text, nullable=False, default="info")
-    project_id: Mapped[str | None] = mapped_column(Text, ForeignKey("projects.id"), nullable=True)
-    scan_id: Mapped[str | None] = mapped_column(Text, ForeignKey("scans.scan_id"), nullable=True)
+    project_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("projects.id", ondelete="CASCADE"), nullable=True
+    )
+    scan_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("scans.scan_id", ondelete="CASCADE"), nullable=True
+    )
     link: Mapped[str] = mapped_column(Text, nullable=False, default="")
     created_at: Mapped[str] = mapped_column(Text, nullable=False)
     read: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

@@ -2074,7 +2074,8 @@ async def notification_stream() -> StreamingResponse:
 
     Clients connect with ``EventSource`` and receive JSON notification
     payloads as ``data:`` lines.  The connection stays open until the
-    client disconnects.
+    client disconnects.  A keep-alive comment is sent every 15 seconds
+    to prevent proxy/CDN idle-timeout disconnects.
 
     Returns:
         Streaming SSE response.
@@ -2084,13 +2085,31 @@ async def notification_stream() -> StreamingResponse:
     queue = subscribe()
 
     async def _stream() -> AsyncIterator[str]:
+        stream = sse_event_stream(queue)
         try:
-            async for chunk in sse_event_stream(queue):
+            while True:
+                try:
+                    chunk = await asyncio.wait_for(anext(stream), timeout=15.0)
+                except TimeoutError:
+                    yield ": keep-alive\n\n"
+                    continue
+                except StopAsyncIteration:
+                    break
                 yield chunk
         finally:
+            with contextlib.suppress(AttributeError):
+                await stream.aclose()
             unsubscribe(queue)
 
-    return StreamingResponse(_stream(), media_type="text/event-stream")
+    return StreamingResponse(
+        _stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 # ── Project WebSocket (ADR-037) ──────────────────────────────────────
@@ -2358,9 +2377,12 @@ async def project_operate_ws(
 
                 scan_row = await q.get_scan(db, completed_scan_id)
                 if scan_row is not None:
-                    from apme_gateway.notifications import generate_notifications  # noqa: PLC0415
+                    from apme_gateway.notifications import (  # noqa: PLC0415
+                        broadcast_notifications,
+                        generate_notifications,
+                    )
 
-                    await generate_notifications(
+                    notif_payloads = await generate_notifications(
                         db,
                         scan_row,
                         list(scan_row.violations),
@@ -2368,6 +2390,7 @@ async def project_operate_ws(
                         new_health_score=new_hs,
                     )
                     await db.commit()
+                    broadcast_notifications(notif_payloads)
 
         await websocket.send_json({"type": "closed"})
     except WebSocketDisconnect:

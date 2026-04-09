@@ -455,7 +455,10 @@ async def _generate_scan_notifications(
         request: Original gRPC event (for violation proto access).
     """
     try:
-        from apme_gateway.notifications import generate_notifications  # noqa: PLC0415
+        from apme_gateway.notifications import (  # noqa: PLC0415
+            broadcast_notifications,
+            generate_notifications,
+        )
 
         all_protos = list(request.remaining_violations) + list(request.fixed_violations)
         stub_violations = [
@@ -468,7 +471,8 @@ async def _generate_scan_notifications(
             )
             for v in all_protos
         ]
-        await generate_notifications(db, scan, stub_violations)
+        payloads = await generate_notifications(db, scan, stub_violations)
         await db.commit()
+        broadcast_notifications(payloads)
     except Exception:
         logger.warning("Notification generation failed for scan %s", scan.scan_id, exc_info=True)

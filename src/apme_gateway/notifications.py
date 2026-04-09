@@ -1,8 +1,9 @@
 """Notification generator and SSE broadcast hub.
 
 When the Gateway persists a ``FixCompletedEvent`` it calls
-``generate_notifications`` to create user-facing notification rows and
-broadcast them to connected SSE clients in real-time.
+``generate_notifications`` to create user-facing notification rows.
+The caller commits the transaction and then calls
+``broadcast_notifications`` to fan out payloads to connected SSE clients.
 
 The SSE hub uses an in-memory fan-out pattern: each connected browser
 gets its own ``asyncio.Queue`` and the hub pushes every new notification
@@ -19,6 +20,7 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.exc import DetachedInstanceError
 
 from apme_gateway.db.models import Notification, Scan, Violation
 from apme_gateway.db.queries import insert_notification
@@ -132,9 +134,10 @@ async def generate_notifications(
     old_health_score: int | None = None,
     new_health_score: int | None = None,
 ) -> list[dict[str, Any]]:
-    """Create notification rows from a completed scan event and broadcast them.
+    """Create notification rows from a completed scan event.
 
-    Called by the reporting servicer after persisting the scan data.
+    The caller is responsible for committing the transaction and then
+    calling :func:`broadcast_notifications` with the returned payloads.
 
     Args:
         db: Active async database session (caller commits).
@@ -144,7 +147,7 @@ async def generate_notifications(
         new_health_score: Project health score after this scan (None if unknown).
 
     Returns:
-        List of notification payloads that were created and broadcast.
+        List of notification payloads (caller broadcasts after commit).
     """
     payloads: list[dict[str, Any]] = []
 
@@ -152,7 +155,7 @@ async def generate_notifications(
     try:
         if scan.project is not None:
             display_name = scan.project.name
-    except Exception:
+    except DetachedInstanceError:
         pass
 
     # -- Scan complete notification (always) --------------------------------
@@ -183,15 +186,19 @@ async def generate_notifications(
     sec_violations = [v for v in violations if v.rule_id.startswith("SEC:")]
     if sec_violations:
         sec_files = sorted({v.file for v in sec_violations if v.file})
-        file_list = ", ".join(sec_files[:5])
-        if len(sec_files) > 5:
-            file_list += f" (+{len(sec_files) - 5} more)"
+        if sec_files:
+            file_list = ", ".join(sec_files[:5])
+            if len(sec_files) > 5:
+                file_list += f" (+{len(sec_files) - 5} more)"
+            sec_message = f"{display_name}: {len(sec_violations)} secret(s) found in {file_list}"
+        else:
+            sec_message = f"{display_name}: {len(sec_violations)} secret(s) found"
 
         notif_sec = await insert_notification(
             db,
             type="secrets_detected",
             title="Secrets Detected",
-            message=f"{display_name}: {len(sec_violations)} secret(s) found in {file_list}",
+            message=sec_message,
             variant="danger",
             project_id=scan.project_id,
             scan_id=scan.scan_id,
@@ -218,9 +225,17 @@ async def generate_notifications(
         )
         payloads.append(_notif_to_payload(notif_health))
 
-    # -- Broadcast all to connected SSE clients -----------------------------
+    return payloads
 
+
+def broadcast_notifications(payloads: list[dict[str, Any]]) -> None:
+    """Push pre-built notification payloads to all connected SSE clients.
+
+    Must be called **after** the database transaction has been committed so
+    that SSE consumers can fetch the notification via REST if needed.
+
+    Args:
+        payloads: Notification dicts as returned by ``generate_notifications``.
+    """
     for p in payloads:
         _broadcast(p)
-
-    return payloads
