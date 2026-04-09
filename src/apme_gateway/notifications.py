@@ -38,17 +38,25 @@ _subscribers: list[asyncio.Queue[dict[str, Any]]] = []
 def _broadcast(payload: dict[str, Any]) -> None:
     """Push a notification payload to every connected SSE client.
 
+    When a subscriber's queue is full (slow consumer), the oldest item is
+    dropped so the client stays connected and receives newer events rather
+    than becoming permanently stuck on stale keep-alives.
+
     Args:
         payload: JSON-serialisable notification dict.
     """
-    dead: list[asyncio.Queue[dict[str, Any]]] = []
     for q in _subscribers:
         try:
             q.put_nowait(payload)
         except asyncio.QueueFull:
-            dead.append(q)
-    for q in dead:
-        _subscribers.remove(q)
+            try:
+                q.get_nowait()
+            except asyncio.QueueEmpty:
+                pass
+            try:
+                q.put_nowait(payload)
+            except asyncio.QueueFull:
+                logger.warning("Dropping notification for persistently full subscriber queue")
 
 
 def subscribe() -> asyncio.Queue[dict[str, Any]]:

@@ -68,55 +68,59 @@ export function useNotificationStream(): void {
 
   useEffect(() => {
     mountedRef.current = true;
+    let es: EventSource | undefined;
 
-    // Initial REST load
-    listNotifications(100, 0)
-      .then((resp) => {
+    const startStream = async () => {
+      try {
+        const resp = await listNotifications(100, 0);
         if (!mountedRef.current) return;
         setNotificationGroups(() => buildGroups(resp.items));
-      })
-      .catch(() => {
-        // Gateway may be unavailable — silent degradation
-      });
-
-    // SSE real-time stream
-    const proto = window.location.protocol === 'https:' ? 'https:' : 'http:';
-    const sseUrl = `${proto}//${window.location.host}/api/v1/notifications/stream`;
-    const es = new EventSource(sseUrl);
-
-    es.onmessage = (event) => {
-      if (!mountedRef.current) return;
-      let item: NotificationItem;
-      try {
-        item = JSON.parse(event.data as string) as NotificationItem;
       } catch {
-        return;
+        // Gateway may be unavailable — silent degradation
+        if (!mountedRef.current) return;
       }
 
-      setNotificationGroups((prev) => mergeNotification(prev, item));
+      if (!mountedRef.current) return;
 
-      const timeout = NO_DISMISS_TYPES.has(item.type) ? undefined : 8000;
-      const alertKey = `notif-${item.id}`;
-      alertToaster.addAlert({
-        key: alertKey,
-        title: item.title,
-        children: item.message,
-        variant: item.variant,
-        timeout,
-        actionClose: undefined,
-      });
+      const proto = window.location.protocol === 'https:' ? 'https:' : 'http:';
+      const sseUrl = `${proto}//${window.location.host}/api/v1/notifications/stream`;
+      es = new EventSource(sseUrl);
 
-      // Mark as read on the server when the user sees it via the toast
-      markNotificationRead(item.id).catch(() => {});
+      es.onmessage = (event) => {
+        if (!mountedRef.current) return;
+        let item: NotificationItem;
+        try {
+          item = JSON.parse(event.data as string) as NotificationItem;
+        } catch {
+          return;
+        }
+
+        setNotificationGroups((prev) => mergeNotification(prev, item));
+
+        const timeout = NO_DISMISS_TYPES.has(item.type) ? undefined : 8000;
+        const alertKey = `notif-${item.id}`;
+        alertToaster.addAlert({
+          key: alertKey,
+          title: item.title,
+          children: item.message,
+          variant: item.variant,
+          timeout,
+          actionClose: undefined,
+        });
+
+        markNotificationRead(item.id).catch(() => {});
+      };
+
+      es.onerror = () => {
+        // EventSource auto-reconnects — nothing to do
+      };
     };
 
-    es.onerror = () => {
-      // EventSource auto-reconnects — nothing to do
-    };
+    void startStream();
 
     return () => {
       mountedRef.current = false;
-      es.close();
+      es?.close();
     };
   }, [setNotificationGroups, alertToaster]);
 }
