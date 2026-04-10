@@ -160,6 +160,8 @@ class Violation(Base):
         fixed_yaml: Node YAML after transforms (fixed violations only).
         co_fixes: Comma-separated other rule IDs whose fixes are included.
         node_line_start: File line where the node starts.
+        ai_reason: Why the AI could not fix this violation (ai_abstained only).
+        ai_suggestion: Manual remediation guidance from the AI (ai_abstained only).
         scan: Back-reference to owning Scan.
     """
 
@@ -181,6 +183,8 @@ class Violation(Base):
     fixed_yaml: Mapped[str] = mapped_column(Text, nullable=False, default="")
     co_fixes: Mapped[str] = mapped_column(Text, nullable=False, default="")
     node_line_start: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    ai_reason: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    ai_suggestion: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
     scan: Mapped[Scan] = relationship(back_populates="violations")
 

@@ -78,6 +78,8 @@ class ViolationDetail(BaseModel):  # type: ignore[misc]
         fixed_yaml: Node YAML after transforms (fixed violations only).
         co_fixes: Other rule IDs whose fixes are included in this node's diff.
         node_line_start: File line where the node starts.
+        ai_reason: Why the AI could not fix this violation (ai_abstained only).
+        ai_suggestion: Manual remediation guidance from the AI (ai_abstained only).
     """
 
     id: int
@@ -95,6 +97,8 @@ class ViolationDetail(BaseModel):  # type: ignore[misc]
     fixed_yaml: str = ""
     co_fixes: list[str] = []
     node_line_start: int = 0
+    ai_reason: str = ""
+    ai_suggestion: str = ""
 
 
 class ProposalDetail(BaseModel):  # type: ignore[misc]

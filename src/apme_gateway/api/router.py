@@ -724,6 +724,8 @@ async def list_project_violations(
             fixed_yaml=v.fixed_yaml,
             co_fixes=[r for r in v.co_fixes.split(",") if r],
             node_line_start=v.node_line_start,
+            ai_reason=v.ai_reason,
+            ai_suggestion=v.ai_suggestion,
         )
         for v in violations
     ]
@@ -1305,6 +1307,8 @@ async def get_activity_detail(activity_id: str) -> ActivityDetail:
                 fixed_yaml=v.fixed_yaml,
                 co_fixes=[r for r in v.co_fixes.split(",") if r],
                 node_line_start=v.node_line_start,
+                ai_reason=v.ai_reason,
+                ai_suggestion=v.ai_suggestion,
             )
             for v in scan.violations
         ],

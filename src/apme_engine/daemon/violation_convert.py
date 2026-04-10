@@ -49,6 +49,8 @@ _METADATA_KEYS = frozenset(
         "dep_package",
         "dep_installed_version",
         "dep_fix_versions",
+        "ai_reason",
+        "ai_suggestion",
     }
 )
 

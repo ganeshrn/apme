@@ -605,8 +605,12 @@ class GraphRemediationEngine:
             )
 
             if fix.skipped:
-                skipped_ids = frozenset(normalize_rule_id(s.rule_id) for s in fix.skipped)
-                graph.abstain_violations(node_id, skipped_ids)
+                skipped_reasons = {normalize_rule_id(s.rule_id): (s.reason, s.suggestion) for s in fix.skipped}
+                graph.abstain_violations(
+                    node_id,
+                    frozenset(skipped_reasons.keys()),
+                    reasons=skipped_reasons,
+                )
 
             logger.info(
                 "AI transform applied to %s (rules: %s, confidence: %.2f)",

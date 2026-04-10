@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { PageLayout, PageHeader } from '@ansible/ansible-ui-framework';
 import { ViolationStatusBar } from '../components/ViolationStatusBar';
-import { severityClass } from '../components/severity';
+import { severityClass, FIX_AI_TRIED } from '../components/severity';
+import { RESOLUTION_AI_ABSTAINED } from '../types/constants';
 import { SeverityStatusBar } from '../components/SeverityStatusBar';
 import { ViolationOutputToolbar } from '../components/ViolationOutputToolbar';
 import { ViolationOutput } from '../components/ViolationOutput';
@@ -93,7 +94,9 @@ export function ActivityDetailPage() {
   const fixCounts = useMemo(() => {
     const counts = new Map<number, number>();
     for (const v of projectViolations) {
-      if (v.remediation_class > 0) {
+      if (v.remediation_resolution === RESOLUTION_AI_ABSTAINED) {
+        counts.set(FIX_AI_TRIED, (counts.get(FIX_AI_TRIED) ?? 0) + 1);
+      } else if (v.remediation_class > 0) {
         counts.set(v.remediation_class, (counts.get(v.remediation_class) ?? 0) + 1);
       }
     }
@@ -112,7 +115,12 @@ export function ActivityDetailPage() {
       violations = violations.filter((v) => v.scope != null && scopeFilters.has(v.scope));
     }
     if (fixFilters.size > 0) {
-      violations = violations.filter((v) => fixFilters.has(v.remediation_class));
+      violations = violations.filter((v) => {
+        if (v.remediation_resolution === RESOLUTION_AI_ABSTAINED) {
+          return fixFilters.has(FIX_AI_TRIED);
+        }
+        return fixFilters.has(v.remediation_class);
+      });
     }
     if (searchText.trim()) {
       const q = searchText.toLowerCase();

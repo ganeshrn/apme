@@ -107,11 +107,14 @@ export function scopeLabel(scope: number | undefined): string {
 // Fix tier (remediation_class)
 // ---------------------------------------------------------------------------
 
+/** Synthetic filter value for AI-abstained violations (not a real remediation_class). */
+export const FIX_AI_TRIED = 4;
+
 export const FIX_LABELS: Record<number, string> = {
-  1: 'Fixable', 2: 'AI', 3: 'Manual',
+  1: 'Fixable', 2: 'AI', 3: 'Manual', [FIX_AI_TRIED]: 'AI Tried',
 };
 
-export const FIX_ORDER = [1, 2, 3] as const;
+export const FIX_ORDER = [1, 2, 3, FIX_AI_TRIED] as const;
 
 /** Human-readable label for a remediation_class value. */
 export function fixLabel(rc: number | undefined): string {

@@ -56,6 +56,10 @@ def _migrate_violations_table(conn: object) -> None:
         migrations.append("ALTER TABLE violations ADD COLUMN node_line_start INTEGER NOT NULL DEFAULT 0")
     if "remediation_resolution" not in existing:
         migrations.append("ALTER TABLE violations ADD COLUMN remediation_resolution INTEGER NOT NULL DEFAULT 0")
+    if "ai_reason" not in existing:
+        migrations.append("ALTER TABLE violations ADD COLUMN ai_reason TEXT NOT NULL DEFAULT ''")
+    if "ai_suggestion" not in existing:
+        migrations.append("ALTER TABLE violations ADD COLUMN ai_suggestion TEXT NOT NULL DEFAULT ''")
 
     for stmt in migrations:
         conn.execute(text(stmt))

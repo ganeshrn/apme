@@ -259,6 +259,8 @@ class ViolationRecord:
             (``"deterministic"``, ``"ai"``, or ``None``).
         fixed_in_pass: Convergence pass that resolved the violation.
         discovered_in_pass: Convergence pass that first detected it.
+        ai_reason: Why the AI could not fix this violation (``ai_abstained`` only).
+        ai_suggestion: Manual remediation guidance from the AI (``ai_abstained`` only).
     """
 
     key: ViolationKey
@@ -267,6 +269,8 @@ class ViolationRecord:
     fixed_by: str | None = None
     fixed_in_pass: int | None = None
     discovered_in_pass: int = 0
+    ai_reason: str | None = None
+    ai_suggestion: str | None = None
 
 
 def _normalize_rule_id(rule_id: str) -> str:
@@ -861,6 +865,8 @@ class ContentGraph:
         self,
         node_id: str,
         rule_ids: frozenset[str],
+        *,
+        reasons: dict[str, tuple[str, str]] | None = None,
     ) -> int:
         """Transition ``open`` violations to ``ai_abstained`` on a node.
 
@@ -878,6 +884,8 @@ class ContentGraph:
         Args:
             node_id: Graph node whose violations to mark.
             rule_ids: Set of normalized rule IDs the AI abstained from.
+            reasons: Optional mapping of ``normalized_rule_id`` to
+                ``(reason, suggestion)`` from the AI provider.
 
         Returns:
             Number of violations transitioned to ``ai_abstained``.
@@ -892,6 +900,10 @@ class ContentGraph:
             _, rule_id = record.key
             if rule_id in rule_ids:
                 record.status = "ai_abstained"
+                if reasons is not None:
+                    reason_pair = reasons.get(rule_id)
+                    if reason_pair is not None:
+                        record.ai_reason, record.ai_suggestion = reason_pair
                 count += 1
         return count
 
@@ -984,6 +996,10 @@ class ContentGraph:
                 mapped = _status_resolution.get(record.status)
                 if mapped is not None:
                     vdict["remediation_resolution"] = mapped
+                if record.ai_reason:
+                    vdict["ai_reason"] = record.ai_reason
+                if record.ai_suggestion:
+                    vdict["ai_suggestion"] = record.ai_suggestion
                 result.append(vdict)
         return result
 
@@ -1540,6 +1556,10 @@ def _violation_record_to_dict(rec: ViolationRecord) -> dict[str, object]:
         d["fixed_by"] = rec.fixed_by
     if rec.fixed_in_pass is not None:
         d["fixed_in_pass"] = rec.fixed_in_pass
+    if rec.ai_reason is not None:
+        d["ai_reason"] = rec.ai_reason
+    if rec.ai_suggestion is not None:
+        d["ai_suggestion"] = rec.ai_suggestion
     return d
 
 
@@ -1567,6 +1587,8 @@ def _violation_record_from_dict(d: dict[str, object]) -> ViolationRecord:
         fixed_by=str(d["fixed_by"]) if "fixed_by" in d else None,
         fixed_in_pass=int(cast(int, fixed_in_raw)) if fixed_in_raw is not None else None,
         discovered_in_pass=int(cast(int, d.get("discovered_in_pass", 0))),
+        ai_reason=str(d["ai_reason"]) if "ai_reason" in d else None,
+        ai_suggestion=str(d["ai_suggestion"]) if "ai_suggestion" in d else None,
     )
 
 

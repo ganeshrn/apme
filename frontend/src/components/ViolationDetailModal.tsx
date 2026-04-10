@@ -76,6 +76,8 @@ export interface ViolationRecord {
   fixed_yaml?: string;
   co_fixes?: string[];
   node_line_start?: number;
+  ai_reason?: string;
+  ai_suggestion?: string;
 }
 
 interface ViolationDetailModalProps {
@@ -163,6 +165,16 @@ export function ViolationDetailModal({ isOpen, onClose, violation, diff, getRule
                     {ruleDesc}
                   </PageDetail>
                 )}
+                {violation.ai_reason ? (
+                  <PageDetail label="AI Reason">
+                    {violation.ai_reason}
+                  </PageDetail>
+                ) : null}
+                {violation.ai_suggestion ? (
+                  <PageDetail label="Suggestion">
+                    {violation.ai_suggestion}
+                  </PageDetail>
+                ) : null}
               </PageDetails>
           </Tab>
           {hasSource ? (

@@ -14,6 +14,8 @@ export interface ViolationDetail {
   fixed_yaml?: string;
   co_fixes?: string[];
   node_line_start?: number;
+  ai_reason?: string;
+  ai_suggestion?: string;
 }
 
 export interface LogEntry {
