@@ -37,6 +37,15 @@ import { deleteRuleConfig, getRule, getRuleStats, listRules, updateRuleConfig } 
 import type { RuleDetail, RuleStats } from '../types/api';
 import { severityClass, severityLabel } from '../components/severity';
 
+const SEVERITY_OPTIONS: { value: number; label: string }[] = [
+  { value: 6, label: 'Critical' },
+  { value: 5, label: 'Error' },
+  { value: 4, label: 'High' },
+  { value: 3, label: 'Medium' },
+  { value: 2, label: 'Low' },
+  { value: 1, label: 'Info' },
+];
+
 function catalogSeverityToApi(sev: string): string {
   return sev.replace(/^SEVERITY_/i, '').toLowerCase();
 }
@@ -163,6 +172,48 @@ export function RulesPage() {
     [fetchRules, refreshStats],
   );
 
+  const handleSeverityChange = useCallback(
+    async (rule: RuleDetail, severityInt: number) => {
+      setUpdatingId(rule.rule_id);
+      try {
+        await updateRuleConfig(rule.rule_id, { severity_override: severityInt });
+        fetchRules();
+        refreshStats();
+        if (selectedRule?.rule_id === rule.rule_id) {
+          openRuleDetail(rule.rule_id);
+        }
+      } catch {
+        fetchRules();
+      } finally {
+        setUpdatingId(null);
+      }
+    },
+    [fetchRules, refreshStats, selectedRule, openRuleDetail],
+  );
+
+  const handleEnforcedChange = useCallback(
+    async (rule: RuleDetail, enforced: boolean) => {
+      setUpdatingId(rule.rule_id);
+      try {
+        await updateRuleConfig(rule.rule_id, { enforced });
+        setRules((prev) =>
+          prev.map((r) =>
+            r.rule_id === rule.rule_id ? { ...r, enforced, has_override: true } : r,
+          ),
+        );
+        refreshStats();
+        if (selectedRule?.rule_id === rule.rule_id) {
+          setSelectedRule((prev) => prev ? { ...prev, enforced, has_override: true } : prev);
+        }
+      } catch {
+        fetchRules();
+      } finally {
+        setUpdatingId(null);
+      }
+    },
+    [fetchRules, refreshStats, selectedRule],
+  );
+
   return (
     <PageLayout>
       <PageHeader title="Rules" />
@@ -285,7 +336,19 @@ export function RulesPage() {
                     <SeverityBadge severity={rule.default_severity} />
                   </Td>
                   <Td dataLabel="Effective severity">
-                    <SeverityBadge severity={rule.effective_severity} />
+                    <FormSelect
+                      value={rule.effective_severity_int}
+                      onChange={(_e, v) => {
+                        void handleSeverityChange(rule, Number(v));
+                      }}
+                      aria-label={`Severity for ${rule.rule_id}`}
+                      isDisabled={updatingId === rule.rule_id}
+                      style={{ minWidth: 110, maxWidth: 130 }}
+                    >
+                      {SEVERITY_OPTIONS.map((opt) => (
+                        <FormSelectOption key={opt.value} value={opt.value} label={opt.label} />
+                      ))}
+                    </FormSelect>
                   </Td>
                   <Td dataLabel="Status">
                     <Switch
@@ -299,11 +362,15 @@ export function RulesPage() {
                     />
                   </Td>
                   <Td dataLabel="Enforced">
-                    {rule.enforced ? (
-                      <Label color="green" isCompact>Yes</Label>
-                    ) : (
-                      <Label color="grey" variant="outline" isCompact>No</Label>
-                    )}
+                    <Switch
+                      id={`rule-enforced-${rule.rule_id}`}
+                      aria-label={`Enforce ${rule.rule_id}`}
+                      isChecked={rule.enforced}
+                      isDisabled={updatingId === rule.rule_id}
+                      onChange={(_event, checked) => {
+                        void handleEnforcedChange(rule, checked);
+                      }}
+                    />
                   </Td>
                   <Td dataLabel="Actions">
                     {rule.has_override && (
@@ -378,23 +445,48 @@ export function RulesPage() {
                     <DescriptionListGroup>
                       <DescriptionListTerm>Effective Severity</DescriptionListTerm>
                       <DescriptionListDescription>
-                        <SeverityBadge severity={selectedRule.effective_severity} />
+                        <FormSelect
+                          value={selectedRule.effective_severity_int}
+                          onChange={(_e, v) => {
+                            void handleSeverityChange(selectedRule, Number(v));
+                          }}
+                          aria-label={`Override severity for ${selectedRule.rule_id}`}
+                          isDisabled={updatingId === selectedRule.rule_id}
+                          style={{ maxWidth: 160 }}
+                        >
+                          {SEVERITY_OPTIONS.map((opt) => (
+                            <FormSelectOption key={opt.value} value={opt.value} label={opt.label} />
+                          ))}
+                        </FormSelect>
                       </DescriptionListDescription>
                     </DescriptionListGroup>
                     <DescriptionListGroup>
                       <DescriptionListTerm>Enabled</DescriptionListTerm>
                       <DescriptionListDescription>
-                        <Label color={selectedRule.enabled ? 'green' : 'grey'} isCompact>
-                          {selectedRule.enabled ? 'Yes' : 'No'}
-                        </Label>
+                        <Switch
+                          id="detail-rule-enabled"
+                          aria-label={`Enable ${selectedRule.rule_id}`}
+                          isChecked={selectedRule.enabled}
+                          isDisabled={updatingId === selectedRule.rule_id}
+                          onChange={(_event, checked) => {
+                            void handleEnabledChange(selectedRule, checked);
+                            setSelectedRule((prev) => prev ? { ...prev, enabled: checked } : prev);
+                          }}
+                        />
                       </DescriptionListDescription>
                     </DescriptionListGroup>
                     <DescriptionListGroup>
                       <DescriptionListTerm>Enforced</DescriptionListTerm>
                       <DescriptionListDescription>
-                        <Label color={selectedRule.enforced ? 'green' : 'grey'} isCompact>
-                          {selectedRule.enforced ? 'Yes' : 'No'}
-                        </Label>
+                        <Switch
+                          id="detail-rule-enforced"
+                          aria-label={`Enforce ${selectedRule.rule_id}`}
+                          isChecked={selectedRule.enforced}
+                          isDisabled={updatingId === selectedRule.rule_id}
+                          onChange={(_event, checked) => {
+                            void handleEnforcedChange(selectedRule, checked);
+                          }}
+                        />
                       </DescriptionListDescription>
                     </DescriptionListGroup>
                     <DescriptionListGroup>

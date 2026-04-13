@@ -328,6 +328,8 @@ export interface RuleDetail {
   rule_id: string;
   default_severity: string;
   effective_severity: string;
+  default_severity_int: number;
+  effective_severity_int: number;
   category: string;
   source: string;
   description: string;

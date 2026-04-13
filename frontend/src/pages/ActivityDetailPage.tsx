@@ -16,7 +16,6 @@ import {
   ExpandableSection,
   Flex,
   FlexItem,
-  Label,
 } from '@patternfly/react-core';
 import { ExternalLinkAltIcon } from '@patternfly/react-icons';
 import { createPullRequest, deleteActivity, getActivity } from '../services/api';
@@ -43,7 +42,6 @@ export function ActivityDetailPage() {
   const [fixFilters, setFixFilters] = useState<Set<number>>(new Set());
   const [searchText, setSearchText] = useState('');
   const [resultsOpen, setResultsOpen] = useState(true);
-  const [proposalsOpen, setProposalsOpen] = useState(true);
   const [prCreating, setPrCreating] = useState(false);
   const [prError, setPrError] = useState<string | null>(null);
 
@@ -277,42 +275,6 @@ export function ActivityDetailPage() {
       </div>
 
       <div style={{ padding: '16px 24px 24px' }}>
-        {detail.proposals.length > 0 && (
-          <ExpandableSection
-            toggleText={`AI Proposals (${detail.proposals.length})`}
-            isExpanded={proposalsOpen}
-            onToggle={(_e, open) => setProposalsOpen(open)}
-            style={{ marginTop: 8 }}
-          >
-            <table className="pf-v6-c-table pf-m-compact" role="grid" style={{ marginTop: 8 }}>
-              <thead>
-                <tr role="row">
-                  <th role="columnheader" style={{ width: 90 }}>Rule</th>
-                  <th role="columnheader">File</th>
-                  <th role="columnheader" style={{ width: 50 }}>Tier</th>
-                  <th role="columnheader" style={{ width: 80 }}>Confidence</th>
-                  <th role="columnheader" style={{ width: 80 }}>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {detail.proposals.map((p) => (
-                  <tr key={p.id} role="row">
-                    <td role="cell"><span className="apme-rule-id">{p.rule_id}</span></td>
-                    <td role="cell" style={{ fontSize: 13 }}>{p.file}</td>
-                    <td role="cell">{p.tier}</td>
-                    <td role="cell">{Math.round(p.confidence * 100)}%</td>
-                    <td role="cell">
-                      <Label color={p.status === 'approved' ? 'green' : p.status === 'rejected' ? 'red' : 'blue'} isCompact>
-                        {p.status}
-                      </Label>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </ExpandableSection>
-        )}
-
         {detail.diagnostics_json && (
           <ExpandableSection toggleText="Diagnostics (raw)" style={{ marginTop: 16 }}>
             <pre style={{ padding: 16, fontSize: 12, overflow: 'auto', maxHeight: 400, background: 'var(--pf-t--global--background--color--secondary--default)' }}>
