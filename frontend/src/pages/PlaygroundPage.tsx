@@ -1,6 +1,8 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PageLayout, PageHeader } from '@ansible/ansible-ui-framework';
 import {
+  Alert,
+  AlertActionCloseButton,
   Button,
   Card,
   CardBody,
@@ -9,6 +11,7 @@ import {
 import JSZip from 'jszip';
 import { AI_MODEL_STORAGE_KEY } from './SettingsPage';
 import {
+  getPersistedSession,
   useSessionStream,
   type Patch,
   type SessionResult,
@@ -40,16 +43,30 @@ export function PlaygroundPage() {
   const {
     status: rawStatus,
     progress: rawProgress,
+    sessionId,
     scanId,
     tier1,
     proposals: rawProposals,
     result,
     error,
+    canReconnect,
     startSession,
+    resumeSession,
     approve,
     cancel,
     reset,
   } = useSessionStream();
+
+  // Auto-resume a persisted session when the page mounts.
+  const resumeAttempted = useRef(false);
+  useEffect(() => {
+    if (resumeAttempted.current || rawStatus !== 'idle') return;
+    resumeAttempted.current = true;
+    const persisted = getPersistedSession();
+    if (persisted) {
+      resumeSession(persisted.sessionId, persisted.scanId);
+    }
+  }, [rawStatus, resumeSession]);
 
   const opStatus = mapSessionStatus(rawStatus);
   const opProgress: OperationProgress[] = rawProgress.map((p) => ({
@@ -114,6 +131,13 @@ export function PlaygroundPage() {
   }, [reset]);
 
   const isRunning = opStatus === 'connecting' || opStatus === 'preparing' || opStatus === 'checking' || opStatus === 'applying';
+  const [dismissedDisconnect, setDismissedDisconnect] = useState(false);
+
+  const handleReconnect = useCallback(() => {
+    if (sessionId && scanId) {
+      resumeSession(sessionId, scanId);
+    }
+  }, [sessionId, scanId, resumeSession]);
 
   return (
     <PageLayout>
@@ -123,6 +147,25 @@ export function PlaygroundPage() {
       />
 
       <div style={{ padding: '0 24px 24px' }}>
+        {rawStatus === 'disconnected' && canReconnect && !dismissedDisconnect && (
+          <Alert
+            variant="warning"
+            isInline
+            title="Session disconnected"
+            actionClose={<AlertActionCloseButton onClose={() => setDismissedDisconnect(true)} />}
+            style={{ marginBottom: 16 }}
+          >
+            <p style={{ marginBottom: 8 }}>{error}</p>
+            <Button variant="primary" onClick={handleReconnect} size="sm">
+              Reconnect
+            </Button>
+            {' '}
+            <Button variant="link" onClick={handleReset} size="sm">
+              Start Over
+            </Button>
+          </Alert>
+        )}
+
         {opStatus === 'idle' && (
           <Card>
             <CardBody>
