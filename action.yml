@@ -115,6 +115,15 @@ runs:
           apme check "$APME_TARGET" --json "${CLI_ARGS[@]}" > apme-results.json 2>apme-stderr.log || update_rc $?
           [ -s apme-stderr.log ] && cat apme-stderr.log >&2
 
+          # Strip large diff payloads when artifact upload is disabled
+          if [ "$APME_ARTIFACT" != "true" ] && [ -s apme-results.json ]; then
+            python3 -c "
+import json, pathlib
+p = pathlib.Path('apme-results.json'); d = json.loads(p.read_text())
+d.pop('diffs', None); p.write_text(json.dumps(d, indent=2))
+" 2>/dev/null || true
+          fi
+
           if [ "$needs_sarif" = "true" ] && [ -s apme-results.json ]; then
             if python3 -c "
 import json

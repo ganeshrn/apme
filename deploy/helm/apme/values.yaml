@@ -107,8 +107,12 @@ gateway:
     githubToken: ""
 
 # -- UI (nginx-served React SPA)
+# The default nginx image requires writable /var/run and /var/cache, so
+# the container securityContext omits runAsNonRoot to avoid startup failures.
+# Override with a non-root context once the image supports unprivileged mode.
 ui:
   replicas: 1
+  securityContext: {}
   resources:
     requests:
       cpu: 50m
