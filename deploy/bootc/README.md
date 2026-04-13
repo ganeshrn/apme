@@ -101,12 +101,17 @@ sudo vi /etc/apme/env/apme.env
 sudo systemctl restart apme-pod.service
 ```
 
+### Container Images
+
+The shipped quadlet files use fixed image references (e.g.
+`ghcr.io/ansible/apme-primary:latest`). To use different images or tags,
+edit the quadlet files under `/usr/share/containers/systemd/` and run
+`systemctl daemon-reload && systemctl restart apme-pod.service`.
+
 ### Environment Variables
 
 | Variable | Purpose |
 |----------|---------|
-| `APME_IMAGE_REGISTRY` | Container image registry (default: `ghcr.io/ansible`) |
-| `APME_IMAGE_TAG` | Image tag (default: `latest`) |
 | `APME_AI_MODEL` | AI model for Abbenay (empty = disabled) |
 | `OPENROUTER_API_KEY` | API key for OpenRouter |
 | `VERTEX_ANTHROPIC_API_KEY` | API key for Vertex AI |

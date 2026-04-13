@@ -43,7 +43,7 @@ jobs:
       security-events: write
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - uses: ansible/apme@v1
         with:
           primary-address: ${{ secrets.APME_PRIMARY_ADDRESS }}

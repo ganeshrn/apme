@@ -38,6 +38,8 @@ spec:
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           env:
+            - name: APME_PRIMARY_ADDRESS
+              value: "{{ include "apme.fullname" . }}-engine:50051"
             - name: APME_DB_PATH
               value: /data/apme.db
             - name: APME_GATEWAY_GRPC_LISTEN
