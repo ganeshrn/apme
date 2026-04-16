@@ -2183,12 +2183,14 @@ async def notification_stream() -> StreamingResponse:
                     break
                 pending_chunk = None
                 yield chunk
+        except asyncio.CancelledError:
+            pass
         finally:
             if pending_chunk is not None:
                 pending_chunk.cancel()
                 with contextlib.suppress(asyncio.CancelledError, StopAsyncIteration):
                     await pending_chunk
-            with contextlib.suppress(AttributeError):
+            with contextlib.suppress(Exception):
                 await stream.aclose()  # type: ignore[attr-defined]
             unsubscribe(queue)
 

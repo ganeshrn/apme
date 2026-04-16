@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from collections.abc import AsyncIterator
 from pathlib import Path
 
@@ -427,8 +428,8 @@ class TestNotificationEndpoints:
         from apme_gateway.notifications import sse_event_stream
 
         q = subscribe()
+        stream = sse_event_stream(q)
         try:
-            stream = sse_event_stream(q)
             payload = {"id": 1, "type": "scan_complete", "title": "Test"}
             _broadcast(payload)
             chunk = await asyncio.wait_for(anext(stream), timeout=2.0)
@@ -437,6 +438,7 @@ class TestNotificationEndpoints:
             assert data["title"] == "Test"
         finally:
             unsubscribe(q)
+            await stream.aclose()  # type: ignore[attr-defined]
 
     async def test_sse_endpoint_delivers_event(self, client: AsyncClient) -> None:
         """The /notifications/stream endpoint returns SSE headers and broadcast payloads.
@@ -447,29 +449,38 @@ class TestNotificationEndpoints:
         import asyncio
         import json
 
-        async with client.stream("GET", "/api/v1/notifications/stream") as resp:
-            assert resp.status_code == 200
-            assert resp.headers["content-type"].startswith("text/event-stream")
-            assert resp.headers.get("cache-control") == "no-cache"
-            assert resp.headers.get("x-accel-buffering") == "no"
+        payload = {"id": 1, "type": "scan_complete", "title": "SSE Test"}
 
-            payload = {"id": 1, "type": "scan_complete", "title": "SSE Test"}
-            _broadcast(payload)
+        async def _consume() -> tuple[dict[str, str], str | None]:
+            """Open the SSE stream, broadcast a payload, return headers and first data line.
 
-            lines = resp.aiter_lines()
-            deadline = asyncio.get_running_loop().time() + 5.0
-            for _ in range(20):
-                remaining = deadline - asyncio.get_running_loop().time()
-                if remaining <= 0:
-                    pytest.fail("Timed out waiting for SSE data event")
-                line = await asyncio.wait_for(anext(lines), timeout=remaining)
-                if line.startswith("data: "):
-                    data = json.loads(line.removeprefix("data: ").strip())
-                    assert data["type"] == "scan_complete"
-                    assert data["title"] == "SSE Test"
-                    break
-            else:
-                pytest.fail("Timed out waiting for SSE data event")
+            Returns:
+                Tuple of response headers and the first ``data:`` line (or None).
+            """
+            async with client.stream("GET", "/api/v1/notifications/stream") as resp:
+                headers = dict(resp.headers)
+                _broadcast(payload)
+                async for line in resp.aiter_lines():
+                    if line.startswith("data: "):
+                        return headers, line
+            return headers, None
+
+        task = asyncio.create_task(_consume())
+        try:
+            headers, data_line = await asyncio.wait_for(task, timeout=5.0)
+        except asyncio.TimeoutError:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+            pytest.fail("Timed out waiting for SSE data event")
+
+        assert headers.get("content-type", "").startswith("text/event-stream")
+        assert headers.get("cache-control") == "no-cache"
+        assert headers.get("x-accel-buffering") == "no"
+        assert data_line is not None
+        data = json.loads(data_line.removeprefix("data: ").strip())
+        assert data["type"] == "scan_complete"
+        assert data["title"] == "SSE Test"
 
 
 # ---------------------------------------------------------------------------
