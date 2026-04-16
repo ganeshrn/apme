@@ -377,18 +377,29 @@ def _fake_fix_session(
     closed_event = MagicMock()
     closed_event.WhichOneof.return_value = "closed"
 
-    def _drain_and_yield(
-        cmd_iter: Iterable[object],
+    def _yield_events(
+        cmd_iter: Iterable[object],  # noqa: ARG001
         timeout: float | None = None,  # noqa: ARG001
     ) -> Iterator[object]:
-        for _ in cmd_iter:
-            pass
+        """Emit the canned event sequence without draining commands.
+
+        We intentionally do not iterate ``cmd_iter`` — draining would block
+        because the real ``command_iter`` pulls from a ``queue.Queue`` that
+        the main loop only feeds in reaction to our yielded events.
+
+        Args:
+            cmd_iter: Command iterator from the CLI; intentionally unused.
+            timeout: FixSession timeout; intentionally unused.
+
+        Yields:
+            object: Canned gRPC response events (created, result, closed).
+        """
         yield created_event
         yield result_event
         yield closed_event
 
     stub = MagicMock()
-    stub.FixSession.side_effect = _drain_and_yield
+    stub.FixSession.side_effect = _yield_events
 
     channel = MagicMock()
     return channel, stub
