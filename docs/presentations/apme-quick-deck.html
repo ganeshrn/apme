@@ -436,7 +436,7 @@
     <!-- SLIDE 5: ARCHITECTURE -->
     <div class="slide" data-notes="<strong>Architecture details:</strong><br>• 9 containers in one pod (Primary, Native, OPA, Ansible, Gitleaks, Galaxy Proxy, Gateway, UI, Abbenay)<br>• All inter-service communication is gRPC<br>• Galaxy Proxy converts Ansible collections into PEP 503 Python wheels<br>• Session venvs are UV-cached for fast ansible-core version switching<br><br><strong>See also:</strong> docs/architecture/ in the repo for the full design.">
       <div class="slide-label animate-in">—— ARCHITECTURE</div>
-      <h2 class="animate-in">Six Apps, One Pod, <span class="accent">Parallel Fan-Out</span></h2>
+      <h2 class="animate-in">Nine Apps, One Pod, <span class="accent">Parallel Fan-Out</span></h2>
       <div class="arch-diagram animate-in" style="margin-top: 24px;">
         <div class="arch-row">
           <div class="arch-box">CLI<span class="port">on-the-fly</span></div>
@@ -454,6 +454,7 @@
           <div class="arch-box">Galaxy Proxy<span class="port">:8765 PEP 503</span></div>
           <div class="arch-box">Gateway<span class="port">:8080 REST</span></div>
           <div class="arch-box">UI<span class="port">:8081</span></div>
+          <div class="arch-box">Abbenay<span class="port">:50057 AI</span></div>
         </div>
       </div>
       <p class="source animate-in">Unified gRPC contract — adding a new validator means implementing one RPC</p>
@@ -467,7 +468,34 @@
       <p class="source animate-in">OPA/Rego · Native Python · Ansible Runtime · Gitleaks</p>
     </div>
 
-    <!-- SLIDE 7: SCREENSHOT -->
+    <!-- SLIDE 7: DEPENDENCY HEALTH -->
+    <div class="slide" data-notes="<strong>Dependency health scanning:</strong> Two optional validators assess supply-chain risk inline during apme check.<br><br><strong>Collection Health Validator:</strong> Scans installed Ansible collections for deprecated modules, missing argument specs, and FQCN violations. Cached by FQCN+version for fast subsequent runs.<br><br><strong>Python Dependency Auditor:</strong> Checks packages against CVE databases via pip-audit.<br><br><strong>CLI flags:</strong><br>• --skip-dep-scan — skip all dependency scanning<br>• --skip-collection-scan — skip only collection health<br>• --skip-python-audit — skip only CVE audit">
+      <div class="slide-label animate-in">—— SUPPLY CHAIN SECURITY</div>
+      <h2 class="animate-in">Know Your <span class="accent">Dependencies</span></h2>
+      <div class="two-col animate-in" style="margin-top: 32px;">
+        <div class="col">
+          <h3>Collection Health</h3>
+          <ul style="list-style: none; padding: 0;">
+            <li style="margin-bottom: 12px; color: var(--text-secondary);">Deprecated modules in collections</li>
+            <li style="margin-bottom: 12px; color: var(--text-secondary);">Missing argument specs</li>
+            <li style="margin-bottom: 12px; color: var(--text-secondary);">FQCN violations</li>
+            <li style="color: var(--text-muted); font-size: 0.875rem;">Cached by FQCN+version</li>
+          </ul>
+        </div>
+        <div class="col highlight">
+          <h3>Python CVE Audit</h3>
+          <ul style="list-style: none; padding: 0;">
+            <li style="margin-bottom: 12px; color: var(--text-secondary);">pip-audit integration</li>
+            <li style="margin-bottom: 12px; color: var(--text-secondary);">Known vulnerability detection</li>
+            <li style="margin-bottom: 12px; color: var(--text-secondary);">Supply-chain risk assessment</li>
+            <li style="color: var(--text-muted); font-size: 0.875rem;">Grouped separately from project violations</li>
+          </ul>
+        </div>
+      </div>
+      <p class="source animate-in">Optional — skip with --skip-dep-scan</p>
+    </div>
+
+    <!-- SLIDE 8: DASHBOARD -->
     <div class="slide" data-notes="<strong>Dashboard features:</strong><br>• Project-level health scores<br>• Current vs fixable violations tracking<br>• AI Candidates — issues that can be auto-remediated<br>• Top 10 cleanest and most-violated projects<br>• Stale project detection<br><br>The UI is a React dashboard served via nginx at :8081.">
       <div class="slide-label animate-in">—— THE DASHBOARD</div>
       <h2 class="animate-in">Visibility Into <span class="accent">Every Violation</span></h2>
@@ -477,7 +505,7 @@
       <p class="source animate-in">APME Dashboard · Real-time violation tracking and remediation status</p>
     </div>
 
-    <!-- SLIDE 8: AI REMEDIATION -->
+    <!-- SLIDE 9: AI REMEDIATION -->
     <div class="slide" data-notes="<strong>Remediation pipeline:</strong><br>1. apme format — YAML normalization (indentation, key ordering, Jinja spacing)<br>2. Idempotency check — ensure formatting is stable<br>3. Re-scan — validate changes<br>4. apme remediate --ai — AI-assisted fixes via Abbenay daemon<br><br><strong>Human-in-the-loop:</strong> By default, AI suggestions require interactive review. Use --auto-approve for CI pipelines.">
       <div class="slide-label animate-in">—— AI-ASSISTED</div>
       <h2 class="animate-in">From Detection to <span class="accent">Remediation</span></h2>
@@ -494,14 +522,14 @@
       </div>
     </div>
 
-    <!-- SLIDE 9: QUOTE -->
+    <!-- SLIDE 10: QUOTE -->
     <div class="slide" data-notes="<strong>Positioning:</strong> APME provides the compatibility floor. It's complementary to Molecule, integration tests, and staging dry-runs — not a replacement.<br><br>Static analysis runs in seconds without infrastructure. Execution-time tools validate behavior against real systems. Both are needed.">
       <div class="slide-label animate-in">—— THE PROMISE</div>
       <blockquote class="quote animate-in">For organizations managing hundreds of roles across ansible-core version upgrades, this shift-left is the difference between a planned migration and an emergency one.</blockquote>
       <p class="quote-attr animate-in">— APME Documentation</p>
     </div>
 
-    <!-- SLIDE 10: CTA -->
+    <!-- SLIDE 11: CTA -->
     <div class="slide" data-notes="<strong>Quick start commands:</strong><br>• apme check /path — run all validators<br>• apme check --json . — JSON output for CI<br>• apme check -v . — timing diagnostics<br>• apme format --apply . — auto-format YAML<br>• apme remediate --ai . — AI-assisted fixes<br><br><strong>Container deployment:</strong> tox -e up builds 9 images and starts the pod.">
       <div class="slide-label animate-in">—— GET STARTED</div>
       <h2 class="animate-in">Try APME <span class="accent">Today</span></h2>
@@ -515,7 +543,7 @@
       <p class="source animate-in">Apache 2.0 Licensed · github.com/ansible/apme</p>
     </div>
 
-    <!-- SLIDE 11: THANK YOU -->
+    <!-- SLIDE 12: THANK YOU -->
     <div class="slide center-content" data-notes="<strong>Resources:</strong><br>• <a href='https://github.com/ansible/apme'>github.com/ansible/apme</a><br>• docs/architecture/ for design details<br>• Apache 2.0 license<br><br>Thank you for watching!">
       <div class="slide-label animate-in">—— THANK YOU</div>
       <h1 class="animate-in">Thank <span class="accent">You</span></h1>
