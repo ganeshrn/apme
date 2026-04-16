@@ -126,24 +126,33 @@ runs:
           apme check "$APME_TARGET" --json "${CLI_ARGS[@]}" > apme-results.json 2>apme-stderr.log || update_rc $?
           [ -s apme-stderr.log ] && cat apme-stderr.log >&2
 
-          # Strip large diff payloads when artifact upload is disabled
+          # Strip large diff payloads when artifact upload is disabled.
+          # Heredoc avoids any dependency on surrounding shell indentation —
+          # the Python body is delivered verbatim at column 0 (Copilot review).
           if [ "$APME_ARTIFACT" != "true" ] && [ -s apme-results.json ]; then
-            python3 -c "
-import json, pathlib
-p = pathlib.Path('apme-results.json'); d = json.loads(p.read_text())
-d.pop('diffs', None); p.write_text(json.dumps(d, indent=2))
-" 2>/dev/null || true
+            python3 - 2>apme-strip-stderr.log <<'PY' || {
+        import json
+        import pathlib
+        p = pathlib.Path('apme-results.json')
+        d = json.loads(p.read_text())
+        d.pop('diffs', None)
+        p.write_text(json.dumps(d, indent=2))
+        PY
+              echo "Warning: failed to strip diffs from apme-results.json; continuing." >&2
+              [ -s apme-strip-stderr.log ] && cat apme-strip-stderr.log >&2
+            }
           fi
 
           if [ "$needs_sarif" = "true" ] && [ -s apme-results.json ]; then
-            if python3 -c "
-import json
-from apme_engine.cli.sarif import violations_to_sarif
-from apme_engine.engine._version import __version__
-data = json.load(open('apme-results.json'))
-sarif = violations_to_sarif(data.get('violations', []), tool_version=__version__)
-print(json.dumps(sarif))
-" > apme.sarif 2>apme-sarif-stderr.log; then
+            if python3 - > apme.sarif 2>apme-sarif-stderr.log <<'PY'; then
+        import json
+        from apme_engine.cli.sarif import violations_to_sarif
+        from apme_engine.engine._version import __version__
+        with open('apme-results.json') as f:
+            data = json.load(f)
+        sarif = violations_to_sarif(data.get('violations', []), tool_version=__version__)
+        print(json.dumps(sarif))
+        PY
               if [ -s apme.sarif ]; then
                 echo "sarif-path=apme.sarif" >> "$GITHUB_OUTPUT"
               fi
