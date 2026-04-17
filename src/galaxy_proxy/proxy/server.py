@@ -515,6 +515,13 @@ async def _fetch_galaxy_versions(
         if versions is not None:
             return sorted(set(versions), key=_galaxy_version_sort_key)
 
+    tried = [u for u, _ in base_urls]
+    logger.warning(
+        "All Galaxy servers failed for %s.%s (tried: %s)",
+        namespace,
+        name,
+        ", ".join(tried),
+    )
     return []
 
 
@@ -580,11 +587,11 @@ async def _fetch_versions_from(
                     break
                 params["offset"] = int(params["offset"]) + int(params["limit"])
     except (httpx.HTTPError, KeyError, ValueError) as exc:
-        logger.warning(
-            "Failed to fetch Galaxy versions for %s.%s from %s: %s",
+        logger.debug(
+            "Version fetch from %s failed for %s.%s: %s",
+            base_url,
             namespace,
             name,
-            base_url,
             exc,
         )
         return None
