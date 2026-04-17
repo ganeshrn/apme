@@ -1,0 +1,21 @@
+[Unit]
+Description=APME Primary Orchestrator
+After=apme-pod.service
+
+[Container]
+Image=ghcr.io/ansible/apme-primary:latest
+Pod=apme.pod
+EnvironmentFile=/etc/apme/env/apme.env
+Environment=APME_PRIMARY_LISTEN=0.0.0.0:50051
+Environment=NATIVE_GRPC_ADDRESS=127.0.0.1:50055
+Environment=OPA_GRPC_ADDRESS=127.0.0.1:50054
+Environment=ANSIBLE_GRPC_ADDRESS=127.0.0.1:50053
+Environment=GITLEAKS_GRPC_ADDRESS=127.0.0.1:50056
+Environment=COLLECTION_HEALTH_GRPC_ADDRESS=127.0.0.1:50058
+Environment=DEP_AUDIT_GRPC_ADDRESS=127.0.0.1:50059
+Environment=APME_GALAXY_PROXY_URL=http://127.0.0.1:8765
+Environment=APME_REPORTING_ENDPOINT=127.0.0.1:50060
+Volume=/var/lib/apme/sessions:/sessions:rw,z
+
+[Install]
+WantedBy=apme-pod.service

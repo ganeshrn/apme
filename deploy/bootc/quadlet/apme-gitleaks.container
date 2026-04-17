@@ -1,0 +1,11 @@
+[Unit]
+Description=APME Gitleaks Validator
+After=apme-pod.service
+
+[Container]
+Image=ghcr.io/ansible/apme-gitleaks:latest
+Pod=apme.pod
+Environment=APME_GITLEAKS_VALIDATOR_LISTEN=0.0.0.0:50056
+
+[Install]
+WantedBy=apme-pod.service

@@ -1,32 +1,37 @@
 # GitHub Actions Examples
 
-Ready-to-use workflows for scanning Ansible content with APME.
+Ready-to-use workflows for scanning Ansible content with the APME Action.
 
 ## Available Workflows
 
-| File | Purpose |
-|------|---------|
-| `apme-check.yml` | Basic check on pull requests |
-| `apme-format.yml` | YAML formatting check only |
-| `apme-full.yml` | Combined check + format + optional remediate |
+| File | Trigger | Purpose |
+|------|---------|---------|
+| `apme-hosted.yml` | Pull request | Scan via hosted APME deployment + SARIF annotations + PR comment |
+| `apme-format.yml` | Pull request | YAML formatting check (fast, no server needed) |
 
-## Usage
+## How It Works
 
-1. Copy the desired workflow to `.github/workflows/` in your repo
-2. Commit and push
-3. Open a PR to see APME run
-
-## Workflow: Basic Check
-
-**File:** `apme-check.yml`
-
-Runs `apme check` on every PR that modifies YAML files. Fails if any
-violations are found.
+The APME Action connects to an existing APME deployment (Kubernetes, VM, or any
+running pod). No image pulls, no pod startup — just the CLI calling your
+centralized instance.
 
 ```yaml
-# Copy to: .github/workflows/apme.yml
-name: APME Check
+- uses: ansible/apme@v1
+  with:
+    primary-address: ${{ secrets.APME_PRIMARY_ADDRESS }}
+    target: .
+```
 
+**Trade-off:** ~10s total. Requires network connectivity from the runner to your
+APME deployment and a running instance.
+
+## Quick Start
+
+The simplest way to add full APME scanning to your repo:
+
+```yaml
+# .github/workflows/apme.yml
+name: APME Check
 on:
   pull_request:
     paths: ['**.yml', '**.yaml']
@@ -34,56 +39,138 @@ on:
 jobs:
   apme:
     runs-on: ubuntu-24.04
+    permissions:
+      security-events: write
+      pull-requests: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
-      - run: uv pip install --system apme-engine
-      - run: apme check .
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: ansible/apme@v1
+        with:
+          primary-address: ${{ secrets.APME_PRIMARY_ADDRESS }}
 ```
 
-## Workflow: Format Check
+This will:
 
-**File:** `apme-format.yml`
+1. Install the APME CLI
+2. Connect to your hosted APME deployment
+3. Scan your Ansible content
+4. Upload SARIF to GitHub Code Scanning (inline annotations on PR diffs)
+5. Post a summary comment on the PR
 
-Checks YAML formatting without scanning for violations. Useful as a
-separate job for fast feedback.
+### Prerequisites
 
-## Workflow: Full Pipeline
+- A running APME deployment accessible from your GitHub Actions runners
+  (deployed via Helm, bootc VM, or Podman pod)
+- `APME_PRIMARY_ADDRESS` secret set to your Primary gRPC endpoint (host:port)
 
-**File:** `apme-full.yml`
+### Action Inputs
 
-Runs format check, then full scan. Optionally runs remediation and
-commits fixes (requires write permissions).
+| Input | Default | Description |
+|-------|---------|-------------|
+| `target` | `.` | Path to scan |
+| `ansible-version` | | ansible-core version to validate against |
+| `collections` | | Space-separated collection specs |
+| `args` | | Additional arguments passed to `apme check` |
+| `primary-address` | | **Required.** Primary gRPC address (host:port) |
+| `sarif` | `true` | Upload SARIF for Code Scanning annotations |
+| `upload-artifact` | `false` | Upload JSON results as a workflow artifact |
+| `comment` | `true` | Post a PR summary comment |
+| `cli-version` | | Pin `apme-engine` version (e.g. `0.1.0`); defaults to latest |
+
+### Action Outputs
+
+| Output | Description |
+|--------|-------------|
+| `exit-code` | `0` = clean, `1` = violations, `2` = error |
+| `violation-count` | Number of violations found (empty in plain mode) |
+| `sarif-path` | Path to the generated SARIF file |
+
+## SARIF and Inline Annotations
+
+When `sarif: true` (the default), APME generates a
+[SARIF 2.1.0](https://docs.oasis-open.org/sarif/sarif/v2.1.0/) file and
+uploads it to GitHub Code Scanning. This gives you:
+
+- **Inline annotations** on the PR Files Changed tab (like CodeQL)
+- **Entries in the Security tab** for org-wide visibility
+- **Alert management** (dismiss, reopen, track resolution)
+
+> **Note:** SARIF upload on private repos requires
+> [GitHub Advanced Security (GHAS)](https://docs.github.com/en/get-started/learning-about-github/about-github-advanced-security).
+> Public repos get Code Scanning for free.
+
+## PR Summary Comment
+
+When `comment: true` (the default), the Action posts an updatable markdown
+comment on the PR showing:
+
+- Total violation count with pass/fail indicator
+- Breakdown by severity
+- Top 5 rules triggered (collapsible)
+- Remediation summary (auto-fixable, AI candidate, manual review)
+
+The comment updates in place on re-runs instead of creating duplicates.
+
+## Required Status Checks
+
+To make APME a required check before merging:
+
+1. Add the workflow to your repo (e.g. `apme-hosted.yml`)
+2. Open a PR so the check runs at least once
+3. Go to **Settings > Branches > Branch protection rules**
+4. Edit the rule for `main`
+5. Enable **Require status checks to pass before merging**
+6. Search for and select **APME Scan** (or whatever `name:` you used)
 
 ## Customization
 
 ### Scan a specific directory
 
 ```yaml
-- run: apme check playbooks/
-```
-
-### JSON output for downstream processing
-
-```yaml
-- run: apme check . --json > apme-results.json
-- uses: actions/upload-artifact@v4
+- uses: ansible/apme@v1
   with:
-    name: apme-results
-    path: apme-results.json
+    primary-address: ${{ secrets.APME_PRIMARY_ADDRESS }}
+    target: playbooks/
 ```
 
 ### Target specific ansible-core version
 
 ```yaml
-- run: apme check . --ansible-version 2.16
+- uses: ansible/apme@v1
+  with:
+    primary-address: ${{ secrets.APME_PRIMARY_ADDRESS }}
+    ansible-version: "2.18"
 ```
 
-### Continue on violations (non-blocking)
+### Non-blocking scan (continue on violations)
 
 ```yaml
-- run: apme check . || echo "::warning::APME found violations"
+- uses: ansible/apme@v1
+  id: scan
   continue-on-error: true
+  with:
+    primary-address: ${{ secrets.APME_PRIMARY_ADDRESS }}
+- run: echo "Found ${{ steps.scan.outputs.violation-count }} violations"
+```
+
+### Self-hosted runners with internal APME
+
+```yaml
+- uses: ansible/apme@v1
+  with:
+    primary-address: apme-engine.internal.svc:50051
+```
+
+### Manual SARIF upload (without the Action)
+
+```yaml
+- run: apme check . --sarif > apme.sarif || true
+  env:
+    APME_PRIMARY_ADDRESS: ${{ secrets.APME_PRIMARY_ADDRESS }}
+- uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: apme.sarif
+    category: apme
 ```
 
 ## Exit Codes
@@ -94,23 +181,10 @@ commits fixes (requires write permissions).
 | 1 | Violations found (or format changes needed) |
 | 2 | Error (file not found, engine failure, invalid arguments) |
 
-This lets CI distinguish actionable results from infrastructure failures:
+## Requirements
 
-```yaml
-- id: scan
-  run: |
-    apme check . && echo "rc=0" >> "$GITHUB_OUTPUT" || echo "rc=$?" >> "$GITHUB_OUTPUT"
-
-- if: steps.scan.outputs.rc == '2'
-  run: |
-    echo "::error::APME infrastructure failure"
-    exit 1
-
-- if: steps.scan.outputs.rc == '1'
-  run: echo "::warning::APME found violations"
-```
-
-## Caching
-
-UV automatically caches packages. For faster subsequent runs, the
-`astral-sh/setup-uv` action handles caching automatically.
+- **Runner:** Any runner with Python 3.10+ (e.g. `ubuntu-24.04`).
+- **Permissions:** `security-events: write` for SARIF, `pull-requests: write`
+  for PR comments.
+- **Network:** Connectivity from the runner to your APME Primary gRPC endpoint.
+- **Secret:** `APME_PRIMARY_ADDRESS` set to `host:port` of your APME deployment.

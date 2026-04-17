@@ -1,0 +1,59 @@
+# APME bootc image — atomic, image-based Linux with APME pre-installed
+#
+# Builds an OCI bootable container image that can be converted to qcow2/raw/AMI
+# for VM deployment. Ships Podman and APME container images, managed by systemd
+# quadlet files.
+#
+# Build:
+#   podman build -f deploy/bootc/Containerfile -t apme-bootc:latest
+#
+# Convert to disk image:
+#   bootc-image-builder --type qcow2 apme-bootc:latest
+#
+# Deploy:
+#   bootc switch --transport containers-storage apme-bootc:latest
+#
+# See deploy/bootc/README.md for full documentation.
+
+FROM quay.io/centos-bootc/centos-bootc:stream10
+
+# Install Podman for running APME containers
+RUN dnf install -y podman podman-plugins && \
+    dnf clean all && \
+    rm -rf /var/cache/dnf
+
+# Create the apme system user for running services
+RUN useradd --system --create-home --shell /sbin/nologin apme
+
+# Create persistent data directories
+RUN mkdir -p /var/lib/apme/sessions \
+             /var/lib/apme/gateway \
+             /var/lib/apme/proxy-cache && \
+    chown -R apme:apme /var/lib/apme
+
+# Drop configuration directory
+RUN mkdir -p /etc/apme/env
+COPY deploy/bootc/etc/apme/env/apme.env /etc/apme/env/apme.env
+
+# Install quadlet files for systemd service management.
+# Podman quadlet (.container, .pod) files go into the system generator directory.
+# systemd reads these and generates unit files automatically.
+COPY deploy/bootc/quadlet/apme.pod /usr/share/containers/systemd/apme.pod
+COPY deploy/bootc/quadlet/apme-primary.container /usr/share/containers/systemd/apme-primary.container
+COPY deploy/bootc/quadlet/apme-native.container /usr/share/containers/systemd/apme-native.container
+COPY deploy/bootc/quadlet/apme-opa.container /usr/share/containers/systemd/apme-opa.container
+COPY deploy/bootc/quadlet/apme-ansible.container /usr/share/containers/systemd/apme-ansible.container
+COPY deploy/bootc/quadlet/apme-gitleaks.container /usr/share/containers/systemd/apme-gitleaks.container
+COPY deploy/bootc/quadlet/apme-collection-health.container /usr/share/containers/systemd/apme-collection-health.container
+COPY deploy/bootc/quadlet/apme-dep-audit.container /usr/share/containers/systemd/apme-dep-audit.container
+COPY deploy/bootc/quadlet/apme-galaxy-proxy.container /usr/share/containers/systemd/apme-galaxy-proxy.container
+COPY deploy/bootc/quadlet/apme-gateway.container /usr/share/containers/systemd/apme-gateway.container
+COPY deploy/bootc/quadlet/apme-ui.container /usr/share/containers/systemd/apme-ui.container
+
+# Open firewall ports for Gateway REST (8080), UI (8081), and gRPC (50051)
+RUN mkdir -p /etc/firewalld/services
+COPY deploy/bootc/apme-firewall.xml /etc/firewalld/services/apme.xml
+RUN firewall-offline-cmd --add-service=apme --zone=public 2>/dev/null || true
+
+# Enable the pod to start on boot (the pod unit pulls in all containers)
+RUN systemctl enable apme-pod.service 2>/dev/null || true

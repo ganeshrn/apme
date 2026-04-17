@@ -1,0 +1,45 @@
+# APME Check - Scan Ansible content via a hosted APME deployment
+#
+# Copy this file to .github/workflows/apme.yml in your Ansible repo.
+# Connects to your existing APME deployment (Kubernetes, VM, or any running
+# pod). Requires network connectivity from the runner to the APME Primary
+# gRPC endpoint.
+#
+# Prerequisites:
+#   - A running APME deployment accessible from your GitHub Actions runners
+#   - APME_PRIMARY_ADDRESS secret set to your Primary gRPC endpoint (host:port)
+---
+name: APME Check
+
+on:
+  pull_request:
+    paths:
+      - "**.yml"
+      - "**.yaml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+env:
+  FORCE_COLOR: "1"
+  PY_COLORS: "1"
+
+jobs:
+  apme-check:
+    name: APME Scan
+    runs-on: ubuntu-24.04
+    permissions:
+      security-events: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Run APME
+        uses: ansible/apme@v1
+        with:
+          primary-address: ${{ secrets.APME_PRIMARY_ADDRESS }}
+          target: .
+          sarif: "true"
+          comment: "true"

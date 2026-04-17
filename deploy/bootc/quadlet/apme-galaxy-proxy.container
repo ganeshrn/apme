@@ -1,0 +1,11 @@
+[Unit]
+Description=APME Galaxy Proxy (PEP 503)
+After=apme-pod.service
+
+[Container]
+Image=ghcr.io/ansible/apme-galaxy-proxy:latest
+Pod=apme.pod
+Volume=/var/lib/apme/proxy-cache:/cache:rw,z
+
+[Install]
+WantedBy=apme-pod.service

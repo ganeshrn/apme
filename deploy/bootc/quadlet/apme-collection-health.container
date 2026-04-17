@@ -1,0 +1,12 @@
+[Unit]
+Description=APME Collection Health Validator
+After=apme-pod.service
+
+[Container]
+Image=ghcr.io/ansible/apme-collection-health:latest
+Pod=apme.pod
+Environment=APME_COLLECTION_HEALTH_VALIDATOR_LISTEN=0.0.0.0:50058
+Volume=/var/lib/apme/sessions:/sessions:ro,z
+
+[Install]
+WantedBy=apme-pod.service

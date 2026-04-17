@@ -1,0 +1,10 @@
+[Unit]
+Description=APME UI (nginx SPA)
+After=apme-pod.service
+
+[Container]
+Image=ghcr.io/ansible/apme-ui:latest
+Pod=apme.pod
+
+[Install]
+WantedBy=apme-pod.service

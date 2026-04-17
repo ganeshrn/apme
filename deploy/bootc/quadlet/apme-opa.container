@@ -1,0 +1,11 @@
+[Unit]
+Description=APME OPA Validator
+After=apme-pod.service
+
+[Container]
+Image=ghcr.io/ansible/apme-opa:latest
+Pod=apme.pod
+Environment=APME_OPA_VALIDATOR_LISTEN=0.0.0.0:50054
+
+[Install]
+WantedBy=apme-pod.service

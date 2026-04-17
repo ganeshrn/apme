@@ -39,7 +39,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     check_p.add_argument("target", nargs="?", default=".", help="Path to playbook, role, or project")
     check_p.add_argument("--diff", action="store_true", help="Show unified diffs of what remediate would change")
-    check_p.add_argument("--json", action="store_true", help="Output violations as JSON (includes diffs)")
+    check_output = check_p.add_mutually_exclusive_group()
+    check_output.add_argument("--json", action="store_true", help="Output violations as JSON (includes diffs)")
+    check_output.add_argument(
+        "--sarif", action="store_true", help="Output violations as SARIF 2.1.0 JSON (for GitHub Code Scanning)"
+    )
     check_p.add_argument(
         "--ansible-version",
         default=None,

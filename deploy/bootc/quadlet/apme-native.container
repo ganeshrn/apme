@@ -1,0 +1,11 @@
+[Unit]
+Description=APME Native Validator
+After=apme-pod.service
+
+[Container]
+Image=ghcr.io/ansible/apme-native:latest
+Pod=apme.pod
+Environment=APME_NATIVE_VALIDATOR_LISTEN=0.0.0.0:50055
+
+[Install]
+WantedBy=apme-pod.service

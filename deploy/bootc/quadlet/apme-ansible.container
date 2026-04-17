@@ -1,0 +1,13 @@
+[Unit]
+Description=APME Ansible Validator
+After=apme-pod.service
+
+[Container]
+Image=ghcr.io/ansible/apme-ansible:latest
+Pod=apme.pod
+Environment=APME_ANSIBLE_VALIDATOR_LISTEN=0.0.0.0:50053
+Environment=APME_GALAXY_PROXY_URL=http://127.0.0.1:8765
+Volume=/var/lib/apme/sessions:/sessions:ro,z
+
+[Install]
+WantedBy=apme-pod.service

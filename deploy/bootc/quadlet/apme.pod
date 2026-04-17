@@ -1,0 +1,13 @@
+[Unit]
+Description=APME Pod — Ansible Policy & Modernization Engine
+After=network-online.target
+Wants=network-online.target
+
+[Pod]
+PodName=apme-pod
+PublishPort=8080:8080
+PublishPort=8081:8081
+PublishPort=50051:50051
+
+[Install]
+WantedBy=multi-user.target default.target

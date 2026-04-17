@@ -112,11 +112,13 @@ _ANSIBLE_INTERNAL_PARAMS = frozenset(
     }
 )
 
-# FILE_COMMON_ARGUMENTS are merged into argspec inside AnsibleModule.__init__,
-# AFTER our mock intercepts the call.  The mock captures the spec as passed to
-# the constructor, so these well-known file params are never in the captured
-# dict.  We allowlist them to avoid false positives on any module that accepts
-# file attributes (copy, file, template, lineinfile, unarchive, etc.).
+# Parameters that Ansible merges into a module's argument_spec at runtime when
+# the module passes ``add_file_common_args=True`` to ``AnsibleModule.__init__``
+# (see ``FILE_COMMON_ARGUMENTS`` in ``ansible.module_utils.basic``). Our mock
+# captures the argspec at call time — before Ansible performs that merge — so
+# these names never appear in the captured dict and must be whitelisted here
+# to avoid false positives for tasks that legitimately use them (e.g. ``mode``,
+# ``owner``). Keep in sync with upstream ``FILE_COMMON_ARGUMENTS``.
 _FILE_COMMON_ARGUMENTS = frozenset(
     {
         "mode",

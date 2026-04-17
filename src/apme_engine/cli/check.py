@@ -32,6 +32,7 @@ from apme_engine.cli.output import (
     render_check_results,
     sort_violations,
 )
+from apme_engine.cli.sarif import violations_to_sarif
 from apme_engine.daemon.chunked_fs import yield_scan_chunks
 from apme_engine.remediation.partition import count_by_remediation_class, count_by_resolution
 
@@ -240,6 +241,15 @@ def run_check(args: argparse.Namespace) -> None:
 
     violations = deduplicate_violations(sort_violations(violations))
     scan_id = scan_id_holder[0]
+
+    if getattr(args, "sarif", False):
+        from apme_engine.engine._version import __version__ as _engine_version
+
+        sarif_doc = violations_to_sarif(violations, tool_version=_engine_version)
+        print(json.dumps(sarif_doc))
+        if violations:
+            sys.exit(EXIT_VIOLATIONS)
+        return
 
     if args.json:
         rem_counts = count_by_remediation_class(violations)

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<service>
+  <short>APME</short>
+  <description>Ansible Policy and Modernization Engine — Gateway REST API, UI, and Primary gRPC</description>
+  <port protocol="tcp" port="8080"/>
+  <port protocol="tcp" port="8081"/>
+  <port protocol="tcp" port="50051"/>
+</service>

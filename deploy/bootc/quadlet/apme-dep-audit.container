@@ -1,0 +1,12 @@
+[Unit]
+Description=APME Dependency Audit Validator
+After=apme-pod.service
+
+[Container]
+Image=ghcr.io/ansible/apme-dep-audit:latest
+Pod=apme.pod
+Environment=APME_DEP_AUDIT_VALIDATOR_LISTEN=0.0.0.0:50059
+Volume=/var/lib/apme/sessions:/sessions:ro,z
+
+[Install]
+WantedBy=apme-pod.service
