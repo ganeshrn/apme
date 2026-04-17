@@ -526,23 +526,30 @@ async def _fetch_galaxy_versions(
 
 
 def _normalize_galaxy_url(raw_url: str) -> str:
-    """Strip ansible.cfg-style ``/api/...`` suffixes so we can append our own path.
+    """Strip ansible.cfg-style ``/api/...`` suffixes from the URL path.
 
     Configured Galaxy servers often include ``/api/``, ``/api/galaxy/``,
     or ``/api/galaxy/content/...`` in their URL.  ``_GALAXY_VERSIONS_PATH``
     already starts with ``/api/v3/...``, so we must strip any leading
-    ``/api`` segment to avoid ``/api/api/v3/...``.
+    ``/api`` path segment to avoid ``/api/api/v3/...``.
+
+    Only the *path* component is inspected — hostnames like
+    ``https://api.example.com`` are preserved correctly.
 
     Args:
         raw_url: Server URL as provided by the user / Gateway config.
 
     Returns:
-        Base URL with trailing ``/api...`` segments removed.
+        Base URL with ``/api...`` path segments removed.
     """
-    url = raw_url.rstrip("/")
-    if "/api" in url:
-        url = url[: url.index("/api")]
-    return url
+    from urllib.parse import urlsplit, urlunsplit
+
+    parts = urlsplit(raw_url)
+    path = parts.path.rstrip("/")
+    idx = path.find("/api")
+    if idx != -1:
+        path = path[:idx]
+    return urlunsplit((parts.scheme, parts.netloc, path, "", ""))
 
 
 async def _fetch_versions_from(

@@ -558,6 +558,9 @@ class TestVersionDiscoveryWithServers:
                 "https://hub.example.com",
             ),
             ("https://console.redhat.com/api/automation-hub", "https://console.redhat.com"),
+            ("https://api.example.com", "https://api.example.com"),
+            ("https://api.example.com/", "https://api.example.com"),
+            ("https://api.galaxy.example.com/api/", "https://api.galaxy.example.com"),
         ],
     )
     def test_normalize_galaxy_url(self, raw_url: str, expected: str) -> None:
