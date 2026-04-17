@@ -546,6 +546,101 @@ class TestVersionDiscoveryWithServers:
         assert result == ["2.0.0"]
         assert "Authorization" not in captured_headers
 
+    @pytest.mark.parametrize(  # type: ignore[untyped-decorator]
+        ("raw_url", "expected"),
+        [
+            ("https://galaxy.ansible.com", "https://galaxy.ansible.com"),
+            ("https://galaxy.ansible.com/", "https://galaxy.ansible.com"),
+            ("https://galaxy.ansible.com/api/", "https://galaxy.ansible.com"),
+            ("https://hub.example.com/api/galaxy/", "https://hub.example.com"),
+            (
+                "https://hub.example.com/api/galaxy/content/published/",
+                "https://hub.example.com",
+            ),
+            ("https://console.redhat.com/api/automation-hub", "https://console.redhat.com"),
+        ],
+    )
+    def test_normalize_galaxy_url(self, raw_url: str, expected: str) -> None:
+        """_normalize_galaxy_url strips /api... suffixes from server URLs.
+
+        Args:
+            raw_url: Input URL to normalize.
+            expected: Expected normalized URL.
+        """
+        from galaxy_proxy.proxy.server import _normalize_galaxy_url
+
+        assert _normalize_galaxy_url(raw_url) == expected
+
+    def test_fetch_versions_from_normalizes_api_url(self) -> None:
+        """_fetch_versions_from normalizes URLs that include /api/ to avoid /api/api/v3/...."""
+        import asyncio
+
+        from galaxy_proxy.proxy.server import _fetch_versions_from
+
+        captured_urls: list[str] = []
+
+        def _capture_client(**kwargs: object) -> unittest.mock.MagicMock:
+            mock_resp = unittest.mock.MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.json.return_value = {"data": [{"version": "1.0.0"}], "links": {}}
+            mock_resp.raise_for_status.return_value = None
+
+            async def _get(url: str, **kw: object) -> unittest.mock.MagicMock:
+                captured_urls.append(url)
+                return mock_resp
+
+            client = unittest.mock.MagicMock()
+            client.get = _get
+            client.__aenter__ = AsyncMock(return_value=client)
+            client.__aexit__ = AsyncMock(return_value=False)
+            return client
+
+        with patch("galaxy_proxy.proxy.server.httpx.AsyncClient", side_effect=_capture_client):
+            result = asyncio.run(
+                _fetch_versions_from(
+                    "ansible",
+                    "posix",
+                    "https://hub.example.com/api/",
+                    token="tok",
+                ),
+            )
+
+        assert result == ["1.0.0"]
+        assert len(captured_urls) == 1
+        assert "/api/api/" not in captured_urls[0]
+        assert "/api/v3/plugin/ansible/" in captured_urls[0]
+
+    def test_version_discovery_with_api_url_through_project_page(self, tmp_path: Path) -> None:
+        """Version discovery handles configured server URLs that include /api/.
+
+        Args:
+            tmp_path: Pytest-provided temporary directory.
+        """
+        from galaxy_proxy.collection_downloader import GalaxyServerConfig
+
+        cache_dir = tmp_path / "cache"
+        application = create_app(cache_dir=cache_dir, enable_passthrough=False)
+
+        with TestClient(application) as client:
+            client.post(
+                "/admin/galaxy-config",
+                json={"servers": [{"name": "hub", "url": "https://hub.example.com/api/", "token": "tok"}]},
+            )
+
+            mock_fetch = AsyncMock(return_value=["2.0.0", "1.0.0"])
+            with patch("galaxy_proxy.proxy.server._fetch_galaxy_versions", mock_fetch):
+                resp = client.get("/simple/ansible-collection-ansible-posix/")
+
+            assert resp.status_code == 200
+            mock_fetch.assert_called_once()
+            call_kwargs = mock_fetch.call_args
+            servers = call_kwargs.kwargs.get("servers") or call_kwargs[1].get("servers")
+            assert servers is not None
+            assert len(servers) == 1
+            assert isinstance(servers[0], GalaxyServerConfig)
+            assert servers[0].url == "https://hub.example.com/api/"
+            assert servers[0].token == "tok"
+
 
 class TestConvertTarballs:
     """Tests for POST /convert-tarballs endpoint."""
