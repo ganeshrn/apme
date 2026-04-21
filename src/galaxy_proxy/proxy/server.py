@@ -8,7 +8,9 @@ custom httpx client.
 from __future__ import annotations
 
 import asyncio
+import configparser
 import logging
+import os
 import re
 import tempfile
 from contextlib import asynccontextmanager
@@ -137,6 +139,12 @@ def create_app(
         """
         servers = app.state.galaxy_servers
         cfg_path = app.state.ansible_cfg_path
+        if cfg_path is None:
+            env_cfg = os.environ.get("ANSIBLE_CONFIG", "").strip()
+            if env_cfg:
+                candidate = Path(env_cfg).expanduser()
+                if candidate.is_file():
+                    cfg_path = candidate
         galaxy_bin = app.state.ansible_galaxy_bin
         return cfg_path, servers or None, galaxy_bin
 
@@ -166,7 +174,7 @@ def create_app(
             name = s.name.strip()
             if not name:
                 raise HTTPException(status_code=422, detail="Server name must not be empty")
-            if not re.match(r"^[A-Za-z0-9_]+$", name):
+            if not re.match(r"^[A-Za-z0-9_\-]+$", name):
                 raise HTTPException(status_code=422, detail=f"Invalid server name: {s.name!r}")
             if name.upper() in seen:
                 raise HTTPException(status_code=422, detail=f"Duplicate server name: {s.name!r}")
@@ -247,7 +255,9 @@ def create_app(
             versions = meta.versions
 
         if versions is None:
-            _, servers_cfg, _ = _get_galaxy_config()
+            cfg_path, servers_cfg, _ = _get_galaxy_config()
+            if servers_cfg is None and cfg_path is not None:
+                servers_cfg = _load_servers_from_ansible_cfg(cfg_path) or None
             galaxy_versions = await _fetch_galaxy_versions(
                 namespace,
                 name,
@@ -478,6 +488,49 @@ def _galaxy_version_sort_key(version: str) -> tuple[int, Version | str]:
         return (0, Version(version))
     except InvalidVersion:
         return (1, version)
+
+
+def _load_servers_from_ansible_cfg(cfg_path: Path) -> list[GalaxyServerConfig]:
+    """Parse Galaxy servers from an ``ansible.cfg`` file.
+
+    This is used by the proxy's version-discovery path when no Gateway-pushed
+    server list is present, such as local daemon mode where the Primary
+    temporarily exposes a session-scoped ``ANSIBLE_CONFIG``.
+
+    Args:
+        cfg_path: Path to the config file.
+
+    Returns:
+        Ordered Galaxy server configs, or an empty list on parse failure.
+    """
+    parser = configparser.ConfigParser(interpolation=None)
+    try:
+        parser.read(str(cfg_path), encoding="utf-8")
+    except (configparser.Error, OSError):
+        logger.debug("Failed to parse ansible.cfg for Galaxy servers: %s", cfg_path, exc_info=True)
+        return []
+
+    raw_list = parser.get("galaxy", "server_list", fallback="")
+    server_names = [name.strip() for name in raw_list.split(",") if name.strip()]
+    servers: list[GalaxyServerConfig] = []
+    for name in server_names:
+        section = f"galaxy_server.{name}"
+        if not parser.has_section(section):
+            continue
+        url = parser.get(section, "url", fallback="").strip()
+        if not url:
+            continue
+        token = parser.get(section, "token", fallback="").strip() or None
+        auth_url = parser.get(section, "auth_url", fallback="").strip() or None
+        servers.append(
+            GalaxyServerConfig(
+                name=name,
+                url=url,
+                token=token,
+                auth_url=auth_url,
+            )
+        )
+    return servers
 
 
 async def _fetch_galaxy_versions(

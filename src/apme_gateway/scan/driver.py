@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import logging
+import os
 import shutil
 import subprocess
 import tempfile
@@ -51,6 +52,30 @@ _REMOTE_HEAD_TTL = 60.0  # seconds
 _REMOTE_HEAD_CACHE_MAX = 256
 
 
+def _git_subprocess_env() -> dict[str, str]:
+    """Return environment variables for git subprocesses.
+
+    Git already inherits the process environment by default. This helper adds a
+    small compatibility bridge so git will also trust a custom PEM bundle when
+    the container only exposes it via generic CA variables such as
+    ``SSL_CERT_FILE`` or ``REQUESTS_CA_BUNDLE``.
+
+    Returns:
+        Copy of ``os.environ`` with ``GIT_SSL_CAINFO`` populated when a CA bundle
+        path is available via another standard environment variable.
+    """
+    env = os.environ.copy()
+    if env.get("GIT_SSL_CAINFO"):
+        return env
+
+    for key in ("SSL_CERT_FILE", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE", "NODE_EXTRA_CA_CERTS"):
+        candidate = env.get(key, "").strip()
+        if candidate:
+            env["GIT_SSL_CAINFO"] = candidate
+            break
+    return env
+
+
 async def fetch_remote_head(repo_url: str, branch: str) -> str | None:
     """Query the remote for the HEAD commit SHA of *branch* without cloning.
 
@@ -80,7 +105,13 @@ async def fetch_remote_head(repo_url: str, branch: str) -> str | None:
     try:
         result = await loop.run_in_executor(
             None,
-            lambda: subprocess.run(cmd, capture_output=True, text=True, timeout=30),  # noqa: S603
+            lambda: subprocess.run(  # noqa: S603
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                env=_git_subprocess_env(),
+            ),
         )
         if result.returncode == 0 and result.stdout.strip():
             sha = result.stdout.strip().split()[0]
@@ -159,7 +190,13 @@ async def clone_repo(repo_url: str, branch: str, dest: str) -> None:
     loop = asyncio.get_running_loop()
     result = await loop.run_in_executor(
         None,
-        lambda: subprocess.run(cmd, capture_output=True, text=True, timeout=120),  # noqa: S603
+        lambda: subprocess.run(  # noqa: S603
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=120,
+            env=_git_subprocess_env(),
+        ),
     )
     if result.returncode != 0:
         raise RuntimeError(f"git clone failed (exit {result.returncode}): {result.stderr[:500]}")

@@ -576,6 +576,7 @@ class PrimaryServicer(primary_pb2_grpc.PrimaryServicer):
     """
 
     _venv_mgr: VenvSessionManager | None = None
+    _galaxy_proxy_cfg_lock: asyncio.Lock | None = None
 
     def _get_venv_manager(self) -> VenvSessionManager:
         """Return (or create) the singleton VenvSessionManager.
@@ -586,6 +587,50 @@ class PrimaryServicer(primary_pb2_grpc.PrimaryServicer):
         if self._venv_mgr is None:
             self._venv_mgr = VenvSessionManager()
         return self._venv_mgr
+
+    def _get_galaxy_proxy_cfg_lock(self) -> asyncio.Lock:
+        """Return the lock guarding temporary ``ANSIBLE_CONFIG`` overrides.
+
+        The local daemon runs Primary and Galaxy Proxy in the same process.
+        When a scan provides session-scoped Galaxy credentials, Primary
+        temporarily exposes that config via ``ANSIBLE_CONFIG`` so the in-process
+        proxy can use it during venv acquisition. The lock serializes that
+        process-wide override.
+
+        Returns:
+            Lock protecting process-wide Galaxy proxy config activation.
+        """
+        if self._galaxy_proxy_cfg_lock is None:
+            self._galaxy_proxy_cfg_lock = asyncio.Lock()
+        return self._galaxy_proxy_cfg_lock
+
+    @contextlib.asynccontextmanager
+    async def _activate_galaxy_proxy_config(self, galaxy_cfg_path: Path | None) -> AsyncIterator[None]:
+        """Temporarily expose a session-scoped Galaxy config to the proxy.
+
+        This only affects local daemon mode where Primary and Galaxy Proxy share
+        a process. Pod deployments use the Gateway's proxy config sync instead.
+
+        Args:
+            galaxy_cfg_path: Session-scoped ``ansible.cfg`` path, if any.
+
+        Yields:
+            None: Control while the temporary ``ANSIBLE_CONFIG`` override is active.
+        """
+        if galaxy_cfg_path is None:
+            yield
+            return
+
+        async with self._get_galaxy_proxy_cfg_lock():
+            previous = os.environ.get("ANSIBLE_CONFIG")
+            os.environ["ANSIBLE_CONFIG"] = str(galaxy_cfg_path)
+            try:
+                yield
+            finally:
+                if previous is None:
+                    os.environ.pop("ANSIBLE_CONFIG", None)
+                else:
+                    os.environ["ANSIBLE_CONFIG"] = previous
 
     # ── internal: reusable scan pipeline ──────────────────────────────
 
@@ -643,7 +688,8 @@ class PrimaryServicer(primary_pb2_grpc.PrimaryServicer):
             progress_callback: Optional callback ``(phase, message, fraction)``
                 for streaming per-validator progress to callers.
             galaxy_cfg_path: Session-scoped ``ansible.cfg`` for Galaxy auth
-                (ADR-045).  Reserved for proxy integration — not yet consumed.
+                (ADR-045). In daemon mode this is temporarily exposed to the
+                in-process Galaxy Proxy during venv acquisition.
             rule_configs: Per-rule overrides from ``ScanOptions`` (ADR-041).
                 When provided, disabled rules are filtered and severity is
                 overridden after validator fan-out.
@@ -725,14 +771,15 @@ class PrimaryServicer(primary_pb2_grpc.PrimaryServicer):
         logger.info("Collection specs merged (req=%s): %s", scan_id, collection_specs)
 
         # 3. Venv acquire (always — creates or incrementally installs)
-        venv_session = await asyncio.get_event_loop().run_in_executor(
-            None,
-            ctx.run,
-            self._get_venv_manager().acquire,
-            sid,
-            core_version,
-            collection_specs,
-        )
+        async with self._activate_galaxy_proxy_config(galaxy_cfg_path):
+            venv_session = await asyncio.get_event_loop().run_in_executor(
+                None,
+                ctx.run,
+                self._get_venv_manager().acquire,
+                sid,
+                core_version,
+                collection_specs,
+            )
         venv_path = str(venv_session.venv_root)
         if venv_session.failed_collections:
             logger.warning(
@@ -1706,6 +1753,7 @@ class PrimaryServicer(primary_pb2_grpc.PrimaryServicer):
         remaining = [dict(v) for v in graph_report.remaining_violations]
         remaining.extend(dep_health_violations)
         add_classification_to_violations(remaining)
+        session.dep_health_violations = [dict(v) for v in remaining if str(v.get("source", "")) in dep_health_sources]
 
         from apme_engine.remediation.partition import count_by_remediation_class
 
@@ -2040,7 +2088,7 @@ class PrimaryServicer(primary_pb2_grpc.PrimaryServicer):
                     )
                 )
 
-        remaining_violations = [violation_dict_to_proto(v) for v in session.remaining_ai + session.remaining_manual]  # type: ignore[arg-type]
+        remaining_violations = [violation_dict_to_proto(v) for v in session.remaining_ai + session.remaining_manual]
 
         report = session.report or FixReport()
 
@@ -2113,7 +2161,7 @@ class PrimaryServicer(primary_pb2_grpc.PrimaryServicer):
 
         all_remaining = list(session.remaining_ai) + list(session.remaining_manual)
         report = session.report or FixReport()
-        rem_counts = count_by_remediation_class(all_remaining)  # type: ignore[arg-type]
+        rem_counts = count_by_remediation_class(all_remaining)
         summary = ScanSummary(
             total=len(all_remaining) + report.fixed,
             auto_fixable=report.fixed,
@@ -2400,8 +2448,8 @@ def _reconcile_after_approval(
             graph.approve_proposed(nid)
 
     # Remaining = open + declined + ai_abstained (all unresolved violations).
-    # Post-approval, AI has already had its chance — everything remaining
-    # is manual review regardless of what classify_violation would say.
+    # Post-approval, AI has already had its chance — graph-derived violations
+    # are manual review regardless of what classify_violation would say.
     open_violations = graph.query_violations(status="open")
     declined_violations = graph.query_violations(status="declined")
     ai_abstained_violations = graph.query_violations(status="ai_abstained")
@@ -2409,6 +2457,7 @@ def _reconcile_after_approval(
     for v in remaining:
         v["remediation_class"] = RemediationClass.MANUAL_REVIEW
     _enrich_violations_from_graph(remaining, graph, fixed=False)
+    remaining.extend(dict(v) for v in session.dep_health_violations)
 
     fixed = [dict(v) for v in graph.query_violations(status="fixed")]
     for v in fixed:
@@ -2416,18 +2465,25 @@ def _reconcile_after_approval(
     _enrich_violations_from_graph(fixed, graph, fixed=True)
 
     session.remaining_ai = []
-    session.remaining_manual = list(remaining)
+    session.remaining_manual = []
+    for violation in remaining:
+        rc = violation.get("remediation_class")
+        rc_val = rc.value if isinstance(rc, RemediationClass) else str(rc) if rc is not None else ""
+        if rc_val == RemediationClass.AI_CANDIDATE.value:
+            session.remaining_ai.append(violation)
+        else:
+            session.remaining_manual.append(violation)
 
     old_report = session.report or FixReport()
 
-    remaining_protos = [violation_dict_to_proto(v) for v in remaining]
+    remaining_protos = [violation_dict_to_proto(v) for v in session.remaining_ai + session.remaining_manual]
     fixed_protos = [violation_dict_to_proto(v) for v in fixed]
 
     session.report = FixReport(
         passes=old_report.passes,
         fixed=len(fixed),
-        remaining_ai=0,
-        remaining_manual=len(remaining),
+        remaining_ai=len(session.remaining_ai),
+        remaining_manual=len(session.remaining_manual),
         oscillation_detected=old_report.oscillation_detected,
         remaining_violations=remaining_protos,
         fixed_violations=fixed_protos,

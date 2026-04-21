@@ -31,9 +31,11 @@ import fcntl
 import json
 import logging
 import os
+import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import textwrap
 import time
 from dataclasses import asdict, dataclass, field
@@ -145,11 +147,17 @@ def _spec_to_pip(spec: str) -> str:
     return pkg
 
 
+_FAILED_BUILD_RE = re.compile(r"Failed to build `([^`]+)`")
+
+
 def _run_pip_install(
     pip_python: Path,
     pip_specs: list[str],
     simple_url: str,
     use_uv: bool,
+    *,
+    exclude_file: Path | None = None,
+    no_build: bool = False,
 ) -> subprocess.CompletedProcess[str]:
     """Run a single pip/uv install command and return the result.
 
@@ -158,6 +166,13 @@ def _run_pip_install(
         pip_specs: Pip package specifiers to install.
         simple_url: PEP 503 simple index URL.
         use_uv: Whether to use uv for installation.
+        exclude_file: Path to a requirements-format file listing packages to
+            exclude from resolution (uv ``--excludes``).  Ignored for pip.
+        no_build: If True, refuse to build source distributions.  Uses
+            ``--no-build`` for uv or ``--only-binary :all:`` for pip so
+            that packages requiring native compilation are skipped.  Only
+            used as a last-resort fallback when ``exclude_file`` is not
+            available (non-uv installs).
 
     Returns:
         CompletedProcess with stdout/stderr captured.
@@ -173,8 +188,12 @@ def _run_pip_install(
             simple_url,
             "--index-strategy",
             "unsafe-best-match",
-            *pip_specs,
         ]
+        if exclude_file is not None:
+            cmd.extend(["--excludes", str(exclude_file)])
+        if no_build:
+            cmd.append("--no-build")
+        cmd.extend(pip_specs)
     else:
         cmd = [
             str(pip_python),
@@ -183,9 +202,53 @@ def _run_pip_install(
             "install",
             "--extra-index-url",
             simple_url,
-            *pip_specs,
         ]
+        if no_build:
+            cmd.extend(["--only-binary", ":all:"])
+        cmd.extend(pip_specs)
     return subprocess.run(cmd, capture_output=True, text=True)
+
+
+def _is_build_failure(output: str) -> bool:
+    """Detect whether pip/uv output indicates a source-distribution build failure.
+
+    Args:
+        output: Combined stderr/stdout from the install command.
+
+    Returns:
+        True if the failure is caused by an unbuildable source distribution.
+    """
+    markers = (
+        "Failed to build",
+        "build_wheel",
+        "build_sdist",
+        "pkg-config",
+        "error: command",
+    )
+    return any(m in output for m in markers)
+
+
+def _extract_unbuildable_packages(output: str) -> list[str]:
+    r"""Parse package names that failed to build from pip/uv error output.
+
+    Looks for patterns like ``Failed to build \`systemd-python==235\``` and
+    returns the bare package name (without version).
+
+    Args:
+        output: Combined stderr/stdout from a failed install.
+
+    Returns:
+        De-duplicated list of package names that could not be built.
+    """
+    raw = _FAILED_BUILD_RE.findall(output)
+    seen: set[str] = set()
+    result: list[str] = []
+    for entry in raw:
+        name = entry.split("==")[0].split(">=")[0].split("<=")[0].split("!=")[0]
+        if name not in seen:
+            seen.add(name)
+            result.append(name)
+    return result
 
 
 def _install_collections_via_proxy(
@@ -196,9 +259,16 @@ def _install_collections_via_proxy(
 ) -> list[str]:
     """Install collections into the venv via the galaxy proxy (PEP 503).
 
-    Attempts a bulk install first.  On failure, falls back to installing
-    each collection individually so that one broken collection does not
-    block all others.
+    Attempts a bulk install first.  On failure the error output is inspected
+    for unbuildable native packages (e.g. ``systemd-python`` needing
+    ``pkg-config``).  When such packages are found **and** uv is in use,
+    the install is retried with ``--excludes`` so the resolver drops only
+    those native packages while keeping all Python/collection transitive
+    deps.  For non-uv installs, ``--only-binary :all:`` is used as a
+    coarser fallback.
+
+    If the bulk retry still fails, individual per-collection installs are
+    attempted with the same exclude/no-build strategy.
 
     Args:
         pip_python: Python interpreter inside the venv.
@@ -216,9 +286,24 @@ def _install_collections_via_proxy(
     if result.returncode == 0:
         return []
 
+    bulk_output = result.stderr or result.stdout
+    if _is_build_failure(bulk_output):
+        unbuildable = _extract_unbuildable_packages(bulk_output)
+        result = _retry_without_native(
+            pip_python,
+            pip_specs,
+            simple_url,
+            use_uv,
+            unbuildable,
+            bulk_output,
+        )
+        if result.returncode == 0:
+            return []
+        bulk_output = result.stderr or result.stdout
+
     logger.warning(
         "Bulk collection install failed, falling back to individual installs: %s",
-        result.stderr or result.stdout,
+        bulk_output,
     )
 
     failed: list[str] = []
@@ -226,16 +311,108 @@ def _install_collections_via_proxy(
         pip_spec = _spec_to_pip(spec)
         individual = _run_pip_install(pip_python, [pip_spec], simple_url, use_uv)
         if individual.returncode != 0:
+            ind_output = individual.stderr or individual.stdout
+            if _is_build_failure(ind_output):
+                unbuildable = _extract_unbuildable_packages(ind_output)
+                retry = _retry_without_native(
+                    pip_python,
+                    [pip_spec],
+                    simple_url,
+                    use_uv,
+                    unbuildable,
+                    ind_output,
+                )
+                if retry.returncode == 0:
+                    logger.info("Collection installed successfully (excluded native deps): %s", spec)
+                    continue
+                ind_output = retry.stderr or retry.stdout
             logger.warning(
                 "Collection install failed for %s: %s",
                 spec,
-                individual.stderr or individual.stdout,
+                ind_output,
             )
             failed.append(spec)
         else:
             logger.info("Collection installed successfully: %s", spec)
 
     return failed
+
+
+_MAX_EXCLUDE_RETRIES = 5
+
+
+def _retry_without_native(
+    pip_python: Path,
+    pip_specs: list[str],
+    simple_url: str,
+    use_uv: bool,
+    unbuildable: list[str],
+    original_output: str,
+) -> subprocess.CompletedProcess[str]:
+    """Retry an install after excluding unbuildable native packages.
+
+    For uv: iteratively discovers and excludes native packages that cannot
+    be built from source.  Each retry adds newly discovered unbuildable
+    packages to the excludes file (up to ``_MAX_EXCLUDE_RETRIES`` rounds).
+    For pip: falls back to ``--only-binary :all:`` (coarser but functional).
+
+    Args:
+        pip_python: Python interpreter inside the venv.
+        pip_specs: Pip package specifiers to install.
+        simple_url: PEP 503 simple index URL.
+        use_uv: Whether to use uv for installation.
+        unbuildable: Package names that failed to build from source.
+        original_output: The original error output (for logging context).
+
+    Returns:
+        CompletedProcess from the last retry attempt.
+    """
+    if not (use_uv and unbuildable):
+        fallback = "--no-build" if use_uv else "--only-binary :all:"
+        logger.warning(
+            "Build failed for native packages; retrying with %s: %s",
+            fallback,
+            original_output,
+        )
+        return _run_pip_install(pip_python, pip_specs, simple_url, use_uv, no_build=True)
+
+    all_excluded: set[str] = set(unbuildable)
+    excludes_dir = Path(tempfile.mkdtemp(prefix="apme-excludes-"))
+    try:
+        for attempt in range(_MAX_EXCLUDE_RETRIES):
+            logger.warning(
+                "Build failed for native packages %s; retrying with --excludes (attempt %d)",
+                sorted(all_excluded),
+                attempt + 1,
+            )
+            excludes_file = excludes_dir / "excludes.txt"
+            excludes_file.write_text(
+                "\n".join(sorted(all_excluded)) + "\n",
+                encoding="utf-8",
+            )
+            result = _run_pip_install(
+                pip_python,
+                pip_specs,
+                simple_url,
+                use_uv,
+                exclude_file=excludes_file,
+            )
+            if result.returncode == 0:
+                return result
+
+            output = result.stderr or result.stdout
+            if not _is_build_failure(output):
+                return result
+
+            new_pkgs = _extract_unbuildable_packages(output)
+            newly_found = set(new_pkgs) - all_excluded
+            if not newly_found:
+                return result
+            all_excluded.update(newly_found)
+
+        return result
+    finally:
+        shutil.rmtree(excludes_dir, ignore_errors=True)
 
 
 def create_base_venv(
@@ -518,9 +695,8 @@ def list_installed_collections(venv_dir: Path) -> list[tuple[str, str, str, str]
 
 
 _DEFAULT_TTL = 3600
-_re = __import__("re")
-_SAFE_SESSION_RE = _re.compile(r"^[A-Za-z0-9_\-]+$")
-_SAFE_VERSION_RE = _re.compile(r"^\d+\.\d+(\.\d+)?$")
+_SAFE_SESSION_RE = re.compile(r"^[A-Za-z0-9_\-]+$")
+_SAFE_VERSION_RE = re.compile(r"^\d+\.\d+(\.\d+)?$")
 
 
 def _sanitize_session_id(session_id: str) -> str:

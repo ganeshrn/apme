@@ -357,6 +357,19 @@ class TestAdminGalaxyConfig:
         )
         assert resp.status_code == 422
 
+    def test_push_accepts_hyphenated_name(self, app: TestClient) -> None:
+        """Hyphenated server names are accepted for proxy sync.
+
+        Args:
+            app: Test client fixture.
+        """
+        resp = app.post(
+            "/admin/galaxy-config",
+            json={"servers": [{"name": "automation-hub", "url": "https://hub.example.com"}]},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["servers"] == ["automation-hub"]
+
 
 class TestVersionDiscoveryWithServers:
     """Tests for _fetch_galaxy_versions using configured Galaxy servers."""
@@ -412,6 +425,45 @@ class TestVersionDiscoveryWithServers:
         call_kwargs = mock_fetch.call_args
         servers = call_kwargs.kwargs.get("servers") or call_kwargs[1].get("servers")
         assert servers is None
+
+    def test_version_discovery_uses_ansible_config_env_when_no_pushed_servers(self, tmp_path: Path) -> None:
+        """Version discovery reads Galaxy servers from ``ANSIBLE_CONFIG`` in daemon mode.
+
+        Args:
+            tmp_path: Pytest-provided temporary directory.
+        """
+        from galaxy_proxy.collection_downloader import GalaxyServerConfig
+
+        cfg = tmp_path / "ansible.cfg"
+        cfg.write_text(
+            "[galaxy]\n"
+            "server_list = certified\n"
+            "\n"
+            "[galaxy_server.certified]\n"
+            "url = https://hub.example.com/api/galaxy/\n"
+            "token = secret-token\n"
+            "auth_url = https://sso.example.com/token\n"
+        )
+        application = create_app(cache_dir=tmp_path / "cache", enable_passthrough=False)
+
+        mock_fetch = AsyncMock(return_value=["1.5.4"])
+        with (
+            patch.dict("os.environ", {"ANSIBLE_CONFIG": str(cfg)}),
+            TestClient(application) as client,
+            patch("galaxy_proxy.proxy.server._fetch_galaxy_versions", mock_fetch),
+        ):
+            resp = client.get("/simple/ansible-collection-ansible-posix/")
+
+        assert resp.status_code == 200
+        call_kwargs = mock_fetch.call_args
+        servers = call_kwargs.kwargs.get("servers") or call_kwargs[1].get("servers")
+        assert servers is not None
+        assert len(servers) == 1
+        assert isinstance(servers[0], GalaxyServerConfig)
+        assert servers[0].name == "certified"
+        assert servers[0].url == "https://hub.example.com/api/galaxy/"
+        assert servers[0].token == "secret-token"
+        assert servers[0].auth_url == "https://sso.example.com/token"
 
     def test_fetch_versions_tries_servers_in_order(self) -> None:
         """_fetch_galaxy_versions tries configured servers before public Galaxy.

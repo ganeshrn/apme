@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import base64
 import logging
+import os
+import ssl
 from urllib.parse import urlparse
 
 import httpx
@@ -17,6 +19,43 @@ import httpx
 from apme_gateway.scm.base import PullRequestResult
 
 logger = logging.getLogger(__name__)
+
+
+def _custom_ca_bundle() -> str:
+    """Return the configured custom CA bundle path, if any.
+
+    Returns:
+        Absolute CA bundle path when configured, else an empty string.
+    """
+    for key in ("SSL_CERT_FILE", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE"):
+        candidate = os.environ.get(key, "").strip()
+        if candidate:
+            return candidate
+    return ""
+
+
+def _http_verify() -> ssl.SSLContext | bool:
+    """Return TLS verification settings for outbound HTTPS.
+
+    The gateway may run behind a corporate TLS intercept or use an internal CA.
+    In that case ``up.sh`` injects one or more standard CA environment variables
+    into the container. ``httpx`` is given the resolved bundle path explicitly so
+    SCM API calls trust both the platform store and the custom corporate root.
+
+    Returns:
+        SSL context with system roots plus the configured custom bundle, else
+        ``True`` for the default platform trust store.
+    """
+    custom_bundle = _custom_ca_bundle()
+    if not custom_bundle:
+        return True
+
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    context.verify_mode = ssl.CERT_REQUIRED
+    context.check_hostname = True
+    context.load_default_certs(ssl.Purpose.SERVER_AUTH)
+    context.load_verify_locations(cafile=custom_bundle)
+    return context
 
 
 def _parse_owner_repo(repo_url: str) -> tuple[str, str]:
@@ -59,6 +98,18 @@ class GitHubProvider:
             "X-GitHub-Api-Version": "2022-11-28",
         }
 
+    @staticmethod
+    def _client(*, timeout: float) -> httpx.AsyncClient:
+        """Build an HTTP client with the configured CA bundle.
+
+        Args:
+            timeout: Request timeout in seconds.
+
+        Returns:
+            Configured ``httpx.AsyncClient`` instance.
+        """
+        return httpx.AsyncClient(timeout=timeout, verify=_http_verify())
+
     async def create_branch(
         self,
         repo_url: str,
@@ -75,7 +126,7 @@ class GitHubProvider:
             token: GitHub PAT or app installation token.
         """
         owner, repo = _parse_owner_repo(repo_url)
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with self._client(timeout=30) as client:
             ref_resp = await client.get(
                 f"{self._api}/repos/{owner}/{repo}/git/ref/heads/{base_branch}",
                 headers=self._headers(token),
@@ -112,7 +163,7 @@ class GitHubProvider:
             SHA of the new commit.
         """
         owner, repo = _parse_owner_repo(repo_url)
-        async with httpx.AsyncClient(timeout=60) as client:
+        async with self._client(timeout=60) as client:
             headers = self._headers(token)
 
             ref_resp = await client.get(
@@ -204,7 +255,7 @@ class GitHubProvider:
             PullRequestResult with the URL.
         """
         owner, repo = _parse_owner_repo(repo_url)
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with self._client(timeout=30) as client:
             resp = await client.post(
                 f"{self._api}/repos/{owner}/{repo}/pulls",
                 headers=self._headers(token),

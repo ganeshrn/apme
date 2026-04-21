@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ssl
 from collections.abc import AsyncIterator
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
@@ -13,7 +14,7 @@ from apme_gateway.app import create_app
 from apme_gateway.db import close_db, get_session, init_db
 from apme_gateway.db.models import PatchedFile, Project, Scan, Session
 from apme_gateway.scm.base import PullRequestResult, detect_provider
-from apme_gateway.scm.github import GitHubProvider, _parse_owner_repo
+from apme_gateway.scm.github import GitHubProvider, _custom_ca_bundle, _http_verify, _parse_owner_repo
 from apme_gateway.scm.registry import get_provider
 
 
@@ -186,6 +187,50 @@ class TestProviderRegistry:
         """Raise ValueError for unknown provider type."""
         with pytest.raises(ValueError, match="Unsupported SCM provider"):
             get_provider("svn")
+
+
+class TestGitHubProviderTls:
+    """Tests for GitHub provider TLS configuration."""
+
+    def test_custom_ca_bundle_prefers_ssl_cert_file(self) -> None:
+        """SCM API calls use the injected CA bundle when configured."""
+        with patch.dict(
+            "os.environ",
+            {
+                "SSL_CERT_FILE": "/etc/ssl/certs/custom-ca-bundle.pem",
+                "REQUESTS_CA_BUNDLE": "",
+                "CURL_CA_BUNDLE": "",
+            },
+            clear=True,
+        ):
+            assert _custom_ca_bundle() == "/etc/ssl/certs/custom-ca-bundle.pem"
+
+    def test_http_verify_builds_ssl_context_with_custom_bundle(self) -> None:
+        """Custom CA configuration merges the extra bundle into TLS verification."""
+        with (
+            patch.dict("os.environ", {"SSL_CERT_FILE": "/etc/ssl/certs/custom-ca-bundle.pem"}, clear=True),
+            patch.object(ssl.SSLContext, "load_default_certs") as mock_defaults,
+            patch.object(ssl.SSLContext, "load_verify_locations") as mock_verify_locations,
+        ):
+            verify = _http_verify()
+
+        assert isinstance(verify, ssl.SSLContext)
+        mock_defaults.assert_called_once()
+        mock_verify_locations.assert_called_once_with(cafile="/etc/ssl/certs/custom-ca-bundle.pem")
+
+    def test_client_passes_verify_to_httpx(self) -> None:
+        """Provider clients pass the resolved TLS settings to ``httpx``."""
+        with (
+            patch.dict("os.environ", {"SSL_CERT_FILE": "/etc/ssl/certs/custom-ca-bundle.pem"}, clear=True),
+            patch.object(ssl.SSLContext, "load_default_certs"),
+            patch.object(ssl.SSLContext, "load_verify_locations"),
+            patch("apme_gateway.scm.github.httpx.AsyncClient") as mock_client,
+        ):
+            provider = GitHubProvider()
+            provider._client(timeout=30)  # noqa: SLF001
+
+        assert isinstance(mock_client.call_args.kwargs["verify"], ssl.SSLContext)
+        assert mock_client.call_args.kwargs["timeout"] == 30
 
 
 # ── DB model tests ───────────────────────────────────────────────────

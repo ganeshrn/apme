@@ -48,15 +48,15 @@ The `.env` file is gitignored. The default `config.yaml` configures the LLM prov
 
 If `.env` is missing or the key is empty, the Abbenay container starts but model queries return empty results. AI remediation gracefully degrades — Tier 1 deterministic fixes still work.
 
-#### Custom CA certificates (self-hosted models)
+#### Custom CA certificates
 
-When using a self-hosted model endpoint with internal or self-signed CA certificates, set `ABBENAY_CA_BUNDLE` in your `.env` to the absolute path of a PEM CA bundle:
+When the pod needs to trust an internal or self-signed CA for outbound HTTPS, set `ABBENAY_CA_BUNDLE` in your `.env` to the absolute path of a PEM CA bundle:
 
 ```bash
 ABBENAY_CA_BUNDLE=/path/to/ca-bundle.pem
 ```
 
-The start script (`up.sh`) automatically mounts the bundle into the Abbenay container and sets `NODE_EXTRA_CA_CERTS`. This is only needed for endpoints that use non-public CAs — public providers like OpenRouter, Anthropic, and OpenAI work without it.
+The start script (`up.sh`) automatically mounts the bundle into the `abbenay` and `gateway` containers. It sets `NODE_EXTRA_CA_CERTS` for Abbenay and the standard git/HTTP CA variables (`SSL_CERT_FILE`, `REQUESTS_CA_BUNDLE`, `CURL_CA_BUNDLE`, `GIT_SSL_CAINFO`) for the gateway so repo cloning and API calls trust the same bundle. This is only needed when your network uses non-public CAs.
 
 ### Start the pod
 
@@ -176,6 +176,15 @@ The OPA binary runs internally on `localhost:8181`; the gRPC wrapper proxies to 
 | `VERTEX_ANTHROPIC_API_KEY` | — | Vertex AI Anthropic proxy API key (from `containers/abbenay/.env`) |
 | `APME_ABBENAY_TOKEN` | `apme-dev-token` | Consumer token (must match `config.yaml` consumers section) |
 | `NODE_EXTRA_CA_CERTS` | — | CA bundle path inside container (auto-set by `up.sh` when `ABBENAY_CA_BUNDLE` is configured) |
+
+#### Gateway outbound trust
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SSL_CERT_FILE` | — | CA bundle path inside the gateway container (auto-set by `up.sh` when `ABBENAY_CA_BUNDLE` is configured) |
+| `REQUESTS_CA_BUNDLE` | — | Shared CA bundle for Python HTTP clients in the gateway |
+| `CURL_CA_BUNDLE` | — | Shared CA bundle for curl/libcurl consumers |
+| `GIT_SSL_CAINFO` | — | Shared CA bundle for `git ls-remote` and `git clone` in project operations |
 
 Abbenay uses `containers/abbenay/config.yaml` volume-mounted at runtime. The config defines LLM providers and models. API keys are injected from environment variables — never committed to the config file. To add providers or models, edit the `providers` section of the config.
 

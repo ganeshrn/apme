@@ -25,6 +25,7 @@ dependencies = [
     "fastapi>=0.100",
     "uvicorn[standard]>=0.20",
     "pip-audit>=2.7",
+    "ansible-core>=2.17.14",
 ]
 
 [project.optional-dependencies]

@@ -1,5 +1,6 @@
 """Integration tests: run engine + GraphRules on YAML from rule .md examples and assert expected violation/pass."""
 
+from functools import lru_cache
 from pathlib import Path
 from typing import cast
 
@@ -11,6 +12,7 @@ from apme_engine.engine.graph_scanner import (
     load_graph_rules,
 )
 from apme_engine.engine.graph_scanner import scan as graph_scan
+from apme_engine.opa_client import run_opa_test
 from apme_engine.runner import run_scan_playbook_yaml
 from apme_engine.validators.opa import OpaValidator
 from tests.rule_doc_parser import discover_rule_docs
@@ -65,6 +67,22 @@ def _opa_bundle_dir() -> Path:
     import apme_engine.validators.opa as opa_pkg
 
     return Path(opa_pkg.__file__).parent / "bundle"
+
+
+@lru_cache
+def _opa_unavailable_reason() -> str | None:
+    """Return an OPA runtime unavailability reason, or None when usable.
+
+    Returns:
+        Reason string when OPA cannot run in this environment, otherwise None.
+    """
+    success, _stdout, stderr = run_opa_test(_opa_bundle_dir())
+    if success:
+        return None
+    lowered = stderr.lower()
+    if any(token in lowered for token in ("not found", "operation not permitted", "permission denied")):
+        return stderr or "OPA runtime unavailable"
+    return None
 
 
 def _violation_ids_for_rule(violations: list[dict[str, object]], rule_id: str, validator: str) -> list[str]:
@@ -208,6 +226,8 @@ def test_rule_doc_examples(md_path: str, doc: dict[str, object], opa_validator: 
     validator = str(doc["validator"])
     if validator == "ansible":
         pytest.skip("Ansible validator docs require a venv; tested separately")
+    if validator == "opa" and (reason := _opa_unavailable_reason()):
+        pytest.skip(f"OPA runtime unavailable: {reason}")
     if rule_id == "R118":
         pytest.skip("R118 is annotation-based; engine must annotate get_url with inbound_transfer")
     if rule_id in _GRAPH_RULE_KNOWN_FAILURES:

@@ -8,6 +8,7 @@ Part 3: FixSession RPC integration tests (full servicer with mocked pipeline).
 from __future__ import annotations
 
 import asyncio
+import os
 from collections.abc import AsyncIterator
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -477,6 +478,50 @@ class TestSessionBuildResult:
         assert "-line2" in diff and "+changed" in diff
 
 
+class TestGalaxyProxyConfigActivation:
+    """Tests for temporary Galaxy proxy config activation in daemon mode."""
+
+    async def test_sets_and_restores_ansible_config(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Session-scoped Galaxy config is exposed only for the wrapped operation.
+
+        Args:
+            tmp_path: Pytest temporary directory fixture.
+            monkeypatch: Pytest monkeypatch fixture for safe env manipulation.
+        """
+        from apme_engine.daemon.primary_server import PrimaryServicer
+
+        cfg = tmp_path / "ansible.cfg"
+        cfg.write_text("[galaxy]\nserver_list = certified\n")
+        servicer = PrimaryServicer()
+        monkeypatch.setenv("ANSIBLE_CONFIG", "/tmp/original.cfg")
+
+        async with servicer._activate_galaxy_proxy_config(cfg):
+            assert os.environ["ANSIBLE_CONFIG"] == str(cfg)
+
+        assert os.environ["ANSIBLE_CONFIG"] == "/tmp/original.cfg"
+
+    async def test_clears_ansible_config_when_unset_beforehand(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Temporary activation removes ``ANSIBLE_CONFIG`` afterward if it was unset.
+
+        Args:
+            tmp_path: Pytest temporary directory fixture.
+            monkeypatch: Pytest monkeypatch fixture for safe env manipulation.
+        """
+        from apme_engine.daemon.primary_server import PrimaryServicer
+
+        cfg = tmp_path / "ansible.cfg"
+        cfg.write_text("[galaxy]\nserver_list = certified\n")
+        servicer = PrimaryServicer()
+        monkeypatch.delenv("ANSIBLE_CONFIG", raising=False)
+
+        async with servicer._activate_galaxy_proxy_config(cfg):
+            assert os.environ["ANSIBLE_CONFIG"] == str(cfg)
+
+        assert "ANSIBLE_CONFIG" not in os.environ
+
+
 class TestSessionReplayState:
     """Unit tests for _session_replay_state (session resume)."""
 
@@ -836,6 +881,37 @@ class TestSessionGraphRemediate:
         assert session.report is not None
         assert session.report.remaining_ai == 2
         assert session.report.remaining_manual == 0
+
+    def test_reconcile_after_approval_preserves_dependency_health_violations(self) -> None:
+        """Post-approval reconciliation keeps dependency-health findings.
+
+        These violations are not stored in the graph ledger, so they must be
+        carried in session state across the approval boundary.
+        """
+        from apme_engine.daemon.primary_server import _reconcile_after_approval
+        from apme_engine.engine.content_graph import ContentGraph
+        from apme_engine.engine.models import RemediationClass
+
+        session = SessionState(session_id="dep-health-preserve")
+        session.dep_health_violations = [
+            {
+                "rule_id": "P001",
+                "message": "Certified collection health issue",
+                "file": "",
+                "source": "collection_health",
+                "remediation_class": RemediationClass.MANUAL_REVIEW,
+            }
+        ]
+        session.report = FixReport(passes=1, fixed=0, remaining_manual=1)
+
+        _reconcile_after_approval(session, ContentGraph(), set())
+
+        assert session.remaining_ai == []
+        assert len(session.remaining_manual) == 1
+        assert session.remaining_manual[0]["source"] == "collection_health"
+        assert session.report is not None
+        assert session.report.remaining_ai == 0
+        assert session.report.remaining_manual == 1
 
     async def test_skips_tier2_ai(self, tmp_path: Path) -> None:
         """Graph path goes directly to COMPLETE — no Tier 2 proposals.

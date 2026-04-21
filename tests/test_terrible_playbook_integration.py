@@ -1,5 +1,6 @@
 """Integration test: scan the vendored terrible-playbook and assert expected rules fire."""
 
+from functools import lru_cache
 from pathlib import Path
 from typing import cast
 
@@ -12,6 +13,7 @@ from apme_engine.engine.graph_scanner import (
 )
 from apme_engine.engine.graph_scanner import scan as graph_scan
 from apme_engine.engine.models import ViolationDict
+from apme_engine.opa_client import run_opa_test
 from apme_engine.runner import run_scan
 from apme_engine.validators.opa import OpaValidator
 
@@ -30,6 +32,22 @@ def _opa_bundle_dir() -> Path:
     import apme_engine.validators.opa as opa_pkg
 
     return Path(opa_pkg.__file__).parent / "bundle"
+
+
+@lru_cache
+def _opa_unavailable_reason() -> str | None:
+    """Return an OPA runtime unavailability reason, or None when usable.
+
+    Returns:
+        Reason string when OPA cannot run in this environment, otherwise None.
+    """
+    success, _stdout, stderr = run_opa_test(_opa_bundle_dir())
+    if success:
+        return None
+    lowered = stderr.lower()
+    if any(token in lowered for token in ("not found", "operation not permitted", "permission denied")):
+        return stderr or "OPA runtime unavailable"
+    return None
 
 
 EXPECTED_NATIVE_RULES = {
@@ -89,7 +107,7 @@ def _run_graph_rules(graph: ContentGraph) -> list[ViolationDict]:
 
 
 @pytest.fixture(scope="module")  # type: ignore[untyped-decorator]
-def scan_results() -> dict[str, list[dict[str, object]]]:
+def scan_results() -> dict[str, object]:
     """Scan the terrible-playbook and collect violations from graph rules + OPA.
 
     Returns:
@@ -109,12 +127,17 @@ def scan_results() -> dict[str, list[dict[str, object]]]:
         if graph is not None:
             native_violations = cast(list[dict[str, object]], _run_graph_rules(graph))
 
-    opa = OpaValidator(str(_opa_bundle_dir()))
-    opa_violations = cast(list[dict[str, object]], opa.run(context))
+    opa_reason = _opa_unavailable_reason()
+    if opa_reason is None:
+        opa = OpaValidator(str(_opa_bundle_dir()))
+        opa_violations = cast(list[dict[str, object]], opa.run(context))
+    else:
+        opa_violations = []
 
     return {
         "native": native_violations,
         "opa": opa_violations,
+        "opa_unavailable": opa_reason,
     }
 
 
@@ -128,33 +151,37 @@ def _rule_ids(violations: list[dict[str, object]], prefix: str = "") -> set[str]
     return ids
 
 
-def test_terrible_playbook_native_rules(scan_results: dict[str, list[dict[str, object]]]) -> None:
+def test_terrible_playbook_native_rules(scan_results: dict[str, object]) -> None:
     """Verify expected native graph rules fire on the terrible playbook.
 
     Args:
         scan_results: Pytest fixture with native/opa violation lists.
     """
-    found = _rule_ids(scan_results["native"])
+    found = _rule_ids(cast(list[dict[str, object]], scan_results["native"]))
     missing = EXPECTED_NATIVE_RULES - found
     assert not missing, f"Expected native rules did not fire: {sorted(missing)}. Found: {sorted(found)}"
 
 
-def test_terrible_playbook_opa_rules(scan_results: dict[str, list[dict[str, object]]]) -> None:
+def test_terrible_playbook_opa_rules(scan_results: dict[str, object]) -> None:
     """Verify expected OPA rules fire on the terrible playbook.
 
     Args:
         scan_results: Pytest fixture with native/opa violation lists.
     """
-    found = _rule_ids(scan_results["opa"])
+    if reason := cast(str | None, scan_results.get("opa_unavailable")):
+        pytest.skip(f"OPA runtime unavailable: {reason}")
+    found = _rule_ids(cast(list[dict[str, object]], scan_results["opa"]))
     missing = EXPECTED_OPA_RULES - found
     assert not missing, f"Expected OPA rules did not fire: {sorted(missing)}. Found: {sorted(found)}"
 
 
-def test_terrible_playbook_has_violations(scan_results: dict[str, list[dict[str, object]]]) -> None:
+def test_terrible_playbook_has_violations(scan_results: dict[str, object]) -> None:
     """Verify the scan produces a meaningful number of violations.
 
     Args:
         scan_results: Pytest fixture with native/opa violation lists.
     """
-    total = len(scan_results["native"]) + len(scan_results["opa"])
+    total = len(cast(list[dict[str, object]], scan_results["native"])) + len(
+        cast(list[dict[str, object]], scan_results["opa"])
+    )
     assert total >= 50, f"Expected at least 50 violations, got {total}"

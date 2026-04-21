@@ -11,6 +11,8 @@ import pytest
 
 from apme.v1 import primary_pb2
 from apme_gateway.scan.driver import (
+    _REMOTE_HEAD_CACHE,
+    _git_subprocess_env,
     clone_repo,
     derive_session_id,
     fetch_remote_head,
@@ -61,6 +63,44 @@ async def test_clone_repo_failure() -> None:
             dest = os.path.join(td, "repo")
             with pytest.raises(RuntimeError, match="git clone failed"):
                 await clone_repo("https://github.com/bad/repo.git", "main", dest)
+
+
+def test_git_subprocess_env_uses_ssl_cert_file_for_git() -> None:
+    """Git subprocesses bridge generic CA variables into ``GIT_SSL_CAINFO``."""
+    with patch.dict(
+        os.environ,
+        {
+            "SSL_CERT_FILE": "/etc/ssl/certs/custom-ca.pem",
+            "GIT_SSL_CAINFO": "",
+        },
+        clear=True,
+    ):
+        env = _git_subprocess_env()
+
+    assert env["SSL_CERT_FILE"] == "/etc/ssl/certs/custom-ca.pem"
+    assert env["GIT_SSL_CAINFO"] == "/etc/ssl/certs/custom-ca.pem"
+
+
+@pytest.mark.asyncio  # type: ignore[untyped-decorator]
+async def test_fetch_remote_head_uses_git_ca_env() -> None:
+    """Remote head lookups pass the derived CA env through to git."""
+    fake_sha = "b" * 40
+    _REMOTE_HEAD_CACHE.clear()
+    with (
+        patch.dict(os.environ, {"SSL_CERT_FILE": "/etc/ssl/certs/custom-ca.pem"}, clear=True),
+        patch("apme_gateway.scan.driver.asyncio.get_running_loop") as mock_loop,
+        patch("apme_gateway.scan.driver.subprocess.run") as mock_run,
+    ):
+        result = MagicMock()
+        result.returncode = 0
+        result.stdout = f"{fake_sha}\trefs/heads/main\n"
+        mock_run.return_value = result
+        mock_loop.return_value.run_in_executor = AsyncMock(side_effect=lambda _executor, func: func())
+
+        sha = await fetch_remote_head("https://github.com/test/repo.git", "main")
+
+    assert sha == fake_sha
+    assert mock_run.call_args.kwargs["env"]["GIT_SSL_CAINFO"] == "/etc/ssl/certs/custom-ca.pem"
 
 
 async def _async_iter(
@@ -137,6 +177,7 @@ async def test_run_project_scan_full_flow() -> None:
 async def test_fetch_remote_head_success() -> None:
     """Verify fetch_remote_head returns SHA from ls-remote output."""
     fake_sha = "a" * 40
+    _REMOTE_HEAD_CACHE.clear()
     with patch("apme_gateway.scan.driver.asyncio.get_running_loop") as mock_loop:
         result = MagicMock()
         result.returncode = 0

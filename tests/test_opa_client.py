@@ -375,7 +375,8 @@ class TestRunOpaTest:
 
         """
         success, stdout, stderr = run_opa_test(opa_bundle_path)
-        if not success and "not found" in stderr.lower():
+        unavailable_markers = ("not found", "operation not permitted", "permission denied", "oci permission denied")
+        if not success and any(marker in stderr.lower() for marker in unavailable_markers):
             pytest.skip("podman and opa not available; install one to run OPA bundle tests")
         assert success, f"OPA Rego tests failed.\nstdout:\n{stdout}\nstderr:\n{stderr}"
 

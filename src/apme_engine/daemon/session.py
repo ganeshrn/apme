@@ -26,6 +26,7 @@ from apme.v1.primary_pb2 import (
     Proposal,
     ScanOptions,
 )
+from apme_engine.engine.models import ViolationDict
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +59,9 @@ class SessionState:
         ai_proposals: Raw engine AI proposals for downstream use.
         remaining_ai: Remaining AI-candidate violations.
         remaining_manual: Remaining manual-review violations.
+        dep_health_violations: Dependency-health violations that do not
+            participate in graph remediation but must survive approval and
+            final reporting.
         approved_ids: Set of proposal IDs approved by the user.
         approved_proposals: Metadata snapshots of approved proposals.
         scan_id: Client-provided scan identifier for event correlation.
@@ -96,8 +100,9 @@ class SessionState:
     ai_proposals: list[object] = field(default_factory=list)
 
     # Remaining violations from engine report
-    remaining_ai: list[object] = field(default_factory=list)
-    remaining_manual: list[object] = field(default_factory=list)
+    remaining_ai: list[ViolationDict] = field(default_factory=list)
+    remaining_manual: list[ViolationDict] = field(default_factory=list)
+    dep_health_violations: list[ViolationDict] = field(default_factory=list)
 
     # Proposal IDs approved by the user (for FixCompletedEvent)
     approved_ids: set[str] = field(default_factory=set)

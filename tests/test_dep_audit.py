@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -285,8 +286,9 @@ class TestDepAuditIntegration:
             pytest.skip(f"pip-audit not available: {info}")
 
         venv_dir = tmp_path / "venv"
+        python_target = shutil.which("python3.12") or sys.executable
         subprocess.run(  # noqa: S603, S607
-            ["uv", "venv", "--python", "3.12", str(venv_dir)],
+            ["uv", "venv", "--python", python_target, str(venv_dir)],
             check=True,
             capture_output=True,
         )

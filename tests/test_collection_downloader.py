@@ -374,6 +374,48 @@ class TestDownloadCollections:
         assert "ANSIBLE_CONFIG" not in captured_env
 
     @pytest.mark.asyncio  # type: ignore[untyped-decorator]
+    async def test_uses_temp_ansible_cfg_for_non_env_safe_server_names(self, tmp_path: Path) -> None:
+        """Falls back to ``ANSIBLE_CONFIG`` when server names are not env-safe.
+
+        Args:
+            tmp_path: Pytest-provided temporary directory.
+        """
+        download_dir = tmp_path / "dl"
+        servers = [GalaxyServerConfig(name="automation-hub", url="https://hub.example.com", token="tok")]
+
+        captured_env: dict[str, str] = {}
+        fallback_cfg = tmp_path / "fallback.cfg"
+
+        mock_process = AsyncMock()
+        mock_process.returncode = 0
+        mock_process.communicate = AsyncMock(return_value=(b"OK", b""))
+
+        async def capture_exec(*_args: object, **kwargs: object) -> AsyncMock:
+            download_dir.mkdir(parents=True, exist_ok=True)
+            env = kwargs.get("env")
+            if isinstance(env, dict):
+                captured_env.update(env)
+            return mock_process
+
+        with (
+            patch("galaxy_proxy.collection_downloader.asyncio.create_subprocess_exec", side_effect=capture_exec),
+            patch(
+                "galaxy_proxy.collection_downloader.write_temp_ansible_cfg",
+                return_value=fallback_cfg,
+            ) as mock_write_cfg,
+        ):
+            await download_collections(
+                ["a.b"],
+                download_dir,
+                servers=servers,
+            )
+
+        assert "ANSIBLE_GALAXY_SERVER_LIST" not in captured_env
+        assert captured_env["ANSIBLE_CONFIG"] == str(fallback_cfg)
+        mock_write_cfg.assert_called_once()
+        assert mock_write_cfg.call_args.args[0] == servers
+
+    @pytest.mark.asyncio  # type: ignore[untyped-decorator]
     async def test_partial_failure(self, tmp_path: Path) -> None:
         """Non-zero rc with some tarballs returns partial results.
 

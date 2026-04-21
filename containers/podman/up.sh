@@ -38,8 +38,9 @@ APME_FEEDBACK_ENABLED="${APME_FEEDBACK_ENABLED:-true}"
 APME_FEEDBACK_GITHUB_REPO="${APME_FEEDBACK_GITHUB_REPO:-}"
 APME_FEEDBACK_GITHUB_TOKEN="${APME_FEEDBACK_GITHUB_TOKEN:-}"
 
-# Optional: CA bundle for self-hosted model endpoints with internal/self-signed CAs.
-# Set ABBENAY_CA_BUNDLE to the absolute path of a PEM CA bundle file.
+# Optional: CA bundle for outbound HTTPS clients that need an internal or
+# self-signed trust anchor. Set ABBENAY_CA_BUNDLE to the absolute path of a
+# PEM CA bundle file.
 ABBENAY_CA_BUNDLE="${ABBENAY_CA_BUNDLE:-}"
 if [[ -n "$ABBENAY_CA_BUNDLE" ]]; then
   if [[ "$ABBENAY_CA_BUNDLE" != /* ]]; then
@@ -78,8 +79,8 @@ export APME_FEEDBACK_ENABLED APME_FEEDBACK_GITHUB_REPO APME_FEEDBACK_GITHUB_TOKE
 POD_YAML=$(sed "s|path: __APME_CACHE_PATH__|path: ${ESCAPED_PATH}|" containers/podman/pod.yaml \
   | envsubst '$OPENROUTER_API_KEY $VERTEX_ANTHROPIC_API_KEY $APME_AI_MODEL $APME_ROOT $APME_FEEDBACK_ENABLED $APME_FEEDBACK_GITHUB_REPO $APME_FEEDBACK_GITHUB_TOKEN')
 
-# When a CA bundle is provided, inject NODE_EXTRA_CA_CERTS env var, volume mount,
-# and volume definition into the Abbenay container section of the pod YAML.
+# When a CA bundle is provided, inject the standard CA env vars and mounts for
+# the containers that make outbound HTTPS requests (gateway git/HTTP, Abbenay).
 if [[ -n "$ABBENAY_CA_BUNDLE" ]]; then
   CA_MOUNT_PATH="/etc/ssl/certs/custom-ca-bundle.pem"
   POD_YAML=$(python3 -c "
@@ -89,31 +90,62 @@ ca_path = os.environ['ABBENAY_CA_BUNDLE']
 mount = '$CA_MOUNT_PATH'
 ca_path_yaml = json.dumps(ca_path)
 mount_yaml = json.dumps(mount)
-env_marker = '        - name: XDG_RUNTIME_DIR'
-vol_marker = '          readOnly: true\n    - name: galaxy-proxy'
-if env_marker not in yaml or vol_marker not in yaml:
+abbenay_env_marker = '        - name: XDG_RUNTIME_DIR'
+abbenay_vol_marker = '          readOnly: true\n    - name: galaxy-proxy'
+gateway_env_marker = '        - name: APME_FEEDBACK_GITHUB_TOKEN'
+gateway_vol_marker = '      volumeMounts:\n        - name: gateway-data'
+if (
+    abbenay_env_marker not in yaml
+    or abbenay_vol_marker not in yaml
+    or gateway_env_marker not in yaml
+    or gateway_vol_marker not in yaml
+):
     print('ERROR: pod.yaml markers not found; CA bundle injection failed', file=sys.stderr)
     sys.exit(1)
 yaml = yaml.replace(
-    env_marker,
+    abbenay_env_marker,
     '        - name: NODE_EXTRA_CA_CERTS\n'
     '          value: ' + mount_yaml + '\n'
-    '        ' + env_marker.lstrip())
+    '        ' + abbenay_env_marker.lstrip())
 yaml = yaml.replace(
-    vol_marker,
+    abbenay_vol_marker,
     '          readOnly: true\n'
     '        - name: abbenay-ca-bundle\n'
     '          mountPath: ' + mount_yaml + '\n'
     '          readOnly: true\n'
     '    - name: galaxy-proxy')
+yaml = yaml.replace(
+    gateway_env_marker,
+    (
+        '        - name: SSL_CERT_FILE\n'
+        '          value: ' + mount_yaml + '\n'
+        '        - name: REQUESTS_CA_BUNDLE\n'
+        '          value: ' + mount_yaml + '\n'
+        '        - name: CURL_CA_BUNDLE\n'
+        '          value: ' + mount_yaml + '\n'
+        '        - name: GIT_SSL_CAINFO\n'
+        '          value: ' + mount_yaml + '\n'
+        + gateway_env_marker
+    ))
+yaml = yaml.replace(
+    gateway_vol_marker,
+    '      volumeMounts:\n'
+    '        - name: gateway-ca-bundle\n'
+    '          mountPath: ' + mount_yaml + '\n'
+    '          readOnly: true\n'
+    '        - name: gateway-data')
 yaml = yaml.rstrip() + '\n' \
     '    - name: abbenay-ca-bundle\n' \
+    '      hostPath:\n' \
+    '        path: ' + ca_path_yaml + '\n' \
+    '        type: File\n' \
+    '    - name: gateway-ca-bundle\n' \
     '      hostPath:\n' \
     '        path: ' + ca_path_yaml + '\n' \
     '        type: File\n'
 print(yaml)
 " <<< "$POD_YAML")
-  echo "CA bundle enabled: $ABBENAY_CA_BUNDLE -> $CA_MOUNT_PATH (inside container)"
+  echo "CA bundle enabled for gateway/abbenay: $ABBENAY_CA_BUNDLE -> $CA_MOUNT_PATH (inside container)"
 fi
 
 echo "$POD_YAML" | podman play kube -
