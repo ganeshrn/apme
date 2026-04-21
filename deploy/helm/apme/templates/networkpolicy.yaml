@@ -46,6 +46,14 @@ spec:
         - podSelector:
             matchLabels:
               {{- include "apme.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: engine
+      ports:
+        - port: 50060
+          protocol: TCP
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "apme.selectorLabels" . | nindent 14 }}
               app.kubernetes.io/component: ui
       ports:
         - port: 8080

@@ -20,8 +20,14 @@ Components deployed:
 {{- if .Values.route.enabled }}
 
 OpenShift Routes:
-  UI:      https://{{ .Values.route.host | default "<auto-assigned>" }}/
-  API:     https://{{ .Values.route.host | default "<auto-assigned>" }}/api
+{{- if .Values.route.host }}
+  UI:      https://{{ .Values.route.host }}/
+  API:     https://{{ .Values.route.host }}/api
+{{- else }}
+  Route hosts are auto-assigned by OpenShift and may differ per Route.
+  To view the actual hosts, run:
+    oc get route
+{{- end }}
 {{- else if .Values.ingress.enabled }}
 
 Ingress:
