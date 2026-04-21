@@ -86,12 +86,12 @@ spec:
               containerPort: 50051
               protocol: TCP
           readinessProbe:
-            grpc:
+            tcpSocket:
               port: 50051
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
-            grpc:
+            tcpSocket:
               port: 50051
             initialDelaySeconds: 15
             periodSeconds: 30
@@ -113,12 +113,12 @@ spec:
             - name: APME_NATIVE_VALIDATOR_LISTEN
               value: "0.0.0.0:50055"
           readinessProbe:
-            grpc:
+            tcpSocket:
               port: 50055
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
-            grpc:
+            tcpSocket:
               port: 50055
             initialDelaySeconds: 15
             periodSeconds: 30
@@ -137,12 +137,12 @@ spec:
             - name: APME_OPA_VALIDATOR_LISTEN
               value: "0.0.0.0:50054"
           readinessProbe:
-            grpc:
+            tcpSocket:
               port: 50054
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
-            grpc:
+            tcpSocket:
               port: 50054
             initialDelaySeconds: 15
             periodSeconds: 30
@@ -163,12 +163,12 @@ spec:
             - name: APME_GALAXY_PROXY_URL
               value: "http://127.0.0.1:8765"
           readinessProbe:
-            grpc:
+            tcpSocket:
               port: 50053
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
-            grpc:
+            tcpSocket:
               port: 50053
             initialDelaySeconds: 15
             periodSeconds: 30
@@ -192,12 +192,12 @@ spec:
             - name: APME_GITLEAKS_VALIDATOR_LISTEN
               value: "0.0.0.0:50056"
           readinessProbe:
-            grpc:
+            tcpSocket:
               port: 50056
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
-            grpc:
+            tcpSocket:
               port: 50056
             initialDelaySeconds: 15
             periodSeconds: 30
@@ -218,12 +218,12 @@ spec:
             - name: APME_COLLECTION_HEALTH_VALIDATOR_LISTEN
               value: "0.0.0.0:50058"
           readinessProbe:
-            grpc:
+            tcpSocket:
               port: 50058
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
-            grpc:
+            tcpSocket:
               port: 50058
             initialDelaySeconds: 15
             periodSeconds: 30
@@ -248,12 +248,12 @@ spec:
             - name: APME_DEP_AUDIT_VALIDATOR_LISTEN
               value: "0.0.0.0:50059"
           readinessProbe:
-            grpc:
+            tcpSocket:
               port: 50059
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
-            grpc:
+            tcpSocket:
               port: 50059
             initialDelaySeconds: 15
             periodSeconds: 30
