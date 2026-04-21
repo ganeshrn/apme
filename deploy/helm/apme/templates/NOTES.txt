@@ -1,0 +1,47 @@
+APME has been installed.
+
+Components deployed:
+  - Engine (Primary + Native + OPA + Ansible + Galaxy Proxy)
+{{- if .Values.gitleaks.enabled }}
+  - Gitleaks validator
+{{- end }}
+{{- if .Values.collectionHealth.enabled }}
+  - Collection Health validator
+{{- end }}
+{{- if .Values.depAudit.enabled }}
+  - Dependency Audit validator
+{{- end }}
+  - Gateway (REST API + gRPC reporting)
+  - UI (React SPA)
+{{- if .Values.abbenay.enabled }}
+  - Abbenay AI provider
+{{- end }}
+
+{{- if .Values.route.enabled }}
+
+OpenShift Routes:
+  UI:      https://{{ .Values.route.host | default "<auto-assigned>" }}/
+  API:     https://{{ .Values.route.host | default "<auto-assigned>" }}/api
+{{- else if .Values.ingress.enabled }}
+
+Ingress:
+{{- range .Values.ingress.hosts }}
+  Host: {{ .host }}
+{{- end }}
+{{- else }}
+
+Access the UI via port-forward:
+  kubectl port-forward svc/{{ include "apme.fullname" . }}-ui 8081:8081
+  open http://localhost:8081
+
+Access the Gateway API:
+  kubectl port-forward svc/{{ include "apme.fullname" . }}-gateway 8080:8080
+  curl http://localhost:8080/api/v1/dashboard/summary
+{{- end }}
+
+{{- if not .Values.image.tag }}
+
+WARNING: image.tag is not set. The chart falls back to appVersion
+({{ .Chart.AppVersion }}) which may not match a published image tag.
+Set image.tag to a valid tag (e.g. a git SHA like "sha-7cb2464").
+{{- end }}

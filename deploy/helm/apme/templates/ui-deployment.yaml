@@ -26,8 +26,18 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "apme.serviceAccountName" . }}
+      {{- with .Values.podSecurityContext }}
       securityContext:
-        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: init-nginx-conf
+          image: {{ include "apme.image" (dict "registry" .Values.image.registry "name" "ui" "tag" .Values.image.tag "fallbackTag" .Chart.AppVersion) }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["sh", "-c", "cp /etc/nginx/conf.d/* /mnt/conf.d/ 2>/dev/null || true"]
+          volumeMounts:
+            - name: nginx-conf
+              mountPath: /mnt/conf.d
       containers:
         - name: ui
           image: {{ include "apme.image" (dict "registry" .Values.image.registry "name" "ui" "tag" .Values.image.tag "fallbackTag" .Chart.AppVersion) }}
@@ -52,8 +62,22 @@ spec:
               port: http
             initialDelaySeconds: 3
             periodSeconds: 10
+          volumeMounts:
+            - name: nginx-cache
+              mountPath: /var/cache/nginx
+            - name: nginx-run
+              mountPath: /var/run
+            - name: nginx-conf
+              mountPath: /etc/nginx/conf.d
           resources:
             {{- toYaml .Values.ui.resources | nindent 12 }}
+      volumes:
+        - name: nginx-cache
+          emptyDir: {}
+        - name: nginx-run
+          emptyDir: {}
+        - name: nginx-conf
+          emptyDir: {}
       {{- with .Values.ui.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
