@@ -38,7 +38,7 @@ Ingress:
 
 Access the UI via port-forward:
   kubectl port-forward svc/{{ include "apme.fullname" . }}-ui 8081:8081
-  open http://localhost:8081
+  Then browse to: http://localhost:8081
 
 Access the Gateway API:
   kubectl port-forward svc/{{ include "apme.fullname" . }}-gateway 8080:8080
