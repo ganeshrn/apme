@@ -1488,7 +1488,8 @@ async def create_pull_request(
                 detail="No patched files found for this activity",
             )
 
-    token = project.scm_token or cfg.scm_token
+    # Token priority: inline request > project config > global env
+    token = body.scm_token or project.scm_token or cfg.scm_token
     if not token:
         raise HTTPException(
             status_code=422,

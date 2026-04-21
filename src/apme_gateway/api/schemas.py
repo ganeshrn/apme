@@ -617,11 +617,13 @@ class CreatePullRequestRequest(BaseModel):  # type: ignore[misc]
         branch_name: Name for the new branch (default auto-generated).
         title: PR title (default auto-generated from remediation stats).
         body: PR body in Markdown (default auto-generated).
+        scm_token: One-time SCM token for this PR (overrides project/global token).
     """
 
     branch_name: str | None = None
     title: str | None = None
     body: str | None = None
+    scm_token: str | None = None
 
 
 class CreatePullRequestResponse(BaseModel):  # type: ignore[misc]
