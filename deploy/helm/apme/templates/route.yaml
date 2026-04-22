@@ -22,7 +22,9 @@ spec:
     targetPort: http
   tls:
     termination: {{ .Values.route.tls.termination | default "edge" }}
+    {{- if ne (.Values.route.tls.termination | default "edge") "passthrough" }}
     insecureEdgeTerminationPolicy: {{ .Values.route.tls.insecureEdgeTerminationPolicy | default "Redirect" }}
+    {{- end }}
 ---
 apiVersion: route.openshift.io/v1
 kind: Route
@@ -48,5 +50,7 @@ spec:
     targetPort: http
   tls:
     termination: {{ .Values.route.tls.termination | default "edge" }}
+    {{- if ne (.Values.route.tls.termination | default "edge") "passthrough" }}
     insecureEdgeTerminationPolicy: {{ .Values.route.tls.insecureEdgeTerminationPolicy | default "Redirect" }}
+    {{- end }}
 {{- end }}
